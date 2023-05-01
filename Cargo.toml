@@ -1,0 +1,62 @@
+# The package section specifies metadata and configuration for the entire package.
+[package]
+# Basic metadata for the package.
+name = "storage-layout-analyzer"
+version = "0.1.0"
+homepage = "https://github.com/smlxlio/storage-layout-analyzer"
+repository = "https://github.com/smlxlio/storage-layout-analyzer"
+
+# More detailed metadata specification.
+authors = ["smlXL"]
+description = "A library for performing bytecode-based discovery of storage layouts for contracts that run on the EVM."
+keywords = ["smlxl", "evm", "decompiler"]
+categories = ["cryptography::cryptocurrencies"]
+readme = "README.md"
+
+# Configuration for the Rust version and edition.
+#
+# The rust version specifies a concrete compiler version used to build the crate. The edition is a system used by Rust
+# to let authors opt in to backwards-incompatible changes. Crates using one edition can interoperate with crates using
+# another edition, thereby ensuring that there's no ecosystem split.
+edition = "2021"
+rust-version = "1.69.0"
+
+# Prevent publishing by accident.
+publish = false
+
+# Build dependencies.
+[dependencies]
+
+# Dev dependencies.
+#
+# These are the dependencies required purely for internal development of the library such as testing or benchmarking.
+[dev-dependencies]
+
+# Profiles specify the build settings for different kinds of build.
+#
+# Here the defaults are specified explicitly by way of demonstration. Where a setting is the default it is annotated.
+[profile]
+
+# Configuration for developer builds
+[profile.dev]
+opt-level = 0           # Do not optimise dev builds. This is the default.
+debug = true            # Embed full debug information in the executable. This is the default.
+debug-assertions = true # Enable debug assertions in dev builds. This is the default.
+overflow-checks = true  # Keep these enabled in dev builds. This is the default.
+panic = "unwind"        # Dev builds should provide nice stack traces if they panic. This is the default.
+incremental = true      # Ensure that incremental builds are enabled for dev. This is the default.
+
+# Configuration for release builds
+[profile.release]
+opt-level = 3            # Compile with all of the optimisations in production builds. This is the default.
+debug = 1                # Include just line tables in release builds.
+debug-assertions = false # Disable in release builds for speed. This is the default.
+overflow-checks = true   # Keep overflow checks in production builds.
+lto = "thin"             # Thin LTO performs cross-crate LTO while not bloating the build time too much.
+panic = "unwind"         # Production builds should provide nice stack traces if they panic. This is the default.
+
+# The test profile inherits its settings from the dev one.
+[profile.test]
+
+# The benchmarking profile inherits its settings from the release one.
+[profile.bench]

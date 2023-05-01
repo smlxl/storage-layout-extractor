@@ -1,0 +1,54 @@
+# This file contains the configuration for the ecosystem's formatting tool, `rustfmt`. It only contains entries where
+# they differ from the default or for unstable attributes whose default may change.
+#
+# For more information on the configuration see here: https://github.com/rust-lang/rustfmt/blob/master/Configurations.md
+
+# High-level configuration, telling rustfmt which featureset to use.
+edition = "2021"
+version = "Two"
+
+# Configuration controlling general code style.
+brace_style = "SameLineWhere"
+chain_width = 70
+combine_control_expr = true
+condense_wildcard_suffixes = true
+control_brace_style = "AlwaysSameLine"
+empty_item_single_line = true
+enum_discrim_align_threshold = 20
+fn_single_line = false
+force_multiline_blocks = false
+format_strings = true
+hex_literal_case = "Lower"
+indent_style = "Block"
+inline_attribute_width = 0
+match_arm_blocks = true
+reorder_impl_items = true
+space_after_colon = true
+spaces_around_ranges = false
+struct_field_align_threshold = 20
+struct_lit_single_line = true
+trailing_comma = "Vertical"
+trailing_semicolon = true
+type_punctuation_density = "Wide"
+use_field_init_shorthand = true
+where_single_line = false
+
+# Configuration controlling the formatting of macros.
+format_macro_bodies = true
+format_macro_matchers = true
+
+# Configuration controlling how imports are formatted.
+group_imports = "StdExternalCrate"
+imports_granularity = "Crate"
+imports_layout = "HorizontalVertical"
+
+# Configuration controlling how spacing is formatted.
+blank_lines_lower_bound = 0
+blank_lines_upper_bound = 1
+
+# Configuration controlling the formatting of comments.
+comment_width = 80
+format_code_in_doc_comments = true
+normalize_comments = true
+normalize_doc_attributes = true
+wrap_comments = true
