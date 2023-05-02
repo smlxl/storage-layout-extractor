@@ -1,0 +1,128 @@
+# Metadata for the actions workflow
+name: CI
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "*" ]
+
+# Environment variables that will be set on all runners
+env:
+  RUST_VERSION: 1.69.0       # Specify the Rust version to be used on CI.
+  CARGO_TERM_COLOR: always   # Always colour Cargo's output.
+  CARGO_INCREMENTAL: 0       # Always run without incremental builds on CI.
+  CARGO_PROFILE_DEV_DEBUG: 0 # Don't embed debug info even though the build is a dev build.
+
+# Configuration for individual jobs
+jobs:
+  # This job is responsible for running the unit and integration tests.
+  test:
+    name: "Test"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ "ubuntu-latest", "macos-latest" ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+      - name: Restore Cache
+        uses: actions/cache@v3
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ env.RUST_VERSION }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ env.RUST_VERSION }}-cargo-test-
+      - name: Build Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --no-run
+      # Unfortunately `--all-targets` doesn't handle the doctests. See <https://github.com/rust-lang/cargo/issues/6669>.
+      # To that end, we build them separately and just pass `--help` to prevent them running in this step.
+      - name: Build Doctests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --doc -- --help
+      - name: Run Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets -- --nocapture
+      - name: Run Doctests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --doc -- --nocapture
+
+  # This job runs the linter and puts any lint results inline in the PR for easy visibility.
+  lint:
+    name: "Lint"
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+          components: clippy
+      - name: Restore Cache
+        uses: actions/cache@v3
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ env.RUST_VERSION }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ env.RUST_VERSION }}-cargo-test-
+      - name: Lint Code
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-targets
+
+  formatting:
+    name: "Check Formatting"
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
+          components: rustfmt
+      - name: Restore Cache
+        uses: actions/cache@v3
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ env.RUST_VERSION }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ env.RUST_VERSION }}-cargo-test-
+      - name: Check Formatting
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
