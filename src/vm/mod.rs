@@ -3,4 +3,5 @@ pub mod state;
 
 /// The virtual machine used to perform symbolic execution of the contract
 /// bytecode.
+#[derive(Debug)]
 pub struct VM {}

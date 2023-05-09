@@ -25,5 +25,7 @@
 //!    usage-based type inference.
 //! 5. From there, the [`StorageLayout`] can be output.
 
+extern crate core;
+
 pub mod opcode;
 pub mod vm;

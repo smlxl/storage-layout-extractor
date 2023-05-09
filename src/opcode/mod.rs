@@ -9,7 +9,7 @@ mod memory;
 
 use std::{any::Any, fmt::Debug};
 
-use crate::vm::{state::VMState, VM};
+use crate::vm::VM;
 
 /// This trait forms the core of the `Opcode` representation. It provides the
 /// basic set of operations that are required of all opcodes, and is implemented
@@ -35,6 +35,9 @@ use crate::vm::{state::VMState, VM};
 /// - [`Debug`] to provide representations to aid in debugging. It is
 ///   recommended to use the derive feature for this.
 ///
+/// In addition, it is recommended but not enforced that implementors of this
+/// trait also implement [`Eq`] and [`PartialEq`].
+///
 /// # Terminology
 ///
 /// When referring to stack slots, we treat index 1 as being the top of the
@@ -52,19 +55,14 @@ where
     /// machine.
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()>;
 
-    /// Gets the cost of the opcode in gas.
+    /// Gets the minimum cost of the opcode in gas.
     ///
     /// The vast majority of opcodes have a state-independent gas cost, but some
-    /// have cost that depends on their arguments. To that end, the [`VMState`]
-    /// for which the calculation is requested is passed to allow the inspection
-    /// of the opcode's arguments on the stack.
-    ///
-    /// # Errors
-    ///
-    /// If the state of the virtual machine does not allow execution of the
-    /// Opcode, or if execution would yield an invalid state in the virtual
-    /// machine.
-    fn gas_cost(&self, state: &VMState) -> anyhow::Result<usize>;
+    /// have cost that depends on their arguments. During symbolic execution,
+    /// however, there is no access to the true values of variables. To this
+    /// end, the gas estimator just uses the smallest possible cost of the
+    /// operation, thereby allowing execution to proceed as far as possible.
+    fn min_gas_cost(&self) -> usize;
 
     /// Gets the number of arguments that the opcode accepts from the virtual
     /// machine's stack.
