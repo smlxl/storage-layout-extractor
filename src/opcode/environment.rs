@@ -2,9 +2,7 @@
 
 #![allow(dead_code)] // Temporary allow to suppress valid warnings for now.
 
-use anyhow::anyhow;
-
-use crate::{opcode::Opcode, vm::VM};
+use crate::{constant::LOG_OPCODE_BASE_VALUE, error::OpcodeError, opcode::Opcode, vm::VM};
 
 /// The `SHA3` opcode computes the keccak256 hash of the input.
 ///
@@ -781,9 +779,8 @@ impl LogN {
         if n <= 4 {
             Ok(Self { topic_count: n })
         } else {
-            Err(anyhow!(
-                "Invalid number of topics provided to the LOG opcode: {n}"
-            ))
+            let err = OpcodeError::InvalidTopicCount(n);
+            Err(err.into())
         }
     }
 
@@ -818,8 +815,7 @@ impl Opcode for LogN {
     }
 
     fn as_byte(&self) -> u8 {
-        const BASE_VALUE: u8 = 0xa0;
-        BASE_VALUE + self.topic_count
+        LOG_OPCODE_BASE_VALUE + self.topic_count
     }
 }
 

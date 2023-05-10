@@ -2,9 +2,17 @@
 
 #![allow(dead_code)] // Temporary allow to suppress valid warnings for now.
 
-use anyhow::anyhow;
-
-use crate::{opcode::Opcode, vm::VM};
+use crate::{
+    constant::{
+        DUP_OPCODE_BASE_VALUE,
+        PUSH_OPCODE_BASE_VALUE,
+        PUSH_OPCODE_MAX_BYTES,
+        SWAP_OPCODE_BASE_VALUE,
+    },
+    error::OpcodeError,
+    opcode::Opcode,
+    vm::VM,
+};
 
 /// The `CALLDATALOAD` opcode gets the input data for the current environment.
 ///
@@ -737,21 +745,27 @@ impl Opcode for Push0 {
 }
 
 /// The `PUSHN` opcodes push an `N`-byte item onto the stack, where `0 < N <=
-/// 32`. The item is initialized to all zeroes.
+/// 32`. The item is specified as the next `N` bytes of the instruction stream.
 ///
 /// # Semantics
 ///
 /// | Stack Index | Input | Output |
 /// | :---------: | :---: | :----: |
-/// | 1           |       | `0`    |
+/// | 1           |       | `item` |
+///
+/// where:
+///
+/// - `item` is the next `N` bytes of the instruction stream; the value to push
+///   onto the stack
 ///
 /// # Errors
 ///
 /// Execution is reverted if there is not enough gas or if there are not enough
 /// operands on the stack.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PushN {
-    bytes: u8,
+    byte_count: u8,
+    bytes:      Vec<u8>,
 }
 
 impl PushN {
@@ -760,17 +774,28 @@ impl PushN {
     /// # Errors
     ///
     /// If `n` is not in the specified range.
-    pub fn new(n: u8) -> anyhow::Result<Self> {
-        if n > 0 && n <= 32 {
-            Ok(Self { bytes: n })
+    pub fn new(n: u8, bytes: impl Into<Vec<u8>>) -> anyhow::Result<Self> {
+        let bytes: Vec<u8> = bytes.into();
+        if n > 0 && n <= PUSH_OPCODE_MAX_BYTES && bytes.len() == n as usize {
+            Ok(Self {
+                byte_count: n,
+                bytes,
+            })
         } else {
-            Err(anyhow!("Invalid number of bytes for PUSH opcode: {n}"))
+            let err = OpcodeError::InvalidPushSize(n);
+            Err(err.into())
         }
     }
 
     /// Get the number of bytes this `PUSHN` opcode pushes onto the stack.
-    pub fn bytes(&self) -> u8 {
-        self.bytes
+    pub fn byte_size(&self) -> u8 {
+        self.byte_count
+    }
+
+    /// Get the data to be pushed onto the stack by this opcode. It is
+    /// guaranteed that `bytes_data.len() == byte_size()`.
+    pub fn bytes_data(&self) -> &[u8] {
+        &self.bytes
     }
 }
 
@@ -788,12 +813,17 @@ impl Opcode for PushN {
     }
 
     fn as_text_code(&self) -> String {
-        format!("PUSH{}", self.bytes)
+        format!("PUSH{}", self.byte_count)
     }
 
     fn as_byte(&self) -> u8 {
-        const BASE_VALUE: u8 = 0x5f;
-        BASE_VALUE + self.bytes
+        PUSH_OPCODE_BASE_VALUE + self.byte_count
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        let mut data = vec![self.as_byte()];
+        data.extend(self.bytes_data());
+        data
     }
 }
 
@@ -828,9 +858,11 @@ impl Dup {
         if 0 < n && n <= 16 {
             Ok(Self { item: n })
         } else {
-            Err(anyhow!(
-                "Invalid stack item provided for the DUP opcode: {n}"
-            ))
+            let err = OpcodeError::InvalidStackItem {
+                item: n,
+                name: "DUP".into(),
+            };
+            Err(err.into())
         }
     }
 
@@ -858,8 +890,7 @@ impl Opcode for Dup {
     }
 
     fn as_byte(&self) -> u8 {
-        const BASE_VALUE: u8 = 0x7f;
-        BASE_VALUE + self.item
+        DUP_OPCODE_BASE_VALUE + self.item
     }
 }
 
@@ -893,9 +924,11 @@ impl SwapN {
         if 0 < n && n <= 16 {
             Ok(Self { item: n })
         } else {
-            Err(anyhow!(
-                "Invalid stack item provided for the SWAP opcode: {n}"
-            ))
+            let err = OpcodeError::InvalidStackItem {
+                item: n,
+                name: "SWAP".into(),
+            };
+            Err(err.into())
         }
     }
 
@@ -923,7 +956,6 @@ impl Opcode for SwapN {
     }
 
     fn as_byte(&self) -> u8 {
-        const BASE_VALUE: u8 = 0x8f;
-        BASE_VALUE + self.item
+        SWAP_OPCODE_BASE_VALUE + self.item
     }
 }
