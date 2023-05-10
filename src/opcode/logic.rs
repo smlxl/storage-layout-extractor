@@ -8,10 +8,10 @@ use crate::{opcode::Opcode, vm::VM};
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a < b  |
-/// | 2           | b     |        |
+/// | Stack Index | Input | Output  |
+/// | :---------: | :---: | :-----: |
+/// | 1           | `a`   | `a < b` |
+/// | 2           | `b`   |         |
 ///
 /// # Errors
 ///
@@ -46,10 +46,10 @@ impl Opcode for Lt {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a > b  |
-/// | 2           | b     |        |
+/// | Stack Index | Input | Output  |
+/// | :---------: | :---: | :-----: |
+/// | 1           | `a`   | `a > b` |
+/// | 2           | `b`   |         |
 ///
 /// # Errors
 ///
@@ -85,10 +85,10 @@ impl Opcode for Gt {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a < b  |
-/// | 2           | b     |        |
+/// | Stack Index | Input | Output  |
+/// | :---------: | :---: | :-----: |
+/// | 1           | `a`   | `a < b` |
+/// | 2           | `b`   |         |
 ///
 /// # Errors
 ///
@@ -124,10 +124,10 @@ impl Opcode for SLt {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a > b  |
-/// | 2           | b     |        |
+/// | Stack Index | Input | Output  |
+/// | :---------: | :---: | :-----: |
+/// | 1           | `a`   | `a > b` |
+/// | 2           | `b`   |         |
 ///
 /// # Errors
 ///
@@ -162,10 +162,10 @@ impl Opcode for SGt {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a == b |
-/// | 2           | b     |        |
+/// | Stack Index | Input | Output   |
+/// | :---------: | :---: | :------: |
+/// | 1           | `a`   | `a == b` |
+/// | 2           | `b`   |          |
 ///
 /// # Errors
 ///
@@ -200,9 +200,9 @@ impl Opcode for Eq {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a == 0 |
+/// | Stack Index | Input | Output   |
+/// | :---------: | :---: | :------: |
+/// | 1           | `a`   | `a == 0` |
 ///
 /// # Errors
 ///
@@ -237,10 +237,10 @@ impl Opcode for IsZero {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a & b  |
-/// | 2           | b     |        |
+/// | Stack Index | Input | Output  |
+/// | :---------: | :---: | :-----: |
+/// | 1           | `a`   | `a & b` |
+/// | 2           | `b`   |         |
 ///
 /// # Errors
 ///
@@ -275,10 +275,10 @@ impl Opcode for And {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a | b  |
-/// | 2           | b     |        |
+/// | Stack Index | Input | Output  |
+/// | :---------: | :---: | :-----: |
+/// | 1           | `a`   | `a | b` |
+/// | 2           | `b`   |         |
 ///
 /// # Errors
 ///
@@ -313,10 +313,10 @@ impl Opcode for Or {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | a     | a ^ b  |
-/// | 2           | b     |        |
+/// | Stack Index | Input | Output  |
+/// | :---------: | :---: | :-----: |
+/// | 1           | `a`   | `a ^ b` |
+/// | 2           | `b`   |         |
 ///
 /// # Errors
 ///
@@ -353,7 +353,7 @@ impl Opcode for Xor {
 ///
 /// | Stack Index | Input | Output |
 /// | :---------: | :---: | :----: |
-/// | 1           | a     | ~a     |
+/// | 1           | `a`   | `~a`   |
 ///
 /// # Errors
 ///
@@ -388,10 +388,16 @@ impl Opcode for Not {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                      |
-/// | :---------: | :---: | :-------------------------: |
-/// | 1           | i     | (x >> (248 - i * 8)) & 0xFF |
-/// | 2           | x     |                             |
+/// | Stack Index | Input    | Output                                 |
+/// | :---------: | :------: | :------------------------------------: |
+/// | 1           | `offset` | `(value >> (248 - offset * 8)) & 0xFF` |
+/// | 2           | `value`  |                                        |
+///
+/// where:
+///
+/// - `offset` is the byte offset in `value` to retrieve, starting from the most
+///   significant byte
+/// - `value` is the word-sized (32 byte) value
 ///
 /// # Errors
 ///
@@ -428,10 +434,15 @@ impl Opcode for Byte {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | s     | v << s |
-/// | 2           | v     |        |
+/// | Stack Index | Input   | Output           |
+/// | :---------: | :-----: | :--------------: |
+/// | 1           | `shift` | `value << shift` |
+/// | 2           | `value` |                  |
+///
+/// where:
+///
+/// - `shift` is the number of bits shifted to the left
+/// - `value` the 32-byte value to shift
 ///
 /// # Errors
 ///
@@ -469,10 +480,15 @@ impl Opcode for Shl {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | s     | v >> s |
-/// | 2           | v     |        |
+/// | Stack Index | Input   | Output           |
+/// | :---------: | :-----: | :--------------: |
+/// | 1           | `shift` | `value >> shift` |
+/// | 2           | `value` |                  |
+///
+/// where:
+///
+/// - `shift` is the number of bits shifted to the right
+/// - `value` the 32-byte value to shift
 ///
 /// # Errors
 ///
@@ -512,10 +528,15 @@ impl Opcode for Shr {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | s     | v >> s |
-/// | 2           | v     |        |
+/// | Stack Index | Input   | Output           |
+/// | :---------: | :-----: | :--------------: |
+/// | 1           | `shift` | `value >> shift` |
+/// | 2           | `value` |                  |
+///
+/// where:
+///
+/// - `shift` is the number of bits shifted to the right
+/// - `value` the 32-byte value to shift
 ///
 /// # Errors
 ///

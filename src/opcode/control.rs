@@ -32,6 +32,8 @@ impl Opcode for Stop {
 }
 
 /// The `INVALID` opcode is invalid and instantly reverts execution.
+///
+/// Equivalent to [`Revert`] with 0 and 0 as its stack parameters.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Invalid;
 
@@ -59,13 +61,18 @@ impl Opcode for Invalid {
 
 /// The `JUMP` opcode alters the program counter to a new offset in the code.
 ///
-/// The destination `c` must be a [`JumpDest`] instruction.
+/// The destination `counter` must be a [`JumpDest`] instruction.
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | c     | $pc := c |
+/// | Stack Index | Input     | Output           |
+/// | :---------: | :-------: | :--------------: |
+/// | 1           | `counter` | `$pc := counter` |
+///
+/// where:
+///
+/// - `$pc` is the program counter
+/// - `counter` is the new value for the program counter
 ///
 /// # Errors
 ///
@@ -105,10 +112,16 @@ impl Opcode for Jump {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | c     | if b then $pc := c else $pc := $pc |
-/// | 2           | b     |        |
+/// | Stack Index | Input     | Output                                        |
+/// | :---------: | :-------: | :-------------------------------------------: |
+/// | 1           | `counter` | `if cond then $pc := counter else $pc := $pc` |
+/// | 2           | `cond`    |                                               |
+///
+/// where:
+///
+/// - `$pc` is the program counter
+/// - `counter` is the new value for the program counter
+/// - `cond` is the boolean value to check before executing the jump.
 ///
 /// # Errors
 ///
@@ -149,6 +162,10 @@ impl Opcode for JumpI {
 /// | Stack Index | Input | Output |
 /// | :---------: | :---: | :----: |
 /// | 1           |       | $pc - 1 |
+///
+/// where:
+///
+/// - `$pc` is the value of the program counter
 ///
 /// # Errors
 ///
@@ -210,20 +227,32 @@ impl Opcode for JumpDest {
     }
 }
 
-/// The `CALL` opcode performs a message call into an account. The target `addr`
-/// is the address of the context to execute.
+/// The `CALL` opcode performs a message call into an account.
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | gas     | if call_did_revert then 0 else 1 |
-/// | 2           | addr     |        |
-/// | 3           | val     |        |
-/// | 4           | argOfs     |        |
-/// | 5           | argSz     |        |
-/// | 6           | retOfs     |        |
-/// | 7           | retSz     |        |
+/// | Stack Index | Input       | Output                             |
+/// | :---------: | :---------: | :--------------------------------: |
+/// | 1           | `gas`       | `if call_did_revert then 0 else 1` |
+/// | 2           | `addr`      |                                    |
+/// | 3           | `value`     |                                    |
+/// | 4           | `argOffset` |                                    |
+/// | 5           | `argSize`   |                                    |
+/// | 6           | `retOffset` |                                    |
+/// | 7           | `retSize`   |                                    |
+///
+/// where:
+///
+/// - `gas` is the amount of gas sent to the sub-context for execution
+/// - `address` is the account with the context to execute
+/// - `value` is the value in WEI to send to `address`
+/// - `argOffset` is the byte offset in the memory where the calldata can be
+///   found
+/// - `argSize` is the number of bytes in memory from `argOffset` to the end of
+///   the calldata
+/// - `retOffset` the byte offset in memory where the return data from the sub
+///   context can be found
+/// - `retSize` the number of bytes to copy for the return data
 ///
 /// # Errors
 ///
@@ -254,8 +283,8 @@ impl Opcode for Call {
     }
 }
 
-/// The `CALLCODE` opcode performs a message call into an account with another
-/// account's code. The target `addr` is the address of the code to execute.
+/// The `CALLCODE` opcode performs a message call into the current account with
+/// another account's code.
 ///
 /// # Note
 ///
@@ -263,15 +292,28 @@ impl Opcode for Call {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | gas     | if call_did_revert then 0 else 1 |
-/// | 2           | addr     |        |
-/// | 3           | val     |        |
-/// | 4           | argOfs     |        |
-/// | 5           | argSz     |        |
-/// | 6           | retOfs     |        |
-/// | 7           | retSz     |        |
+/// | Stack Index | Input       | Output                             |
+/// | :---------: | :---------: | :--------------------------------: |
+/// | 1           | `gas`       | `if call_did_revert then 0 else 1` |
+/// | 2           | `addr`      |                                    |
+/// | 3           | `value`     |                                    |
+/// | 4           | `argOffset` |                                    |
+/// | 5           | `argSize`   |                                    |
+/// | 6           | `retOffset` |                                    |
+/// | 7           | `retSize`   |                                    |
+///
+/// where:
+///
+/// - `gas` is the amount of gas sent to the sub-context for execution
+/// - `address` is the account with the code to execute
+/// - `value` is the value in WEI to send to `address`
+/// - `argOffset` is the byte offset in the memory where the calldata can be
+///   found
+/// - `argSize` is the number of bytes in memory from `argOffset` to the end of
+///   the calldata
+/// - `retOffset` the byte offset in memory where the return data from the sub
+///   context can be found
+/// - `retSize` the number of bytes to copy for the return data
 ///
 /// # Errors
 ///
@@ -305,19 +347,30 @@ impl Opcode for CallCode {
 /// The `DELEGATECALL` opcode performs a call using code from another account
 /// while reusing the storage, sender, and value of the current account.
 ///
-/// The specified `addr` is the address containing the code to execute.
-///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | gas     | if call_did_revert then 0 else 1 |
-/// | 2           | addr     |        |
-/// | 3           | val     |        |
-/// | 4           | argOfs     |        |
-/// | 5           | argSz     |        |
-/// | 6           | retOfs     |        |
-/// | 7           | retSz     |        |
+/// | Stack Index | Input       | Output                             |
+/// | :---------: | :---------: | :--------------------------------: |
+/// | 1           | `gas`       | `if call_did_revert then 0 else 1` |
+/// | 2           | `addr`      |                                    |
+/// | 3           | `value`     |                                    |
+/// | 4           | `argOffset` |                                    |
+/// | 5           | `argSize`   |                                    |
+/// | 6           | `retOffset` |                                    |
+/// | 7           | `retSize`   |                                    |
+///
+/// where:
+///
+/// - `gas` is the amount of gas sent to the sub-context for execution
+/// - `address` is the account with the code to execute
+/// - `value` is the value in WEI to send to `address`
+/// - `argOffset` is the byte offset in the memory where the calldata can be
+///   found
+/// - `argSize` is the number of bytes in memory from `argOffset` to the end of
+///   the calldata
+/// - `retOffset` the byte offset in memory where the return data from the sub
+///   context can be found
+/// - `retSize` the number of bytes to copy for the return data
 ///
 /// # Errors
 ///
@@ -351,19 +404,39 @@ impl Opcode for DelegateCall {
 /// The `STATICCALL` opcode performs a call using code from another account
 /// while disallowing modification of state in the sub-context.
 ///
-/// The specified `addr` is the address containing the context to execute.
+/// In particular, it disallows use of the following opcodes:
+///
+/// - [`crate::opcode::environment::Create`]
+/// - [`crate::opcode::environment::Create2`]
+/// - [`crate::opcode::environment::LogN`]
+/// - [`crate::opcode::memory::SStore`]
+/// - [`crate::opcode::environment::SelfDestruct`]
+/// - [`Call`] if the `value` sent is not 0
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | gas     | if call_did_revert then 0 else 1 |
-/// | 2           | addr     |        |
-/// | 3           | val     |        |
-/// | 4           | argOfs     |        |
-/// | 5           | argSz     |        |
-/// | 6           | retOfs     |        |
-/// | 7           | retSz     |        |
+/// | Stack Index | Input       | Output                             |
+/// | :---------: | :---------: | :--------------------------------: |
+/// | 1           | `gas`       | `if call_did_revert then 0 else 1` |
+/// | 2           | `addr`      |                                    |
+/// | 3           | `value`     |                                    |
+/// | 4           | `argOffset` |                                    |
+/// | 5           | `argSize`   |                                    |
+/// | 6           | `retOffset` |                                    |
+/// | 7           | `retSize`   |                                    |
+///
+/// where:
+///
+/// - `gas` is the amount of gas sent to the sub-context for execution
+/// - `address` is the account with the context to execute
+/// - `value` is the value in WEI to send to `address`
+/// - `argOffset` is the byte offset in the memory where the calldata can be
+///   found
+/// - `argSize` is the number of bytes in memory from `argOffset` to the end of
+///   the calldata
+/// - `retOffset` the byte offset in memory where the return data from the sub
+///   context can be found
+/// - `retSize` the number of bytes to copy for the return data
 ///
 /// # Errors
 ///
@@ -397,12 +470,19 @@ impl Opcode for StaticCall {
 /// The `RETURN` opcode halts execution and returns the provided data of `size`
 /// at `offset` in memory.
 ///
+/// This opcode exits the current context with a success.
+///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | offset     |        |
-/// | 2           | size     |        |
+/// | Stack Index | Input    | Output |
+/// | :---------: | :------: | :----: |
+/// | 1           | `offset` |        |
+/// | 2           | `size`   |        |
+///
+/// where:
+///
+/// - `offset` is the byte offset in memory where the return data is located
+/// - `size` the number of bytes in the return data
 ///
 /// # Errors
 ///
@@ -437,12 +517,19 @@ impl Opcode for Return {
 /// and `size` in memory. It reverts any state changes and returns any unused
 /// gas.
 ///
+/// This opcode exits the current context with a success.
+///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | offset     | 0  |
-/// | 2           | size     |        |
+/// | Stack Index | Input    | Output |
+/// | :---------: | :------: | :----: |
+/// | 1           | `offset` |        |
+/// | 2           | `size`   |        |
+///
+/// where:
+///
+/// - `offset` is the byte offset in memory where the return data is located
+/// - `size` the number of bytes in the return data
 ///
 /// # Errors
 ///

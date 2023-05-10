@@ -8,10 +8,10 @@ use crate::{opcode::Opcode, vm::VM};
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output           |
-/// | :---------: | :---: | :--------------: |
-/// | 1           | a     | (a + b) % 2**256 |
-/// | 2           | b     |                  |
+/// | Stack Index | Input | Output             |
+/// | :---------: | :---: | :----------------: |
+/// | 1           | `a`   | `(a + b) % 2**256` |
+/// | 2           | `b`   |                    |
 ///
 /// # Errors
 ///
@@ -46,10 +46,10 @@ impl Opcode for Add {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output           |
-/// | :---------: | :---: | :--------------: |
-/// | 1           | a     | (a * b) % 2**256 |
-/// | 2           | b     |                  |
+/// | Stack Index | Input | Output             |
+/// | :---------: | :---: | :----------------: |
+/// | 1           | `a`   | `(a * b) % 2**256` |
+/// | 2           | `b`   |                    |
 ///
 /// # Errors
 ///
@@ -84,10 +84,10 @@ impl Opcode for Mul {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output           |
-/// | :---------: | :---: | :--------------: |
-/// | 1           | a     | (a - b) % 2**256 |
-/// | 2           | b     |                  |
+/// | Stack Index | Input | Output             |
+/// | :---------: | :---: | :----------------: |
+/// | 1           | `a`   | `(a - b) % 2**256` |
+/// | 2           | `b`   |                    |
 ///
 /// # Errors
 ///
@@ -122,10 +122,10 @@ impl Opcode for Sub {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                         |
-/// | :---------: | :---: | :----------------------------: |
-/// | 1           | a     | if b == 0 then 0 else (a // b) |
-/// | 2           | b     |                                |
+/// | Stack Index | Input | Output                           |
+/// | :---------: | :---: | :------------------------------: |
+/// | 1           | `a`   | `if b == 0 then 0 else (a // b)` |
+/// | 2           | `b`   |                                  |
 ///
 /// # Errors
 ///
@@ -163,10 +163,10 @@ impl Opcode for Div {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                         |
-/// | :---------: | :---: | :----------------------------: |
-/// | 1           | a     | if b == 0 then 0 else (a // b) |
-/// | 2           | b     |                                |
+/// | Stack Index | Input | Output                           |
+/// | :---------: | :---: | :------------------------------: |
+/// | 1           | `a`   | `if b == 0 then 0 else (a // b)` |
+/// | 2           | `b`   |                                  |
 ///
 /// # Errors
 ///
@@ -201,10 +201,10 @@ impl Opcode for SDiv {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                        |
-/// | :---------: | :---: | :---------------------------: |
-/// | 1           | a     | if b == 0 then 0 else (a % b) |
-/// | 2           | b     |                               |
+/// | Stack Index | Input | Output                          |
+/// | :---------: | :---: | :-----------------------------: |
+/// | 1           | `a`   | `if b == 0 then 0 else (a % b)` |
+/// | 2           | `b`   |                                 |
 ///
 /// # Errors
 ///
@@ -242,10 +242,10 @@ impl Opcode for Mod {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                        |
-/// | :---------: | :---: | :---------------------------: |
-/// | 1           | a     | if b == 0 then 0 else (a % b) |
-/// | 2           | b     |                               |
+/// | Stack Index | Input | Output                          |
+/// | :---------: | :---: | :-----------------------------: |
+/// | 1           | `a`   | `if b == 0 then 0 else (a % b)` |
+/// | 2           | `b`   |                                 |
 ///
 /// # Errors
 ///
@@ -285,11 +285,11 @@ impl Opcode for SMod {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                            |
-/// | :---------: | :---: | :-------------------------------: |
-/// | 1           | a     | if N == 0 then 0 else (a + b) % N |
-/// | 2           | b     |                                   |
-/// | 3           | N     |                                   |
+/// | Stack Index | Input | Output                              |
+/// | :---------: | :---: | :---------------------------------: |
+/// | 1           | `a`   | `if N == 0 then 0 else (a + b) % N` |
+/// | 2           | `b`   |                                     |
+/// | 3           | `N`   |                                     |
 ///
 /// # Errors
 ///
@@ -329,11 +329,11 @@ impl Opcode for AddMod {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                            |
-/// | :---------: | :---: | :-------------------------------: |
-/// | 1           | a     | if N == 0 then 0 else (a * b) % N |
-/// | 2           | b     |                                   |
-/// | 3           | N     |                                   |
+/// | Stack Index | Input | Output                              |
+/// | :---------: | :---: | :---------------------------------: |
+/// | 1           | `a`   | `if N == 0 then 0 else (a * b) % N` |
+/// | 2           | `b`   |                                     |
+/// | 3           | `N`   |                                     |
 ///
 /// # Errors
 ///
@@ -368,10 +368,10 @@ impl Opcode for MulMod {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output            |
-/// | :---------: | :---: | :---------------: |
-/// | 1           | a     | (a ** b) % 2**256 |
-/// | 2           | b     |                   |
+/// | Stack Index | Input | Output              |
+/// | :---------: | :---: | :-----------------: |
+/// | 1           | `a`   | `(a ** b) % 2**256` |
+/// | 2           | `b`   |                     |
 ///
 /// # Errors
 ///
@@ -407,10 +407,10 @@ impl Opcode for Exp {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output           |
-/// | :---------: | :---: | :--------------: |
-/// | 1           | a     | signextend(a, x) |
-/// | 2           | x     |                  |
+/// | Stack Index | Input | Output             |
+/// | :---------: | :---: | :----------------: |
+/// | 1           | `a`   | `SIGNEXTEND(a, x)` |
+/// | 2           | `x`   |                    |
 ///
 /// where:
 /// - `x` is the integer value to sign extend

@@ -10,9 +10,15 @@ use crate::{opcode::Opcode, vm::VM};
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output             |
-/// | :---------: | :---: | :----------------: |
-/// | 1           | i     | msg.data\[i:i+32\] |
+/// | Stack Index | Input    | Output                                   |
+/// | :---------: | :------: | :--------------------------------------: |
+/// | 1           | `offset` | `result := msg.data\[offset:offset+32\]` |
+///
+/// where:
+///
+/// - `offset` is the byte offset in the call data from which to start loading
+/// - `result` is the result of the specified load, with any bytes after the end
+///   of the calldata set to zero
 ///
 /// # Errors
 ///
@@ -48,9 +54,9 @@ impl Opcode for CallDataLoad {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output        |
-/// | :---------: | :---: | :-----------: |
-/// | 1           |       | len(msg.data) |
+/// | Stack Index | Input | Output          |
+/// | :---------: | :---: | :-------------: |
+/// | 1           |       | `len(msg.data)` |
 ///
 /// # Errors
 ///
@@ -84,19 +90,21 @@ impl Opcode for CallDataSize {
 /// The `CALLDATACOPY` opcode copies the input data for the current environment
 /// into memory.
 ///
-/// It has no output, but performs the following operation:
-///
-/// ```text
-/// mem[d:d+s] := msg.data[o:o+s]
-/// ```
-///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | d     |        |
-/// | 2           | o     |        |
-/// | 3           | s     |        |
+/// | Stack Index | Input        | Output |
+/// | :---------: | :----------: | :----: |
+/// | 1           | `destOffset` |        |
+/// | 2           | `offset`     |        |
+/// | 3           | `size`       |        |
+///
+/// where:
+///
+/// - `destOffset` is the byte offset in the memory where the call data will be
+///   copied to (`mem\[destOffset:destOffset+size\] :=
+///   msg.data\[offset:offset+size\]`)
+/// - `offset` is the byte offset in the call data from which to start copying
+/// - `size` is the number of bytes to copy
 ///
 /// # Errors
 ///
@@ -131,9 +139,9 @@ impl Opcode for CallDataCopy {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output         |
-/// | :---------: | :---: | :------------: |
-/// | 1           |       | len(this.code) |
+/// | Stack Index | Input | Output           |
+/// | :---------: | :---: | :--------------: |
+/// | 1           |       | `len(this.code)` |
 ///
 /// # Errors
 ///
@@ -166,19 +174,21 @@ impl Opcode for CodeSize {
 
 /// The `CODECOPY` opcode copies the current contract's code into memory.
 ///
-/// It has no output, but performs the following operation:
-///
-/// ```text
-/// mem[d:d+s] := this.code[o:o+s]
-/// ```
-///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | d     |        |
-/// | 2           | o     |        |
-/// | 3           | s     |        |
+/// | Stack Index | Input        | Output |
+/// | :---------: | :----------: | :----: |
+/// | 1           | `destOffset` |        |
+/// | 2           | `offset`     |        |
+/// | 3           | `size`       |        |
+///
+/// where:
+///
+/// - `destOffset` is the byte offset in the memory where the call data will be
+///   copied to (`mem\[destOffset:destOffset+size\] :=
+///   this.code\[offset:offset+size\]`)
+/// - `offset` is the byte offset in the code from which to start copying
+/// - `size` is the number of bytes to copy
 ///
 /// # Errors
 ///
@@ -214,9 +224,13 @@ impl Opcode for CodeCopy {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output      |
-/// | :---------: | :---: | :---------: |
-/// | 1           | a     | len(a.code) |
+/// | Stack Index | Input     | Output              |
+/// | :---------: | :-------: | :-----------------: |
+/// | 1           | `address` | `len(address.code)` |
+///
+/// where:
+///
+/// - `address` is the address of the contract to get the code size from
 ///
 /// # Errors
 ///
@@ -247,16 +261,25 @@ impl Opcode for ExtCodeSize {
     }
 }
 
-/// The `EXTCODECOPY` opcode performs a greater-than comparison.
+/// The `CODECOPY` opcode copies the current contract's code into memory.
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                             |
-/// | :---------: | :---: | :--------------------------------: |
-/// | 1           | a     | mem\[d:d+s\] := addr.code\[o:o+s\] |
-/// | 2           | d     |                                    |
-/// | 3           | o     |                                    |
-/// | 4           | s     |                                    |
+/// | Stack Index | Input        | Output |
+/// | :---------: | :----------: | :----: |
+/// | 1           | `address`    |        |
+/// | 2           | `destOffset` |        |
+/// | 3           | `offset`     |        |
+/// | 4           | `size`       |        |
+///
+/// where:
+///
+/// - `address` is the address of the contract to copy the code from
+/// - `destOffset` is the byte offset in the memory where the call data will be
+///   copied to (`mem\[destOffset:destOffset+size\] :=
+///   address.code\[offset:offset+size\]`)
+/// - `offset` is the byte offset in the code from which to start copying
+/// - `size` is the number of bytes to copy
 ///
 /// # Errors
 ///
@@ -288,13 +311,17 @@ impl Opcode for ExtCodeCopy {
 }
 
 /// The `RETURNDATASIZE` opcode gets the size of the output data from the
-/// previous call.
+/// previous (sub-)context.
 ///
 /// # Semantics
 ///
 /// | Stack Index | Input | Output |
 /// | :---------: | :---: | :----: |
-/// | 1           |       | size   |
+/// | 1           |       | `size` |
+///
+/// where:
+///
+/// - `size` is the size of the return data
 ///
 /// # Errors
 ///
@@ -330,11 +357,19 @@ impl Opcode for ReturnDataSize {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                              |
-/// | :---------: | :---: | :---------------------------------: |
-/// | 1           | d     | mem\[d:d+s\] := returndata\[o:o+s\] |
-/// | 2           | o     |                                     |
-/// | 2           | s     |                                     |
+/// | Stack Index | Input        | Output |
+/// | :---------: | :----------: | :----: |
+/// | 1           | `destOffset` |        |
+/// | 2           | `offset`     |        |
+/// | 3           | `size`       |        |
+///
+/// where:
+///
+/// - `destOffset` is the byte offset in the memory where the call data will be
+///   copied to (`mem\[destOffset:destOffset+size\] :=
+///   returnData\[offset:offset+size\]`)
+/// - `offset` is the byte offset in the code from which to start copying
+/// - `size` is the number of bytes to copy
 ///
 /// # Errors
 ///
@@ -371,7 +406,11 @@ impl Opcode for ReturnDataCopy {
 ///
 /// | Stack Index | Input | Output |
 /// | :---------: | :---: | :----: |
-/// | 1           | i     |        |
+/// | 1           | `i`   |        |
+///
+/// where:
+///
+/// - `i` is the current top item on the stack
 ///
 /// # Errors
 ///
@@ -406,9 +445,15 @@ impl Opcode for Pop {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | o     | mem\[o:o+32\] |
+/// | Stack Index | Input    | Output                    |
+/// | :---------: | :------: | :-----------------------: |
+/// | 1           | `offset` | `result := mem\[offset:offset+32\]` |
+///
+/// where:
+///
+/// - `offset` is the byte offset in memory to read the word from
+/// - `result` is the 32 bytes beginning at `offset`, with any bytes beyond the
+///   current memory size (see [`MSize`]) filled with 0s
 ///
 /// # Errors
 ///
@@ -443,10 +488,16 @@ impl Opcode for MLoad {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | o     | mem\[o:o+32\] = v |
-/// | 2           | v     |        |
+/// | Stack Index | Input    | Output                            |
+/// | :---------: | :------: | :-------------------------------: |
+/// | 1           | `offset` |  |
+/// | 2           | `value`  |                                   |
+///
+/// where:
+///
+/// - `offset` is the target byte offset in the memory
+/// - `value` is the 32-byte value to write at `offset` as follows
+///   `mem\[offset:offset+32\] := value`
 ///
 /// # Errors
 ///
@@ -481,10 +532,16 @@ impl Opcode for MStore {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | o     | mem\[o:o+1\] = v |
-/// | 2           | v     |        |
+/// | Stack Index | Input    | Output |
+/// | :---------: | :------: | :----: |
+/// | 1           | `offset` |        |
+/// | 2           | `value`  |        |
+///
+/// where:
+///
+/// - `offset` is the byte offset in memory to write to
+/// - `value` is the one-byte value to write at `offset` as follows
+///   `mem\[offset:offset+1\] := v`
 ///
 /// # Errors
 ///
@@ -515,13 +572,19 @@ impl Opcode for MStore8 {
     }
 }
 
-/// The `SLOAD` opcode loads a word from storage based on a 32-byte key `k`.
+/// The `SLOAD` opcode loads a word from storage.
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | k     | storage\[k\] |
+/// | Stack Index | Input | Output                    |
+/// | :---------: | :---: | :-----------------------: |
+/// | 1           | `key` | `value := storage\[key\]` |
+///
+/// where:
+///
+/// - `key` is the 32-byte storage key to read from
+/// - `value` is the 32-byte value read from storage, or 0 if that key was never
+///   written to
 ///
 /// # Errors
 ///
@@ -556,10 +619,17 @@ impl Opcode for SLoad {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | k     | storage\[k\] := v |
-/// | 2           | v     |        |
+///
+/// | Stack Index | Input   | Output |
+/// | :---------: | :-----: | :----: |
+/// | 1           | `key`   |        |
+/// | 2           | `value` |        |
+///
+/// where:
+///
+/// - `key` is the 32-byte storage key to write to
+/// - `value` is the 32-byte value to be written to as follows `storage\[key\]
+///   := value`
 ///
 /// # Errors
 ///
@@ -596,9 +666,9 @@ impl Opcode for SStore {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | len(mem) |
+/// | Stack Index | Input | Output     |
+/// | :---------: | :---: | :--------: |
+/// | 1           |       | `len(mem)` |
 ///
 /// # Errors
 ///
@@ -635,7 +705,7 @@ impl Opcode for MSize {
 ///
 /// | Stack Index | Input | Output |
 /// | :---------: | :---: | :----: |
-/// | 1           |       | 0 |
+/// | 1           |       | `0`    |
 ///
 /// # Errors
 ///
@@ -673,7 +743,7 @@ impl Opcode for Push0 {
 ///
 /// | Stack Index | Input | Output |
 /// | :---------: | :---: | :----: |
-/// | 1           |      | stack\[1\] |
+/// | 1           |       | `0`    |
 ///
 /// # Errors
 ///
@@ -731,6 +801,14 @@ impl Opcode for PushN {
 /// 16`, pushing it on the top of the stack. This makes the duplicated item the
 /// `N+1`th item.
 ///
+/// # Semantics
+///
+/// | Stack Index | Input  | Output |
+/// | :---------: | :----: | :----: |
+/// | 1           |        | `item` |
+/// | ...         |        |        |
+/// | `N+1`       | `item` | `item` |
+///
 /// # Errors
 ///
 /// Execution is reverted if there is not enough gas or if there are not enough
@@ -787,6 +865,14 @@ impl Opcode for Dup {
 
 /// The `SWAPN` opcode exchanges the first and `N+1`th stack items, where `0 < N
 /// <= 16`.
+///
+/// # Semantics
+///
+/// | Stack Index | Input   | Output  |
+/// | :---------: | :-----: | :-----: |
+/// | 1           | `item1` | `item2` |
+/// | ...         |         |         |
+/// | `N+1`       | `item2` | `item1` |
 ///
 /// # Errors
 ///

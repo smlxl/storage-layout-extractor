@@ -13,10 +13,15 @@ use crate::{opcode::Opcode, vm::VM};
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output                  |
-/// | :---------: | :---: | :---------------------: |
-/// | 1           | o     | keccak256(mem\[o:o+s\]) |
-/// | 2           | s     |                         |
+/// | Stack Index | Input    | Output                                 |
+/// | :---------: | :------: | :------------------------------------: |
+/// | 1           | `offset` | `keccak256(mem\[offset:offset+size\])` |
+/// | 2           | `size`   |                                        |
+///
+/// where:
+///
+/// - `offset` is the byte offset in memory where the data to be hashed starts
+/// - `size` is the number of bytes in the data to be hashed
 ///
 /// # Errors
 ///
@@ -51,9 +56,9 @@ impl Opcode for Sha3 {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output        |
-/// | :---------: | :---: | :-----------: |
-/// | 1           |       | address(this) |
+/// | Stack Index | Input | Output          |
+/// | :---------: | :---: | :-------------: |
+/// | 1           |       | `address(this)` |
 ///
 /// # Errors
 ///
@@ -88,9 +93,14 @@ impl Opcode for Address {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output      |
-/// | :---------: | :---: | :---------: |
-/// | 1           | `a`   | `a.balance` |
+/// | Stack Index | Input     | Output                       |
+/// | :---------: | :-------: | :--------------------------: |
+/// | 1           | `address` | `balance := address.balance` |
+///
+/// where:
+///
+/// - `address` is the address of the account to check the balance for
+/// - `balance` is the balance in WEI
 ///
 /// # Errors
 ///
@@ -125,9 +135,13 @@ impl Opcode for Balance {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output    |
-/// | :---------: | :---: | :-------: |
-/// | 1           |       | tx.origin |
+/// | Stack Index | Input | Output                |
+/// | :---------: | :---: | :-------------------: |
+/// | 1           |       | `origin := tx.origin` |
+///
+/// where:
+///
+/// - `origin` is the address that was the sender of the transaction
 ///
 /// # Errors
 ///
@@ -162,9 +176,13 @@ impl Opcode for Origin {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output     |
-/// | :---------: | :---: | :--------: |
-/// | 1           |       | msg.sender |
+/// | Stack Index | Input | Output                 |
+/// | :---------: | :---: | :--------------------: |
+/// | 1           |       | `caller := msg.sender` |
+///
+/// where:
+///
+/// - `caller` is the address of the message's sender
 ///
 /// # Errors
 ///
@@ -199,9 +217,13 @@ impl Opcode for Caller {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output    |
-/// | :---------: | :---: | :-------: |
-/// | 1           |       | msg.value |
+/// | Stack Index | Input | Output               |
+/// | :---------: | :---: | :------------------: |
+/// | 1           |       | `value := msg.value` |
+///
+/// where:
+///
+/// - `value` is the value of the current call in WEI
 ///
 /// # Errors
 ///
@@ -236,9 +258,13 @@ impl Opcode for CallValue {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output      |
-/// | :---------: | :---: | :---------: |
-/// | 1           |       | tx.gasprice |
+/// | Stack Index | Input | Output                 |
+/// | :---------: | :---: | :--------------------: |
+/// | 1           |       | `price := tx.gasprice` |
+///
+/// where:
+///
+/// - `price` is the current gas price in WEI
 ///
 /// # Errors
 ///
@@ -277,9 +303,13 @@ impl Opcode for GasPrice {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output            |
-/// | :---------: | :---: | :---------------: |
-/// | 1           | a     | keccak256(a.code) |
+/// | Stack Index | Input     | Output                    |
+/// | :---------: | :-------: | :-----------------------: |
+/// | 1           | `address` | `keccak256(address.code)` |
+///
+/// where:
+///
+/// - `address` is the address of the contract to get the code hash of
 ///
 /// # Errors
 ///
@@ -315,9 +345,16 @@ impl Opcode for ExtCodeHash {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output       |
-/// | :---------: | :---: | :----------: |
-/// | 1           | n     | blockHash(n) |
+/// | Stack Index | Input | Output                 |
+/// | :---------: | :---: | :--------------------: |
+/// | 1           | `n`   | `hash := blockHash(n)` |
+///
+/// where:
+///
+/// - `n` is the number of the block, one of the last 256 blocks not including
+///   the current one
+/// - `hash` is the keccak256 hash of the chosen block, or 0 if `n` is not in
+///   the valid range
 ///
 /// # Errors
 ///
@@ -352,9 +389,13 @@ impl Opcode for BlockHash {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | 0     | block.coinbase |
+/// | Stack Index | Input | Output                   |
+/// | :---------: | :---: | :----------------------: |
+/// | 1           |       | `base := block.coinbase` |
+///
+/// where:
+///
+/// - `base` is the address of the miner
 ///
 /// # Errors
 ///
@@ -389,9 +430,13 @@ impl Opcode for Coinbase {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | block.timestamp |
+/// | Stack Index | Input | Output                  |
+/// | :---------: | :---: | :---------------------: |
+/// | 1           |       | `ts := block.timestamp` |
+///
+/// where:
+///
+/// - `ts` is the unix timestamp of the current block
 ///
 /// # Errors
 ///
@@ -426,9 +471,9 @@ impl Opcode for Timestamp {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | block.number |
+/// | Stack Index | Input | Output         |
+/// | :---------: | :---: | :------------: |
+/// | 1           |       | `block.number` |
 ///
 /// # Errors
 ///
@@ -463,9 +508,9 @@ impl Opcode for Number {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | block.difficulty |
+/// | Stack Index | Input | Output             |
+/// | :---------: | :---: | :----------------: |
+/// | 1           |       | `block.difficulty` |
 ///
 /// # Errors
 ///
@@ -500,9 +545,9 @@ impl Opcode for Difficulty {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | block.gaslimit |
+/// | Stack Index | Input | Output           |
+/// | :---------: | :---: | :--------------: |
+/// | 1           |       | `block.gaslimit` |
 ///
 /// # Errors
 ///
@@ -538,9 +583,9 @@ impl Opcode for GasLimit {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | block.chain_id |
+/// | Stack Index | Input | Output           |
+/// | :---------: | :---: | :--------------: |
+/// | 1           |       | `block.chain_id` |
 ///
 /// # Errors
 ///
@@ -576,9 +621,13 @@ impl Opcode for ChainId {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | address(this).balance |
+/// | Stack Index | Input | Output                         |
+/// | :---------: | :---: | :----------------------------: |
+/// | 1           |       | `bal := address(this).balance` |
+///
+/// where:
+///
+/// - `bal` is the balance of the current account in WEI
 ///
 /// # Errors
 ///
@@ -613,9 +662,13 @@ impl Opcode for SelfBalance {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | block.basefee |
+/// | Stack Index | Input | Output                 |
+/// | :---------: | :---: | :--------------------: |
+/// | 1           |       | `fee := block.basefee` |
+///
+/// where:
+///
+/// - `fee` is the block's base fee in WEI
 ///
 /// # Errors
 ///
@@ -650,9 +703,14 @@ impl Opcode for BaseFee {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           |       | gasRemaining |
+/// | Stack Index | Input | Output                |
+/// | :---------: | :---: | :-------------------: |
+/// | 1           |       | `gas := gasRemaining` |
+///
+/// where:
+///
+/// - `gas` is the amount of gas remaining _after_ executing the `GAS`
+///   instruction
 ///
 /// # Errors
 ///
@@ -685,15 +743,24 @@ impl Opcode for Gas {
 
 /// The `LOGN` opcode logs `N` items, where `0 <= N <= 4`.
 ///
-/// The items used as arguments _are not_ popped off the stack.
+/// # Note
+///
+/// The items used as arguments _are not_ popped off the stack. That means that
+/// executing this instruction has no effect on the EVM's state.
 ///
 /// # Semantics
 ///
-/// | Stack Index  | Input | Output |
-/// | :----------: | :---: | :----: |
-/// | 1            | o     | o      |
-/// | 2            | s     | s      |
-/// | i in 3..=3+N | t(i)  | t(i)   |
+/// | Stack Index      | Input    | Output   |
+/// | :--------------: | :------: | :------: |
+/// | 1                | `offset` | `offset` |
+/// | 2                | `size`   | `size`   |
+/// | `i` in `3..=3+N` | `t(i)`   | `t(i)`   |
+///
+/// where:
+///
+/// - `offset` is the byte offset in memory where the log data begins
+/// - `size` is the size of the log data in bytes
+/// - `t(i)` is the `i`th topic for the log message
 ///
 /// # Errors
 ///
@@ -759,13 +826,26 @@ impl Opcode for LogN {
 /// The `CREATE` opcode creates a contract and returns the address of the
 /// created contract.
 ///
+/// The creation process enters a new sub-context of the calculated destination
+/// address and executes the provided initialisation code before resuming the
+/// current context
+///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | val   | keccak256(rlp_enc(\[address(this), this.nonce\])) |
-/// | 2           | ofs   |        |
-/// | 2           | sz    |        |
+/// | Stack Index | Input    | Output    |
+/// | :---------: | :------: | :-------: |
+/// | 1           | `value`  | `address` |
+/// | 2           | `offset` |           |
+/// | 3           | `size`   |           |
+///
+/// where:
+///
+/// - `value` is the amount of WEI to send to the new contract
+/// - `offset` is the byte offset in memory where the initialisation code for
+///   the new contract begins
+/// - `size` is the length in bytes of the initialisation code
+/// - `address` is the address of the new contract, calculated as `address :=
+///   keccak256(rlp\[sender_address, sender_nonce\]))\[12:\]`
 ///
 /// # Errors
 ///
@@ -803,14 +883,31 @@ impl Opcode for Create {
 /// keccak256(0xff ++ address(this) ++ salt ++ keccak256(mem[ost:ost+len]))[12:]
 /// ```
 ///
+///
+/// The creation process enters a new sub-context of the calculated destination
+/// address and executes the provided initialisation code before resuming the
+/// current context
+///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | val   | address |
-/// | 2           | ofs   |        |
-/// | 3           | sz    |        |
-/// | 4           | salt    |        |
+/// | Stack Index | Input    | Output    |
+/// | :---------: | :------: | :-------: |
+/// | 1           | `value`  | `address` |
+/// | 2           | `offset` |           |
+/// | 3           | `size`   |           |
+/// | 3           | `salt`   |           |
+///
+/// where:
+///
+/// - `value` is the amount of WEI to send to the new contract
+/// - `offset` is the byte offset in memory where the initialisation code for
+///   the new contract begins
+/// - `size` is the length in bytes of the initialisation code
+/// - `salt` is a 32-byte value used to create the new account at a
+///   deterministic address
+/// - `address` is the address of the new contract, calculated as `address :=
+///   keccak256(0xff ++ address(this) ++ salt ++
+///   keccak256(mem\[offset:offset+size\]))\[12:\]`
 ///
 /// # Errors
 ///
@@ -842,13 +939,18 @@ impl Opcode for Create2 {
 }
 
 /// The `SELFDESTRUCT` opcode halts execution and registers the account for
-/// later deletion, sending all remaining balance to `addr`.
+/// later deletion.
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
-/// | 1           | addr     |  |
+/// | Stack Index | Input     | Output |
+/// | :---------: | :-------: | :----: |
+/// | 1           | `address` |        |
+///
+/// where:
+///
+/// - `address` is the value to which all of the remaining [`SelfBalance`] is
+///   sent upon account deletion
 ///
 /// # Errors
 ///
