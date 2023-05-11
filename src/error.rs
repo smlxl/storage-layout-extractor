@@ -7,7 +7,7 @@
 use thiserror::Error;
 
 /// Errors from the [`crate::vm`] subsystem of the library.
-#[derive(Error, Debug)]
+#[derive(Debug, Eq, Error, PartialEq)]
 pub enum VMError {
     #[error(
         "Instruction pointer {requested:?} is out of bounds in stream of length {available:?}"
@@ -16,16 +16,20 @@ pub enum VMError {
 }
 
 /// Errors encountered during parsing a bytecode stream.
-#[derive(Error, Debug)]
+#[derive(Debug, Eq, Error, PartialEq)]
 pub enum ParseError {
     #[error("{_0:?} is not a valid EVM opcode")]
     InvalidOpcode(u8),
     #[error("Bytecode cannot be empty")]
     EmptyBytecode,
+    #[error("The provided hexadecimal input had an odd length")]
+    InvalidHexLength,
+    #[error("Encountered invalid hex char {_0:?} at index {_1:?}")]
+    InvalidHexCharacter(char, usize),
 }
 
 /// Errors from the [`crate::opcode`] subsystem of the library.
-#[derive(Error, Debug)]
+#[derive(Debug, Eq, Error, PartialEq)]
 pub enum OpcodeError {
     #[error("Invalid number of topics {_0:?} provided to the `LOG` opcode")]
     InvalidTopicCount(u8),

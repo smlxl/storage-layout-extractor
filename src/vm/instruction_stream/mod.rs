@@ -7,7 +7,12 @@ mod parser;
 
 use std::ops::Range;
 
-use crate::{error::VMError, opcode::DynOpcode};
+use hex::FromHexError;
+
+use crate::{
+    error::{ParseError, VMError},
+    opcode::DynOpcode,
+};
 
 /// The maximum size of an instruction stream, in bytes.
 pub const INSTRUCTION_STREAM_MAX_SIZE: u32 = u32::MAX;
@@ -89,6 +94,12 @@ impl InstructionStream {
     pub fn len(&self) -> usize {
         self.instructions.len()
     }
+
+    /// Converts the instructions in the instruction stream to their
+    /// corresponding bytecode.
+    pub fn as_bytecode(&self) -> Vec<u8> {
+        self.instructions.iter().flat_map(|opcode| opcode.encode()).collect()
+    }
 }
 
 /// An [`InstructionStream`] is usually created from a byte array of bytecode.
@@ -107,8 +118,27 @@ impl TryFrom<&str> for InstructionStream {
     type Error = anyhow::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let bytes = hex::decode(value)?;
+        let bytes = match hex::decode(value) {
+            Ok(b) => b,
+            Err(e) => {
+                let error = match e {
+                    FromHexError::InvalidHexCharacter { c, index } => {
+                        ParseError::InvalidHexCharacter(c, index)
+                    }
+                    _ => ParseError::InvalidHexLength,
+                };
+                return Err(error.into());
+            }
+        };
         InstructionStream::try_from(bytes.as_slice())
+    }
+}
+
+/// Allows converting the [`InstructionStream`] back to the corresponding
+/// bytecode representation.
+impl From<InstructionStream> for Vec<u8> {
+    fn from(value: InstructionStream) -> Self {
+        value.instructions.iter().flat_map(|opcode| opcode.encode()).collect()
     }
 }
 
@@ -221,8 +251,265 @@ impl<'opcode> ExecutionThread<'opcode> {
 
 #[cfg(test)]
 mod test {
+    use crate::{
+        constant::{DUP_OPCODE_BASE_VALUE, LOG_OPCODE_BASE_VALUE, SWAP_OPCODE_BASE_VALUE},
+        error::ParseError,
+        opcode::{control, memory, Opcode},
+        vm::instruction_stream::InstructionStream,
+    };
+
     #[test]
     fn can_parse_from_bytes() -> anyhow::Result<()> {
-        todo!()
+        // Let's get all of the non-consolidated opcodes as bytes.
+        let bytes = util::get_non_consolidated_opcode_bytes();
+
+        // It should result in a valid stream of opcodes.
+        let instruction_stream =
+            InstructionStream::try_from(bytes.as_slice()).expect("Parsing errored");
+
+        // The bytecode from it should equal the original bytecode.
+        let bytecode: Vec<u8> = instruction_stream.into();
+        assert_eq!(bytecode, bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn can_parse_from_hex_stream() -> anyhow::Result<()> {
+        let bytes = util::get_non_consolidated_opcode_bytes();
+        let hex_string = hex::encode(bytes.as_slice());
+
+        // It should result in a valid stream of opcodes.
+        let instruction_stream =
+            InstructionStream::try_from(hex_string.as_str()).expect("Parsing errored");
+
+        // The bytecode from this should equal the original bytecode.
+        let bytecode: Vec<u8> = instruction_stream.into();
+        assert_eq!(bytecode, bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn emits_parse_error_on_unknown_opcode() -> anyhow::Result<()> {
+        // This opcode doesn't exist.
+        let bytes: Vec<u8> = vec![0xf9];
+
+        // So this should fail.
+        let result =
+            InstructionStream::try_from(bytes.as_slice()).expect_err("Parsing did not error");
+        let err = result
+            .downcast_ref::<ParseError>()
+            .expect("Error was not a parse error");
+        assert_eq!(*err, ParseError::InvalidOpcode(0xf9));
+
+        Ok(())
+    }
+
+    #[test]
+    fn emits_parse_error_on_incorrectly_encoded_hex_string() -> anyhow::Result<()> {
+        // This is not actually hex-encoded.
+        let not_hex_encoded = "ab70anx7302842";
+
+        // It should fail to parse.
+        let result =
+            InstructionStream::try_from(not_hex_encoded).expect_err("Parsing did not error");
+
+        // It should be a specific error.
+        let error = result
+            .downcast_ref::<ParseError>()
+            .expect("Error was not a parse error");
+        assert_eq!(*error, ParseError::InvalidHexCharacter('n', 5));
+
+        Ok(())
+    }
+
+    #[test]
+    fn emits_parse_error_on_hex_string_with_bad_length() -> anyhow::Result<()> {
+        // This is hex encoded but bad length
+        let bad_length = "ab21fe9b5";
+
+        // It should fail to parse.
+        let result = InstructionStream::try_from(bad_length).expect_err("Parsing did not error");
+
+        // It should be a specific error.
+        let error = result
+            .downcast_ref::<ParseError>()
+            .expect("Error was not a parse error");
+        assert_eq!(*error, ParseError::InvalidHexLength);
+
+        Ok(())
+    }
+
+    #[test]
+    fn emits_parse_error_on_empty_input() -> anyhow::Result<()> {
+        // Our input is empty.
+        let input: Vec<u8> = vec![];
+
+        // It should fail to parse.
+        let result =
+            InstructionStream::try_from(input.as_slice()).expect_err("Parsing did not error");
+
+        // It should be a specific error.
+        let error = result
+            .downcast_ref::<ParseError>()
+            .expect("Error was not a parse error");
+        assert_eq!(*error, ParseError::EmptyBytecode);
+
+        Ok(())
+    }
+
+    #[test]
+    fn can_parse_push_opcode() -> anyhow::Result<()> {
+        // The input is all of the push opcodes `PUSH1..=PUSH32`, with random data
+        // encoded after them as the data to push.
+        let bytes = util::get_valid_push_opcodes(1..=32)?;
+
+        // This should parse correctly, and end up with something of the same length so
+        // as to maintain offsets.
+        let result = InstructionStream::try_from(bytes.as_slice()).expect("Parsing failed");
+        assert_eq!(result.len(), bytes.len());
+
+        // The bytecode from this should equal the original bytecode.
+        let bytecode: Vec<u8> = result.into();
+        assert_eq!(bytecode, bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn can_parse_dup_opcode() -> anyhow::Result<()> {
+        // The input is all of the dup opcodes.
+        let mut bytes: Vec<u8> = vec![];
+        for x in 1..=16 {
+            bytes.push(DUP_OPCODE_BASE_VALUE + x);
+        }
+
+        // This should parse correctly.
+        let result = InstructionStream::try_from(bytes.as_slice()).expect("Parsing failed");
+
+        // The bytecode from this should equal the original bytecode.
+        let bytecode: Vec<u8> = result.into();
+        assert_eq!(bytecode, bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn can_parse_swap_opcode() -> anyhow::Result<()> {
+        // The input is all of the swap opcodes.
+        let mut bytes: Vec<u8> = vec![];
+        for x in 1..=16 {
+            bytes.push(SWAP_OPCODE_BASE_VALUE + x);
+        }
+
+        // This should parse correctly.
+        let result = InstructionStream::try_from(bytes.as_slice()).expect("Parsing failed");
+
+        // The bytecode from this should equal the original bytecode.
+        let bytecode: Vec<u8> = result.into();
+        assert_eq!(bytecode, bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn can_parse_log_opcode() -> anyhow::Result<()> {
+        // The input is all of the log opcodes.
+        let mut bytes: Vec<u8> = vec![];
+        for x in 0..=4 {
+            bytes.push(LOG_OPCODE_BASE_VALUE + x);
+        }
+
+        // This should parse correctly.
+        let result = InstructionStream::try_from(bytes.as_slice()).expect("Parsing failed");
+
+        // The bytecode from this should equal the original bytecode.
+        let bytecode: Vec<u8> = result.into();
+        assert_eq!(bytecode, bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn maintains_byte_offsets_with_push() -> anyhow::Result<()> {
+        // The input is all of the push opcodes with their data.
+        let bytes = util::get_valid_push_opcodes(1..=32)?;
+
+        // Let's get the instruction stream and a thread of execution on it starting at
+        // the first instruction.
+        let instructions = InstructionStream::try_from(bytes.as_slice()).expect("Parsing failed");
+        let thread = instructions.new_thread(0)?;
+
+        // These should have the same length.
+        assert_eq!(thread.len(), bytes.len());
+
+        // The bytes corresponding to an arbitrary push instruction should be the same.
+        let push3 = thread.instruction(5).unwrap().as_ref();
+        assert_eq!(push3.as_byte(), bytes[5]);
+
+        // But the bytes after it should exist in the instruction not the stream,
+        // replaced by NOP.
+        assert_eq!(
+            thread.instruction(6).unwrap().as_text_code(),
+            control::Nop.as_text_code()
+        );
+        let concrete = push3
+            .as_any()
+            .downcast_ref::<memory::PushN>()
+            .expect("Was not a PUSH opcode");
+        let opcode_byte_stream = concrete.encode();
+        let expected_bytes = &bytes[5..=8];
+        assert_eq!(opcode_byte_stream.as_slice(), expected_bytes);
+
+        Ok(())
+    }
+
+    /// Utilities for writing the tests.
+    mod util {
+        use std::ops::RangeInclusive;
+
+        use anyhow::anyhow;
+
+        use crate::constant::PUSH_OPCODE_BASE_VALUE;
+
+        /// Provides the bytes corresponding to all of the non-consolidated
+        /// opcodes.
+        pub fn get_non_consolidated_opcode_bytes() -> Vec<u8> {
+            let bytes: Vec<u8> = vec![
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x10, 0x11,
+                0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x20, 0x30,
+                0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e,
+                0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x50, 0x51, 0x52, 0x53,
+                0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x5f, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5,
+                0xfa, 0xfd, 0xfe, 0xff,
+            ];
+
+            bytes
+        }
+
+        /// Creates a valid set of push opcodes (with random data to be pushed
+        /// encoded after them) for the provided range.
+        ///
+        /// # Errors
+        ///
+        /// If the range is outside 1..=32.
+        pub fn get_valid_push_opcodes(range: RangeInclusive<u8>) -> anyhow::Result<Vec<u8>> {
+            if *range.start() < 1 || *range.end() > 32 {
+                return Err(anyhow!("Invalid range of sizes for push opcodes"));
+            }
+            let mut bytes: Vec<u8> = vec![];
+
+            for size in range {
+                let mut op_and_data = vec![PUSH_OPCODE_BASE_VALUE + size];
+                for _ in 0..size {
+                    op_and_data.push(rand::random())
+                }
+
+                bytes.extend(op_and_data);
+            }
+
+            Ok(bytes)
+        }
     }
 }

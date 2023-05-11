@@ -23,6 +23,8 @@ use crate::{
 /// Parse the input `bytes` into a vector of [`crate::opcode::Opcode`]s,
 /// returning a reasonable parser error if parsing fails.
 ///
+/// This is a disassembly process.
+///
 /// # Errors
 ///
 /// When one of the `bytes` cannot be parsed as a valid opcode, or when `bytes`
@@ -32,7 +34,7 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
         return Err(ParseError::EmptyBytecode.into());
     }
 
-    let mut ops: Vec<DynOpcode> = Vec::new();
+    let mut ops: Vec<DynOpcode> = Vec::with_capacity(bytes.len());
     let mut push_size: u8 = 0;
     let mut push_size_bytes: u8 = push_size;
     let mut push_bytes: Vec<u8> = Vec::with_capacity(PUSH_OPCODE_MAX_BYTES as usize);
@@ -44,8 +46,8 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
             // them.
             push_bytes.push(*byte);
             push_size_bytes -= 1;
-        } else {
-            if !push_bytes.is_empty() {
+
+            if push_size_bytes == 0 && !push_bytes.is_empty() {
                 // If the push bytes buffer has data in it and there are no more bytes to read
                 // we want to construct the opcode.
                 let opcode = mem::PushN::new(push_size, push_bytes.clone())?;
@@ -62,7 +64,7 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
                 push_bytes.clear();
                 push_size = 0;
             }
-
+        } else {
             // Now we can match the next byte and process the opcode.
             match byte {
                 0x00 => add_op!(ops, control::Stop),
@@ -116,8 +118,7 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
                 0x45 => add_op!(ops, env::GasLimit),
                 0x46 => add_op!(ops, env::ChainId),
                 0x47 => add_op!(ops, env::SelfBalance),
-                0x48 => add_op!(ops, env::SelfBalance),
-                0x49 => add_op!(ops, env::BaseFee),
+                0x48 => add_op!(ops, env::BaseFee),
                 0x50 => add_op!(ops, mem::Pop),
                 0x51 => add_op!(ops, mem::MLoad),
                 0x52 => add_op!(ops, mem::MStore),
@@ -131,21 +132,21 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
                 0x5a => add_op!(ops, env::Gas),
                 0x5f => add_op!(ops, mem::Push0),
                 0x60..=0x7f => {
-                    push_size = PUSH_OPCODE_BASE_VALUE - byte;
+                    push_size = byte - PUSH_OPCODE_BASE_VALUE;
                     push_size_bytes = push_size;
                 }
                 0x80..=0x8f => {
-                    let item_to_duplicate = DUP_OPCODE_BASE_VALUE - byte;
+                    let item_to_duplicate = byte - DUP_OPCODE_BASE_VALUE;
                     let opcode = mem::Dup::new(item_to_duplicate)?;
                     add_op!(ops, opcode);
                 }
                 0x90..=0x9f => {
-                    let item_to_swap_with = SWAP_OPCODE_BASE_VALUE - byte;
+                    let item_to_swap_with = byte - SWAP_OPCODE_BASE_VALUE;
                     let opcode = mem::SwapN::new(item_to_swap_with)?;
                     add_op!(ops, opcode);
                 }
                 0xa0..=0xa4 => {
-                    let topic_count = LOG_OPCODE_BASE_VALUE - byte;
+                    let topic_count = byte - LOG_OPCODE_BASE_VALUE;
                     let opcode = env::LogN::new(topic_count)?;
                     add_op!(ops, opcode)
                 }
@@ -164,5 +165,5 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
         }
     }
 
-    todo!()
+    Ok(ops)
 }

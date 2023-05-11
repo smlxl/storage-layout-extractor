@@ -9,6 +9,8 @@ pub mod memory;
 
 use std::{any::Any, fmt::Debug};
 
+use downcast_rs::Downcast;
+
 use crate::vm::VM;
 
 /// This trait forms the core of the `Opcode` representation. It provides the
@@ -32,6 +34,7 @@ use crate::vm::VM;
 ///   needed.
 /// - [`Debug`] to provide representations to aid in debugging. It is
 ///   recommended to use the derive feature for this.
+/// - [`Downcast`] for easy conversions _to_ [`Any`] for downcasting.
 ///
 /// In addition, it is recommended but not enforced that implementors of this
 /// trait also implement [`Copy`], [`Clone`], [`Eq`] and [`PartialEq`].
@@ -42,7 +45,7 @@ use crate::vm::VM;
 /// stack.
 pub trait Opcode
 where
-    Self: Any + Debug,
+    Self: Any + Debug + Downcast,
 {
     /// Executes the opcode, modifying the state of the [`VM`] appropriately.
     ///

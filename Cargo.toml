@@ -27,6 +27,7 @@ publish = false
 # Build dependencies.
 [dependencies]
 anyhow = { version = "1.0.71", features = ["backtrace"] }
+downcast-rs = "1.2.0"
 hex = "0.4.3"
 serde_json = "1.0.96"
 thiserror = "1.0.40"
@@ -35,6 +36,7 @@ thiserror = "1.0.40"
 #
 # These are the dependencies required purely for internal development of the library such as testing or benchmarking.
 [dev-dependencies]
+rand = "0.8.5"
 
 # Profiles specify the build settings for different kinds of build.
 #
