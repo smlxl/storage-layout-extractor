@@ -6,11 +6,12 @@ mod parser;
 
 use std::ops::Range;
 
+use downcast_rs::Downcast;
 use hex::FromHexError;
 
 use crate::{
     error::{ParseError, VMError},
-    opcode::DynOpcode,
+    opcode::{DynOpcode, Opcode},
 };
 
 /// The maximum size of an instruction stream, in bytes.
@@ -159,17 +160,36 @@ pub struct ExecutionThread<'opcode> {
 }
 
 impl<'opcode> ExecutionThread<'opcode> {
+    /// Gets the current value of the instruction pointer for this thread of
+    /// execution.
+    pub fn instruction_pointer(&self) -> u32 {
+        self.instruction_pointer
+    }
+
     /// Gets the opcode at the current execution position.
     pub fn current(&self) -> &DynOpcode {
         &self.instructions[self.instruction_pointer as usize]
     }
 
-    /// Gets the instruction at the specified byte position, if it exists.
+    /// Gets the instruction at the specified `instruction_pointer` location, if
+    /// it exists.
     ///
-    /// If no instruction exists at the specified instruction pointer location
+    /// If no instruction exists at the specified `instruction_pointer` location
     /// this method returns [`None`].
-    pub fn instruction(&self, byte_offset: u32) -> Option<&DynOpcode> {
-        self.instructions.get(byte_offset as usize)
+    pub fn instruction(&self, instruction_pointer: u32) -> Option<&DynOpcode> {
+        self.instructions.get(instruction_pointer as usize)
+    }
+
+    /// Gets the instruction at the specified `instruction_pointer` location as
+    /// the specified concrete type `T`, if it exists.
+    ///
+    /// If no instruction exists at the specified `instruction_pointer`
+    /// location, or the instruction exists but is not of type `T`, this method
+    /// returns [`None`],
+    pub fn instruction_as<T: Opcode>(&self, instruction_pointer: u32) -> Option<&T> {
+        self.instruction(instruction_pointer)
+            .map(|op| op.as_any().downcast_ref::<T>())
+            .flatten()
     }
 
     /// Steps the instruction pointer, moving it to the next instruction and

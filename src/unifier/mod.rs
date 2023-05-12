@@ -1,7 +1,7 @@
 //! This module contains the [`Unifier`] and related utilities.
 
 pub mod implication_set;
-pub mod metavariable;
+pub mod types;
 
 /// The `Unifier` is responsible for combining the evidence as to the type of a
 /// storage variable, in the form of [`ImplicationSet`]s, to discover the most

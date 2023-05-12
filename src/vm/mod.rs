@@ -2,6 +2,7 @@
 
 pub mod instruction_stream;
 pub mod state;
+pub mod symbolic_value;
 
 /// The virtual machine used to perform symbolic execution of the contract
 /// bytecode.
