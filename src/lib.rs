@@ -25,7 +25,11 @@
 //!    usage-based type inference.
 //! 5. From there, the [`StorageLayout`] can be output.
 
-extern crate core;
+#![warn(clippy::all, clippy::cargo)]
 
+pub mod constant;
+pub mod error;
+pub mod executor;
 pub mod opcode;
+pub mod unifier;
 pub mod vm;

@@ -154,7 +154,7 @@ impl Opcode for SGt {
     }
 
     fn as_byte(&self) -> u8 {
-        0x1d
+        0x13
     }
 }
 

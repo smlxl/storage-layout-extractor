@@ -1,13 +1,15 @@
 //! This module contains the [`Opcode`] trait, and the concrete implementation
 //! of each of the EVM's [opcodes](https://ethereum.org/en/developers/docs/evm/opcodes/).
 
-mod arithmetic;
-mod control;
-mod environment;
-mod logic;
-mod memory;
+pub mod arithmetic;
+pub mod control;
+pub mod environment;
+pub mod logic;
+pub mod memory;
 
 use std::{any::Any, fmt::Debug};
+
+use downcast_rs::Downcast;
 
 use crate::vm::VM;
 
@@ -30,13 +32,12 @@ use crate::vm::VM;
 ///
 /// - [`Any`] allows downcasting to concrete implementations of `Opcode` if
 ///   needed.
-/// - [`Clone`] and [`Copy`] to allow for cloning and copying. It is recommended
-///   to use the derive feature for these.
 /// - [`Debug`] to provide representations to aid in debugging. It is
 ///   recommended to use the derive feature for this.
+/// - [`Downcast`] for easy conversions _to_ [`Any`] for downcasting.
 ///
 /// In addition, it is recommended but not enforced that implementors of this
-/// trait also implement [`Eq`] and [`PartialEq`].
+/// trait also implement [`Copy`], [`Clone`], [`Eq`] and [`PartialEq`].
 ///
 /// # Terminology
 ///
@@ -44,7 +45,7 @@ use crate::vm::VM;
 /// stack.
 pub trait Opcode
 where
-    Self: Any + Clone + Copy + Debug,
+    Self: Any + Debug + Downcast,
 {
     /// Executes the opcode, modifying the state of the [`VM`] appropriately.
     ///
@@ -73,6 +74,15 @@ where
 
     /// Gets the byte representation of the opcode.
     fn as_byte(&self) -> u8;
+
+    /// Encodes the instruction as a sequence of bytes.
+    ///
+    /// # Note
+    /// The default implementation delegates to [`Opcode::as_byte`], as this is
+    /// the correct encoding for the vast majority of the opcodes.
+    fn encode(&self) -> Vec<u8> {
+        vec![self.as_byte()]
+    }
 }
 
 /// A type for an [`Opcode`] that is dynamically dispatched.

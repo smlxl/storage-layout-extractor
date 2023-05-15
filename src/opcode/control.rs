@@ -130,7 +130,7 @@ impl Opcode for Jump {
 ///
 /// Execution is reverted if the target instruction is not `JUMPDEST`.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct JumpI {}
+pub struct JumpI;
 
 impl Opcode for JumpI {
     fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
@@ -557,5 +557,37 @@ impl Opcode for Revert {
 
     fn as_byte(&self) -> u8 {
         0xfd
+    }
+}
+
+/// Not a true EVM opcode, this structure exists to help in maintaining the
+/// correspondence between position in the instruction stream and the byte
+/// offset in the bytecode.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct Nop;
+
+impl Opcode for Nop {
+    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn min_gas_cost(&self) -> usize {
+        0
+    }
+
+    fn arg_count(&self) -> usize {
+        0
+    }
+
+    fn as_text_code(&self) -> String {
+        "NOP".into()
+    }
+
+    fn as_byte(&self) -> u8 {
+        panic!("NOP cannot be converted into a byte")
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        vec![] // This operation takes up no space in the instruction stream.
     }
 }

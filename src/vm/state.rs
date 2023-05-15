@@ -4,3 +4,6 @@
 /// The state representation for the [`super::VM`].
 #[derive(Debug, Eq, PartialEq)]
 pub struct VMState {}
+
+// TODO [Ara] Stack
+// TODO [Ara] StackItem (maybe == Metavariable, not sure yet)
