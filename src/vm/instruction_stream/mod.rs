@@ -2,7 +2,6 @@
 //! that represents a sequence of bytecode instructions and provides utilities
 //! for implementing it.
 
-mod macros;
 mod parser;
 
 use std::ops::Range;
