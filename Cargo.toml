@@ -27,6 +27,7 @@ publish = false
 # Build dependencies.
 [dependencies]
 anyhow = { version = "1.0.71", features = ["backtrace"] }
+derivative = "2.2.0"
 downcast-rs = "1.2.0"
 ethnum = "1.3.2"
 hex = "0.4.3"

@@ -498,7 +498,7 @@ impl Opcode for MLoad {
 ///
 /// | Stack Index | Input    | Output                            |
 /// | :---------: | :------: | :-------------------------------: |
-/// | 1           | `offset` |  |
+/// | 1           | `offset` |                                   |
 /// | 2           | `value`  |                                   |
 ///
 /// where:
