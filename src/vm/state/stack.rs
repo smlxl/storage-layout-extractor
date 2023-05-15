@@ -152,14 +152,22 @@ impl Stack {
 mod test {
     use crate::{
         constant::MAXIMUM_STACK_DEPTH,
-        vm::{state::stack::Stack, symbolic_value::SymbolicValue},
+        vm::{
+            state::stack::Stack,
+            symbolic_value::{BoxedVal, Provenance, SymbolicValue},
+        },
     };
+
+    /// Creates a new synthetic value for testing purposes.
+    fn new_synthetic_value(instruction_pointer: u32) -> BoxedVal {
+        SymbolicValue::new_value(instruction_pointer, Provenance::Synthetic)
+    }
 
     /// Constructs a new stack with `item_count` unknown items pushed onto it.
     fn new_stack_with_items(item_count: usize) -> anyhow::Result<Stack> {
         let mut stack = Stack::new();
         for i in 0..item_count {
-            stack.push(SymbolicValue::new_value(i as u32))?
+            stack.push(new_synthetic_value(i as u32))?
         }
 
         Ok(stack)
@@ -174,7 +182,7 @@ mod test {
     #[test]
     fn can_push_item_within_capacity() -> anyhow::Result<()> {
         let mut stack = Stack::new();
-        stack.push(SymbolicValue::new_value(0))?;
+        stack.push(new_synthetic_value(0))?;
 
         Ok(())
     }
@@ -183,7 +191,7 @@ mod test {
     fn cannot_push_outside_of_capacity() -> anyhow::Result<()> {
         let mut stack = new_stack_with_items(MAXIMUM_STACK_DEPTH)?;
         stack
-            .push(SymbolicValue::new_value(0))
+            .push(new_synthetic_value(0))
             .expect_err("Pushing onto a full stack did not error");
 
         Ok(())

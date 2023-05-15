@@ -10,9 +10,17 @@
 pub enum KnownData {
     Bytes { value: Vec<u8> },
     Address { value: [u8; 20] },
-    UInt { size: u8, value: Vec<u8> },
-    Int { size: u8, value: Vec<u8> },
+    UInt { value: Vec<u8> },
+    Int { value: Vec<u8> },
     Bool { value: bool },
     Selector { value: [u8; 4] },
     Function { value: [u8; 24] },
+}
+
+impl KnownData {
+    /// Creates a known value representing zero as a 256-bit wide unsigned
+    /// integer.
+    pub fn zero() -> Self {
+        KnownData::UInt { value: vec![32, 0] }
+    }
 }
