@@ -9,13 +9,13 @@ pub mod storage;
 #[derive(Debug, Eq, PartialEq)]
 pub struct VMState {}
 
-// TODO [Ara] state needs to be easily "forked" and should track its fork point
-// TODO [Ara] Should provide access to the pointer.
-// TODO [Ara] when run it needs to be able to take the current metavariable
-//   storage or something.
-// TODO [Ara] state needs to contain calldata, memory, stack and storage.
-// TODO [Ara] All kinds of memory contain metavariables, which identify semantic
-//   threads of data usage, rather than a specific variable location
+// TODO [Ara] Needs to contain a stack, memory, and the storage.
+
+// TODO [Ara] When a symbolic value is going to disappear it should be added to
+//   the `VM`s buffer of them.
+
+// TODO [Ara] State needs to be easily "forked" and should track its fork point.
+//   When forked, it causes a state bifurcation.
 
 // TODO [Ara] The addresses may also be symbolic values.
 

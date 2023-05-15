@@ -1,27 +1,6 @@
 //! This module contains the definition of the [`SymbolicValue`] and its
 //! supporting types.
 
-// TODO [Ara] Metavariable storage. Needs operations to mutate metavars and add
-//   new ones, as well as consume the entire thing at the end (unifier).
-
-// TODO [Ara] Metavariable representation.
-// TODO [Ara] Metavariables held at top level in the VM, taken and then returned
-//   with each split in execution (VMState holds references, perhaps)
-
-// TODO [Ara] MetavariableHandle type, that makes it easy to reference things by
-//   index, perhaps?
-
-// TODO [Ara] The stored implication sets need to know some idea of where they
-//   came from. (e.g. M3 resulted from the sum of M1 and M2). Metavar trees in a
-//   vector for each metavar containing the ones that "contribute", by or index
-//   (handle).
-
-// TODO [Ara] When a symbolic value is going to disappear it should be added to
-//   the `VM`s buffer of them.
-
-// TODO [Ara] Have to deal with indexing into storage and memory based on
-//   symbolic values. Symbolic equality is sufficient for now. Probably.
-
 pub mod known_data;
 
 use uuid::Uuid;
@@ -34,10 +13,10 @@ use crate::vm::symbolic_value::known_data::KnownData;
 pub struct SymbolicValue {
     /// The instruction pointer's value at the location where this part of the
     /// symbolic execution tree was recorded.
-    instruction_pointer: u32,
+    pub instruction_pointer: u32,
 
     /// The actual execution tree that forms this value.
-    data: SymbolicValueData,
+    pub data: SymbolicValueData,
 }
 
 impl SymbolicValue {
@@ -51,6 +30,15 @@ impl SymbolicValue {
             instruction_pointer,
             data,
         })
+    }
+
+    /// Constructs a new `SymbolicValue` representing a symbolic value created
+    /// at `instruction_pointer`.
+    ///
+    /// It returns [`Box<Self>`] as in the vast majority of cases this type is
+    /// used in a recursive data type and hence indirection is needed.
+    pub fn new_value(instruction_pointer: u32) -> Box<Self> {
+        Self::new(instruction_pointer, SymbolicValueData::default())
     }
 }
 

@@ -188,8 +188,7 @@ impl<'opcode> ExecutionThread<'opcode> {
     /// returns [`None`],
     pub fn instruction_as<T: Opcode>(&self, instruction_pointer: u32) -> Option<&T> {
         self.instruction(instruction_pointer)
-            .map(|op| op.as_any().downcast_ref::<T>())
-            .flatten()
+            .and_then(|op| op.as_any().downcast_ref::<T>())
     }
 
     /// Steps the instruction pointer, moving it to the next instruction and

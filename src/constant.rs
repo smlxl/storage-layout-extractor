@@ -33,3 +33,6 @@ pub const LOG_OPCODE_BASE_VALUE: u8 = 0xa0;
 /// The maximum number of bytes that can be pushed at once using the `PUSH`
 /// opcode.
 pub const PUSH_OPCODE_MAX_BYTES: u8 = 32;
+
+/// The maximum stack depth for the EVM.
+pub const MAXIMUM_STACK_DEPTH: usize = 1024;

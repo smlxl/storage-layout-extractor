@@ -15,10 +15,10 @@ pub enum Type {
     Numeric,
 
     /// A type that is known to have a fixed width and be unsigned.
-    UnsignedFixedWidth { width: u8 },
+    UnsignedFixedWidth { width: u16 },
 
     /// A type that is known to have a fixed width and be signed.
-    SignedFixedWidth { width: u8 },
+    SignedFixedWidth { width: u16 },
 
     /// A type known to be a fixed-length array but not with a known element
     /// type.
@@ -43,11 +43,11 @@ pub enum Type {
 pub enum AbiType {
     /// Unsigned integers of a given `size` in bits, where `8 < size <= 256 &&
     /// size % 8 == 0`.
-    UInt { size: u8 },
+    UInt { size: u16 },
 
     /// Signed (two's complement) integers of a given `size` in bits, where `8 <
     /// size <= 256 && size % 8 == 0`.
-    Int { size: u8 },
+    Int { size: u16 },
 
     /// Addresses, assumed equivalent to `UInt { size: 160 }` except for
     /// interpretation.
