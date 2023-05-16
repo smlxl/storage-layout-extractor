@@ -3,6 +3,7 @@
 pub mod instruction_stream;
 pub mod state;
 pub mod symbolic_value;
+pub mod vm_thread;
 
 /// The virtual machine used to perform symbolic execution of the contract
 /// bytecode.
@@ -10,6 +11,9 @@ pub mod symbolic_value;
 pub struct VM {}
 
 // TODO [Ara] Tracking for visited opcodes.
+
+// TODO [Ara] Some way of getting the "next opcode" in a way that is agnostic to
+//   which ET is running.
 
 // TODO [Ara] FIFO queue of branches, registered by their JUMPS. We only spawn
 //   new branches if the source jump hasn't been bifurcated and enqueued before.
