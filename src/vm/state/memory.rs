@@ -319,8 +319,8 @@ mod test {
         let div = SymbolicValue::new_synthetic(
             5,
             SymbolicValueData::Div {
-                dividend: left.clone(),
-                divisor:  right.clone(),
+                dividend: left,
+                divisor:  right,
             },
         );
 
