@@ -27,6 +27,8 @@
 
 #![warn(clippy::all, clippy::cargo)]
 
+extern crate core;
+
 pub mod constant;
 pub mod error;
 pub mod executor;

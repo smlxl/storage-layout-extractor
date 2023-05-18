@@ -37,7 +37,7 @@ pub const INSTRUCTION_STREAM_MAX_SIZE: u32 = u32::MAX;
 ///
 /// # Byte-Instruction Correspondence
 ///
-/// Where most [`crate::opcode::Opcode`]s occupy a single byte, the
+/// Where most [`Opcode`]s occupy a single byte, the
 /// [`crate::opcode::memory::PushN`] opcode is followed in the instruction
 /// stream by the data (of size `N` bytes) that needs to be pushed onto the
 /// stack.
@@ -60,7 +60,7 @@ pub const INSTRUCTION_STREAM_MAX_SIZE: u32 = u32::MAX;
 /// contain that many opcodes.
 #[derive(Debug)]
 pub struct InstructionStream {
-    /// The sequence of [`crate::opcode::Opcode`]s.
+    /// The sequence of [`Opcode`]s.
     instructions: Vec<DynOpcode>,
 }
 
@@ -155,7 +155,7 @@ pub struct ExecutionThread<'opcode> {
     /// in the sequence of instructions.
     instruction_pointer: u32,
 
-    /// The sequence of [`crate::opcode::Opcode`]s.
+    /// The sequence of [`Opcode`]s.
     instructions: &'opcode Vec<DynOpcode>,
 }
 
@@ -220,7 +220,7 @@ impl<'opcode> ExecutionThread<'opcode> {
         let new_pointer: u32 = if self.instruction_pointer as i64 + jump < 0 {
             return None;
         } else {
-            self.instruction_pointer - jump as u32
+            self.instruction_pointer + jump as u32
         };
         if let Some(opcode) = self.instructions.get(new_pointer as usize) {
             self.instruction_pointer = new_pointer;
@@ -228,6 +228,20 @@ impl<'opcode> ExecutionThread<'opcode> {
         } else {
             None
         }
+    }
+
+    /// Sets the execution position to the opcode at `offset` in the instruction
+    /// stream if possible, returning that opcode if so.
+    ///
+    /// Returns [`None`] if there is no opcode at `offset.
+    pub fn at(&mut self, offset: u32) -> Option<&DynOpcode> {
+        if offset as usize >= self.instructions.len() {
+            return None;
+        }
+
+        self.instruction_pointer = offset;
+
+        Some(self.current())
     }
 
     /// Gets the slice of opcodes in the requested range.
