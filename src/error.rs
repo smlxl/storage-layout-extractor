@@ -13,6 +13,12 @@ pub enum VMError {
         "Instruction pointer {requested:?} is out of bounds in stream of length {available:?}"
     )]
     InstructionPointerOutOfBounds { requested: usize, available: usize },
+
+    #[error("Maximum stack depth exceeded with request for {requested:?} frames")]
+    StackDepthExceeded { requested: usize },
+
+    #[error("A stack frame at depth {depth:?} was requested but none was available.")]
+    NoSuchStackFrame { depth: i64 },
 }
 
 /// Errors encountered during parsing a bytecode stream.
@@ -20,10 +26,13 @@ pub enum VMError {
 pub enum ParseError {
     #[error("{_0:?} is not a valid EVM opcode")]
     InvalidOpcode(u8),
+
     #[error("Bytecode cannot be empty")]
     EmptyBytecode,
+
     #[error("The provided hexadecimal input had an odd length")]
     InvalidHexLength,
+
     #[error("Encountered invalid hex char {_0:?} at index {_1:?}")]
     InvalidHexCharacter(char, usize),
 }

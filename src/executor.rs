@@ -8,3 +8,6 @@
 /// [`ExecutionTrace`]s.
 #[derive(Debug)]
 pub struct Executor;
+
+// TODO [Ara] We only ever execute every branch once, so need some way to track
+//   this.
