@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::vm::symbolic_value::BoxedVal;
+use crate::vm::symbolic_value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValue};
 
 /// A representation of the transient memory of the symbolic virtual machine.
 ///
@@ -64,16 +64,34 @@ impl Memory {
         self.mem.insert(offset, store_value);
     }
 
-    /// Loads the 256-bits at the given `offset` in memory.
+    /// Loads the 256-bits at the given `offset` in memory, or returns 0 if the
+    /// offset has never been written to.
     ///
-    /// If the value at `offset` does not exist, it returns [`None`]. This
-    /// leaves it up to the caller to implement a sensible return value in its
-    /// place.
+    /// # Note
     ///
-    /// On the EVM, reading from "uninitialized" regions of memory returns all
-    /// zeroes.
-    pub fn load(&self, offset: &BoxedVal) -> Option<&BoxedVal> {
-        self.mem.get(offset).map(|result| &result.data)
+    /// This is a best-effort analysis as we cannot guarantee knowing if there
+    /// have been overwrites between adjacent slots.
+    pub fn load(&mut self, offset: &BoxedVal) -> &BoxedVal {
+        &self
+            .mem
+            .entry(offset.clone())
+            .or_insert_with(|| {
+                // The instruction pointer is 0 here, as the uninitialized value was created
+                // when the program started.
+
+                let data = SymbolicValue::new_known_value(
+                    0,
+                    KnownData::zero(),
+                    Provenance::UninitializedMemory {
+                        key: offset.clone(),
+                    },
+                );
+                MemStore {
+                    data,
+                    size: MemStoreSize::Word,
+                }
+            })
+            .data
     }
 
     /// Asks the memory about the size of the store that was made at a given
@@ -88,13 +106,13 @@ impl Memory {
     ///
     /// This has no equivalent operation on the EVM and is primarily useful for
     /// introspection.
-    pub fn entries(&self) -> usize {
+    pub fn entry_count(&self) -> usize {
         self.mem.len()
     }
 
     /// Checks if the memory has ever been written to.
     pub fn is_empty(&self) -> bool {
-        self.entries() == 0
+        self.entry_count() == 0
     }
 }
 
@@ -131,26 +149,39 @@ impl MemStoreSize {
 
 #[cfg(test)]
 mod test {
+    use std::ops::Deref;
+
     use crate::vm::{
         state::memory::{MemStoreSize, Memory},
-        symbolic_value::{SymbolicValue, SymbolicValueData},
+        symbolic_value::{
+            known_data::KnownData,
+            BoxedVal,
+            Provenance,
+            SymbolicValue,
+            SymbolicValueData,
+        },
     };
+
+    /// Creates a new synthetic value for testing purposes.
+    fn new_synthetic_value(instruction_pointer: u32) -> BoxedVal {
+        SymbolicValue::new_value(instruction_pointer, Provenance::Synthetic)
+    }
 
     #[test]
     fn can_construct_new_memory() {
         let memory = Memory::new();
-        assert_eq!(memory.entries(), 0);
+        assert_eq!(memory.entry_count(), 0);
     }
 
     #[test]
     fn can_store_word_to_memory() {
         let mut memory = Memory::new();
-        let offset = SymbolicValue::new_value(0);
-        let value = SymbolicValue::new_value(1);
+        let offset = new_synthetic_value(0);
+        let value = new_synthetic_value(1);
         memory.store(offset.clone(), value.clone());
 
-        assert_eq!(memory.entries(), 1);
-        assert_eq!(memory.load(&offset), Some(&value));
+        assert_eq!(memory.entry_count(), 1);
+        assert_eq!(memory.load(&offset), &value);
         assert_eq!(
             memory.query_store_size(&offset).unwrap(),
             MemStoreSize::Word
@@ -160,30 +191,28 @@ mod test {
     #[test]
     fn can_overwrite_word_in_memory() {
         let mut memory = Memory::new();
-        let offset = SymbolicValue::new_value(0);
-        let value_1 = SymbolicValue::new_value(1);
-        let value_2 = SymbolicValue::new_value(2);
+        let offset = new_synthetic_value(0);
+        let value_1 = new_synthetic_value(1);
+        let value_2 = new_synthetic_value(2);
 
         memory.store(offset.clone(), value_1.clone());
         let load = memory.load(&offset);
-        assert!(load.is_some());
-        assert_eq!(load.unwrap(), &value_1);
+        assert_eq!(load, &value_1);
 
         memory.store(offset.clone(), value_2.clone());
         let load = memory.load(&offset);
-        assert!(load.is_some());
-        assert_eq!(load.unwrap(), &value_2);
+        assert_eq!(load, &value_2);
     }
 
     #[test]
     fn can_store_byte_to_memory() {
         let mut memory = Memory::new();
-        let offset = SymbolicValue::new_value(0);
-        let value = SymbolicValue::new_value(1);
+        let offset = new_synthetic_value(0);
+        let value = new_synthetic_value(1);
         memory.store_8(offset.clone(), value.clone());
 
-        assert_eq!(memory.entries(), 1);
-        assert_eq!(memory.load(&offset), Some(&value));
+        assert_eq!(memory.entry_count(), 1);
+        assert_eq!(memory.load(&offset), &value);
         assert_eq!(
             memory.query_store_size(&offset).unwrap(),
             MemStoreSize::Byte
@@ -193,65 +222,101 @@ mod test {
     #[test]
     fn can_overwrite_byte_in_memory() {
         let mut memory = Memory::new();
-        let offset = SymbolicValue::new_value(0);
-        let value_1 = SymbolicValue::new_value(1);
-        let value_2 = SymbolicValue::new_value(2);
+        let offset = new_synthetic_value(0);
+        let value_1 = new_synthetic_value(1);
+        let value_2 = new_synthetic_value(2);
 
         memory.store_8(offset.clone(), value_1.clone());
         let load = memory.load(&offset);
-        assert!(load.is_some());
-        assert_eq!(load.unwrap(), &value_1);
+        assert_eq!(load, &value_1);
 
         memory.store_8(offset.clone(), value_2.clone());
         let load = memory.load(&offset);
-        assert!(load.is_some());
-        assert_eq!(load.unwrap(), &value_2);
+        assert_eq!(load, &value_2);
+    }
+
+    #[test]
+    fn can_get_written_entry_in_memory() {
+        let mut memory = Memory::new();
+        let offset = new_synthetic_value(0);
+        let value = new_synthetic_value(1);
+
+        memory.store(offset.clone(), value.clone());
+
+        let loaded = memory.load(&offset);
+        assert_eq!(loaded, &value);
+    }
+
+    #[test]
+    fn can_get_zero_if_memory_offset_never_written() {
+        let mut memory = Memory::new();
+        let offset = new_synthetic_value(0);
+
+        let loaded = memory.load(&offset).deref();
+        assert_eq!(loaded.instruction_pointer, 0);
+
+        match loaded {
+            SymbolicValue {
+                data: SymbolicValueData::KnownData { value, .. },
+                provenance,
+                ..
+            } => {
+                assert_eq!(value, &KnownData::zero());
+                assert_eq!(
+                    provenance,
+                    &Provenance::UninitializedMemory {
+                        key: offset.clone(),
+                    }
+                );
+            }
+            _ => panic!("Test failure"),
+        }
     }
 
     #[test]
     fn can_get_entry_count_of_memory() {
         let mut memory = Memory::new();
-        let offset_1 = SymbolicValue::new_value(0);
-        let value_1 = SymbolicValue::new_value(1);
-        let offset_2 = SymbolicValue::new_value(0);
-        let value_2 = SymbolicValue::new_value(2);
+        let offset_1 = new_synthetic_value(0);
+        let value_1 = new_synthetic_value(1);
+        let offset_2 = new_synthetic_value(0);
+        let value_2 = new_synthetic_value(2);
 
         assert!(memory.is_empty());
 
         memory.store(offset_1, value_1);
-        assert_eq!(memory.entries(), 1);
+        assert_eq!(memory.entry_count(), 1);
 
         memory.store(offset_2, value_2);
-        assert_eq!(memory.entries(), 2);
+        assert_eq!(memory.entry_count(), 2);
     }
 
     #[test]
     fn can_store_and_retrieve_more_complex_values() {
         let mut memory = Memory::new();
-        let left = SymbolicValue::new_value(0);
-        let right = SymbolicValue::new_value(1);
-        let sum = SymbolicValue::new(
+        let left = new_synthetic_value(0);
+        let right = new_synthetic_value(1);
+        let sum = SymbolicValue::new_synthetic(
             2,
             SymbolicValueData::Add {
                 left:  left.clone(),
                 right: right.clone(),
             },
         );
-        let prod = SymbolicValue::new(
+        let prod = SymbolicValue::new_synthetic(
             3,
             SymbolicValueData::Mul {
                 left:  left.clone(),
                 right: right.clone(),
             },
         );
-        let sub = SymbolicValue::new(
+        let sub = SymbolicValue::new_synthetic(
             4,
             SymbolicValueData::Sub {
                 left:  left.clone(),
                 right: right.clone(),
             },
         );
-        let div = SymbolicValue::new(
+        let div = SymbolicValue::new_synthetic(
             5,
             SymbolicValueData::Div {
                 dividend: left.clone(),
@@ -260,11 +325,11 @@ mod test {
         );
 
         memory.store(sum.clone(), prod.clone());
-        assert_eq!(memory.entries(), 1);
-        assert_eq!(memory.load(&sum).unwrap(), &prod);
+        assert_eq!(memory.entry_count(), 1);
+        assert_eq!(memory.load(&sum), &prod);
 
         memory.store(sub.clone(), div.clone());
-        assert_eq!(memory.entries(), 2);
-        assert_eq!(memory.load(&sub).unwrap(), &div);
+        assert_eq!(memory.entry_count(), 2);
+        assert_eq!(memory.load(&sub), &div);
     }
 }
