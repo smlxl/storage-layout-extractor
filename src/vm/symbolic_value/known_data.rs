@@ -6,7 +6,7 @@
 ///
 /// For more information on the concrete definition of these data types, please
 /// see [`crate::unifier::types::AbiType`].
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum KnownData {
     Bytes { value: Vec<u8> },
     Address { value: [u8; 20] },
