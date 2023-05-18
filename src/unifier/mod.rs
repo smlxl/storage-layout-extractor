@@ -8,3 +8,5 @@ pub mod types;
 /// concretely-known type for that variable.
 #[derive(Debug)]
 pub struct Unifier;
+
+// TODO [Ara] Needs to de-duplicate trees as some will be the same.
