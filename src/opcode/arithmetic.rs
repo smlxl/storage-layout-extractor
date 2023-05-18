@@ -1,6 +1,6 @@
 //! Opcodes that perform arithmetic operations on the EVM.
 
-#![allow(dead_code)] // Temporary allow to suppress valid warnings for now.
+#![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
 
 use crate::{opcode::Opcode, vm::VM};
 
@@ -21,7 +21,7 @@ use crate::{opcode::Opcode, vm::VM};
 pub struct Add;
 
 impl Opcode for Add {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -59,7 +59,7 @@ impl Opcode for Add {
 pub struct Mul;
 
 impl Opcode for Mul {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -97,7 +97,7 @@ impl Opcode for Mul {
 pub struct Sub;
 
 impl Opcode for Sub {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -135,7 +135,7 @@ impl Opcode for Sub {
 pub struct Div;
 
 impl Opcode for Div {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -176,7 +176,7 @@ impl Opcode for Div {
 pub struct SDiv;
 
 impl Opcode for SDiv {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -214,7 +214,7 @@ impl Opcode for SDiv {
 pub struct Mod;
 
 impl Opcode for Mod {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -255,7 +255,7 @@ impl Opcode for Mod {
 pub struct SMod;
 
 impl Opcode for SMod {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -299,7 +299,7 @@ impl Opcode for SMod {
 pub struct AddMod;
 
 impl Opcode for AddMod {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -343,7 +343,7 @@ impl Opcode for AddMod {
 pub struct MulMod;
 
 impl Opcode for MulMod {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -381,7 +381,7 @@ impl Opcode for MulMod {
 pub struct Exp;
 
 impl Opcode for Exp {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -424,7 +424,7 @@ impl Opcode for Exp {
 pub struct SignExtend;
 
 impl Opcode for SignExtend {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 

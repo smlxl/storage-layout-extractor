@@ -1,26 +1,35 @@
 //! This module contains the definition of the [`VMThread`] type, representing
 //! the divergent execution paths that can be taken during symbolic execution.
 
-use crate::vm::{instruction_stream::ExecutionThread, state::VMState};
+use crate::vm::{instructions::ExecutionThread, state::VMState};
 
 /// A `VMThread` is a representation of a given execution path during the course
 /// of symbolic execution.
 ///
 /// The construct can be forked at will to represent the branches in execution,
 /// but contains no logic for performing that execution itself.
-pub struct VMThread<'et> {
+#[derive(Debug)]
+pub struct VMThread {
     /// The virtual machine's state for this thread of execution.
     state: VMState,
 
     /// The instruction stream and instruction pointer.
-    thread: ExecutionThread<'et>,
+    thread: ExecutionThread,
+
+    /// The amount of gas used in executing this thread.
+    gas_usage: usize,
 }
 
-impl<'et> VMThread<'et> {
+impl VMThread {
     /// Constructs a new virtual machine thread with `state` as the initial
     /// state at `thread.instruction_pointer()`.
-    pub fn new(state: VMState, thread: ExecutionThread<'et>) -> Self {
-        Self { state, thread }
+    pub fn new(state: VMState, thread: ExecutionThread) -> Self {
+        let gas_usage = 0;
+        Self {
+            state,
+            thread,
+            gas_usage,
+        }
     }
 
     /// Gets the current virtual machine state for this virtual machine thread.
@@ -30,28 +39,49 @@ impl<'et> VMThread<'et> {
 
     /// Gets the instruction stream and current execution position associated
     /// with this virtual machine thread.
-    pub fn instructions(&mut self) -> &mut ExecutionThread<'et> {
+    pub fn instructions(&mut self) -> &mut ExecutionThread {
         &mut self.thread
     }
 
     /// Forks the virtual machine thread at the current point of execution,
-    /// jumping the new thread to `target`.
+    /// jumping the new thread to `target` and leaving the current thread at the
+    /// current point of execution.
     ///
     /// This method performs no validation as to whether the fork point is a
     /// valid fork point. This is up to the VM itself.
     pub fn fork(&self, target: u32) -> Self {
         let instruction_pointer = self.thread.instruction_pointer();
         let state = self.state.fork(instruction_pointer);
-        let mut thread = self.thread;
+        let gas_usage = self.gas_usage;
+        let mut thread = self.thread.clone();
         thread.at(target);
 
-        Self { state, thread }
+        Self {
+            state,
+            thread,
+            gas_usage,
+        }
+    }
+
+    /// Adds the provided `gas` to the gas usage of this thread.
+    pub fn consume_gas(&mut self, gas: usize) {
+        self.gas_usage += gas
+    }
+
+    /// Gets the gas usage of this thread.
+    pub fn gas_usage(&self) -> usize {
+        self.gas_usage
+    }
+
+    /// Consumes the thread to produce its state.
+    pub fn into_state(self) -> VMState {
+        self.state
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::vm::{instruction_stream::InstructionStream, state::VMState, vm_thread::VMThread};
+    use crate::vm::{instructions::InstructionStream, state::VMState, thread::VMThread};
 
     #[test]
     fn can_fork_vm_thread() -> anyhow::Result<()> {

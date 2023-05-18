@@ -7,7 +7,7 @@ pub mod environment;
 pub mod logic;
 pub mod memory;
 
-use std::{any::Any, fmt::Debug};
+use std::{any::Any, fmt::Debug, rc::Rc};
 
 use downcast_rs::Downcast;
 
@@ -47,7 +47,13 @@ pub trait Opcode
 where
     Self: Any + Debug + Downcast,
 {
-    /// Executes the opcode, modifying the state of the [`VM`] appropriately.
+    /// Executes the opcode described by `self`, modifying the state of the `vm`
+    /// as necessary.
+    ///
+    /// It should not modify the instruction position in the general case, as
+    /// this is handled outside the evaluation of the individual opcodes.
+    /// Similarly, it should not manipulate the gas tracking in the general
+    /// case, as this is handled by the VM itself.
     ///
     /// # Errors
     ///
@@ -86,4 +92,4 @@ where
 }
 
 /// A type for an [`Opcode`] that is dynamically dispatched.
-pub type DynOpcode = Box<dyn Opcode>;
+pub type DynOpcode = Rc<dyn Opcode>;

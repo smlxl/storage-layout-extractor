@@ -64,8 +64,9 @@ pub enum AbiType {
     /// interpretation.
     Selector,
 
-    /// A function, consisting of an [`Address`] followed by a [`Selector`].
-    /// This is semantically equivalent to `Bytes { length: 24 }`.
+    /// A function, consisting of an [`Self::Address`] followed by a
+    /// [`Self::Selector`]. This is semantically equivalent to `Bytes { length:
+    /// 24 }`.
     Function,
 
     /// A fixed-`size` array containing elements of an element type `tp`.
@@ -76,4 +77,11 @@ pub enum AbiType {
 
     /// A dynamically-sized array containing elements of a type `tp`.
     DynArray { tp: Box<AbiType> },
+
+    /// A mapping from `key_tp` to `val_tp`.
+    Mapping { key_tp: Box<AbiType>, val_tp: Box<AbiType> },
+
+    /// An unknown type, useful for the container types where we know something
+    /// is a concrete container but not of what type(s).
+    Any,
 }

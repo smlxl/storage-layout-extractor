@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::vm::symbolic_value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValue};
+use crate::vm::value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValue};
 
 /// A representation of the transient memory of the symbolic virtual machine.
 ///
@@ -34,7 +34,7 @@ impl Memory {
     /// # Note
     ///
     /// Be careful with overlapping stores, as the storage is not able to track
-    /// these. Implementation of the `MLOAD` and MSTORE*` opcodes may want to
+    /// these. Implementation of the `MLOAD` and `MSTORE*` opcodes may want to
     /// account for sub-word writes by dissecting the arguments to this
     /// function.
     pub fn store(&mut self, offset: BoxedVal, value: BoxedVal) {
@@ -153,13 +153,7 @@ mod test {
 
     use crate::vm::{
         state::memory::{MemStoreSize, Memory},
-        symbolic_value::{
-            known_data::KnownData,
-            BoxedVal,
-            Provenance,
-            SymbolicValue,
-            SymbolicValueData,
-        },
+        value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
     };
 
     /// Creates a new synthetic value for testing purposes.

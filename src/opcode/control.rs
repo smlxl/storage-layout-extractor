@@ -1,6 +1,6 @@
 //! Opcodes that perform control(-flow) operations on the EVM.
 
-#![allow(dead_code)] // Temporary allow to suppress valid warnings for now.
+#![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
 
 use crate::{opcode::Opcode, vm::VM};
 
@@ -10,7 +10,7 @@ use crate::{opcode::Opcode, vm::VM};
 pub struct Stop;
 
 impl Opcode for Stop {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!();
     }
 
@@ -38,7 +38,7 @@ impl Opcode for Stop {
 pub struct Invalid;
 
 impl Opcode for Invalid {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -84,7 +84,7 @@ impl Opcode for Invalid {
 pub struct Jump;
 
 impl Opcode for Jump {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -133,7 +133,7 @@ impl Opcode for Jump {
 pub struct JumpI;
 
 impl Opcode for JumpI {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -175,7 +175,7 @@ impl Opcode for JumpI {
 pub struct PC;
 
 impl Opcode for PC {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -206,7 +206,7 @@ impl Opcode for PC {
 pub struct JumpDest;
 
 impl Opcode for JumpDest {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -262,7 +262,7 @@ impl Opcode for JumpDest {
 pub struct Call;
 
 impl Opcode for Call {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -323,7 +323,7 @@ impl Opcode for Call {
 pub struct CallCode;
 
 impl Opcode for CallCode {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -380,7 +380,7 @@ impl Opcode for CallCode {
 pub struct DelegateCall;
 
 impl Opcode for DelegateCall {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -446,7 +446,7 @@ impl Opcode for DelegateCall {
 pub struct StaticCall;
 
 impl Opcode for StaticCall {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -492,7 +492,7 @@ impl Opcode for StaticCall {
 pub struct Return;
 
 impl Opcode for Return {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -539,7 +539,7 @@ impl Opcode for Return {
 pub struct Revert;
 
 impl Opcode for Revert {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -567,8 +567,8 @@ impl Opcode for Revert {
 pub struct Nop;
 
 impl Opcode for Nop {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
-        Ok(())
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+        unimplemented!()
     }
 
     fn min_gas_cost(&self) -> usize {

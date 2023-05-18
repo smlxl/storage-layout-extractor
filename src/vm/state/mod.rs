@@ -7,7 +7,7 @@ pub mod storage;
 
 use crate::vm::{
     state::{memory::Memory, stack::Stack, storage::Storage},
-    symbolic_value::BoxedVal,
+    value::BoxedVal,
 };
 
 /// The state representation for the [`super::VM`].
@@ -102,7 +102,7 @@ impl Default for VMState {
 mod test {
     use crate::vm::{
         state::VMState,
-        symbolic_value::{SymbolicValue, SymbolicValueData},
+        value::{SymbolicValue, SymbolicValueData},
     };
 
     #[test]

@@ -1,6 +1,6 @@
 //! Opcodes that perform operations on memory or stack on the EVM.
 
-#![allow(dead_code)] // Temporary allow to suppress valid warnings for now.
+#![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
 
 use crate::{
     constant::{
@@ -36,7 +36,7 @@ use crate::{
 pub struct CallDataLoad;
 
 impl Opcode for CallDataLoad {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -74,7 +74,7 @@ impl Opcode for CallDataLoad {
 pub struct CallDataSize;
 
 impl Opcode for CallDataSize {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -122,7 +122,7 @@ impl Opcode for CallDataSize {
 pub struct CallDataCopy;
 
 impl Opcode for CallDataCopy {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -159,7 +159,7 @@ impl Opcode for CallDataCopy {
 pub struct CodeSize;
 
 impl Opcode for CodeSize {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -206,7 +206,7 @@ impl Opcode for CodeSize {
 pub struct CodeCopy;
 
 impl Opcode for CodeCopy {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -248,7 +248,7 @@ impl Opcode for CodeCopy {
 pub struct ExtCodeSize;
 
 impl Opcode for ExtCodeSize {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -297,7 +297,7 @@ impl Opcode for ExtCodeSize {
 pub struct ExtCodeCopy;
 
 impl Opcode for ExtCodeCopy {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -339,7 +339,7 @@ impl Opcode for ExtCodeCopy {
 pub struct ReturnDataSize;
 
 impl Opcode for ReturnDataSize {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -387,7 +387,7 @@ impl Opcode for ReturnDataSize {
 pub struct ReturnDataCopy;
 
 impl Opcode for ReturnDataCopy {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -428,7 +428,7 @@ impl Opcode for ReturnDataCopy {
 pub struct Pop;
 
 impl Opcode for Pop {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -471,7 +471,7 @@ impl Opcode for Pop {
 pub struct MLoad;
 
 impl Opcode for MLoad {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -515,7 +515,7 @@ impl Opcode for MLoad {
 pub struct MStore;
 
 impl Opcode for MStore {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -559,7 +559,7 @@ impl Opcode for MStore {
 pub struct MStore8;
 
 impl Opcode for MStore8 {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -602,7 +602,7 @@ impl Opcode for MStore8 {
 pub struct SLoad;
 
 impl Opcode for SLoad {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -647,7 +647,7 @@ impl Opcode for SLoad {
 pub struct SStore;
 
 impl Opcode for SStore {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -686,7 +686,7 @@ impl Opcode for SStore {
 pub struct MSize;
 
 impl Opcode for MSize {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -723,7 +723,7 @@ impl Opcode for MSize {
 pub struct Push0;
 
 impl Opcode for Push0 {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -800,7 +800,7 @@ impl PushN {
 }
 
 impl Opcode for PushN {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -873,7 +873,7 @@ impl Dup {
 }
 
 impl Opcode for Dup {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -939,7 +939,7 @@ impl SwapN {
 }
 
 impl Opcode for SwapN {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 

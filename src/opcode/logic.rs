@@ -1,6 +1,6 @@
 //! Opcodes that deal with performing boolean logic on the EVM.
 
-#![allow(dead_code)] // Temporary allow to suppress valid warnings for now.
+#![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
 
 use crate::{opcode::Opcode, vm::VM};
 
@@ -21,7 +21,7 @@ use crate::{opcode::Opcode, vm::VM};
 pub struct Lt;
 
 impl Opcode for Lt {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -59,7 +59,7 @@ impl Opcode for Lt {
 pub struct Gt;
 
 impl Opcode for Gt {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -98,7 +98,7 @@ impl Opcode for Gt {
 pub struct SLt;
 
 impl Opcode for SLt {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -137,7 +137,7 @@ impl Opcode for SLt {
 pub struct SGt;
 
 impl Opcode for SGt {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -175,7 +175,7 @@ impl Opcode for SGt {
 pub struct Eq;
 
 impl Opcode for Eq {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -212,7 +212,7 @@ impl Opcode for Eq {
 pub struct IsZero;
 
 impl Opcode for IsZero {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -250,7 +250,7 @@ impl Opcode for IsZero {
 pub struct And;
 
 impl Opcode for And {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -288,7 +288,7 @@ impl Opcode for And {
 pub struct Or;
 
 impl Opcode for Or {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -326,7 +326,7 @@ impl Opcode for Or {
 pub struct Xor;
 
 impl Opcode for Xor {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -363,7 +363,7 @@ impl Opcode for Xor {
 pub struct Not;
 
 impl Opcode for Not {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -407,7 +407,7 @@ impl Opcode for Not {
 pub struct Byte;
 
 impl Opcode for Byte {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -452,7 +452,7 @@ impl Opcode for Byte {
 pub struct Shl;
 
 impl Opcode for Shl {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -498,7 +498,7 @@ impl Opcode for Shl {
 pub struct Shr;
 
 impl Opcode for Shr {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -546,7 +546,7 @@ impl Opcode for Shr {
 pub struct Sar;
 
 impl Opcode for Sar {
-    fn execute(&self, _vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         unimplemented!()
     }
 

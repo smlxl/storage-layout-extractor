@@ -7,6 +7,8 @@
 //! on parser combinators from a library like [`nom`](https://docs.rs/nom), for
 //! now it makes sense to stick to a simple system.
 
+use std::rc::Rc;
+
 use crate::{
     constant::{
         DUP_OPCODE_BASE_VALUE,
@@ -27,8 +29,8 @@ use crate::{
     },
 };
 
-/// Parse the input `bytes` into a vector of [`crate::opcode::Opcode`]s,
-/// returning a reasonable parser error if parsing fails.
+/// Parse the input `bytes` into a vector of [`Opcode`]s, returning a reasonable
+/// parser error if parsing fails.
 ///
 /// This is a disassembly process.
 ///
@@ -178,5 +180,5 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
 
 /// Adds an operation `elem` to the array of opcodes `ops`.
 fn add_op<T: Opcode>(ops: &mut Vec<DynOpcode>, elem: T) {
-    ops.push(Box::new(elem))
+    ops.push(Rc::new(elem))
 }
