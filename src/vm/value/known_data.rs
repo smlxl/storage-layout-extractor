@@ -21,6 +21,6 @@ impl KnownData {
     /// Creates a known value representing zero as a 256-bit wide unsigned
     /// integer.
     pub fn zero() -> Self {
-        KnownData::UInt { value: vec![32, 0] }
+        KnownData::UInt { value: vec![0; 32] }
     }
 }

@@ -76,11 +76,7 @@ impl Storage {
         target_map.entry(key.clone()).or_insert_with(|| {
             // The instruction pointer is 0 here, as the uninitialized value was created
             // when the program started. It is _not_ synthetic.
-            SymbolicValue::new_known_value(
-                0,
-                KnownData::zero(),
-                Provenance::UninitializedStorage { key: key.clone() },
-            )
+            SymbolicValue::new_known_value(0, KnownData::zero(), Provenance::UninitializedStorage)
         })
     }
 
@@ -177,10 +173,7 @@ mod test {
                 ..
             } => {
                 assert_eq!(value, &KnownData::zero());
-                assert_eq!(
-                    provenance,
-                    &Provenance::UninitializedStorage { key: key_1.clone() }
-                )
+                assert_eq!(provenance, &Provenance::UninitializedStorage)
             }
             _ => panic!("Test failure"),
         }
@@ -192,10 +185,7 @@ mod test {
                 ..
             } => {
                 assert_eq!(value, &KnownData::zero());
-                assert_eq!(
-                    provenance,
-                    &Provenance::UninitializedStorage { key: key_2.clone() }
-                )
+                assert_eq!(provenance, &Provenance::UninitializedStorage)
             }
             _ => panic!("Test failure"),
         }

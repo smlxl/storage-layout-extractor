@@ -120,7 +120,7 @@ mod test {
     #[test]
     fn can_record_symbolic_value() {
         let mut state = VMState::default();
-        let value = SymbolicValue::new_synthetic(0, SymbolicValueData::default());
+        let value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         state.record_value(value.clone());
 
         let values = state.recorded_values();
@@ -130,7 +130,7 @@ mod test {
 
     #[test]
     fn can_fork_state() -> anyhow::Result<()> {
-        let value = SymbolicValue::new_synthetic(0, SymbolicValueData::default());
+        let value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         let state = VMState::default();
         let mut forked_state = state.fork(78);
 
