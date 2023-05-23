@@ -1,8 +1,12 @@
 //! Opcodes that perform arithmetic operations on the EVM.
 
-#![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
-
-use crate::{opcode::Opcode, vm::VM};
+use crate::{
+    opcode::Opcode,
+    vm::{
+        value::{SymbolicValue, SymbolicValueData},
+        VM,
+    },
+};
 
 /// The `ADD` opcode performs addition.
 ///
@@ -22,7 +26,25 @@ pub struct Add;
 
 impl Opcode for Add {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Add { left: a, right: b },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -60,7 +82,25 @@ pub struct Mul;
 
 impl Opcode for Mul {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Multiply { left: a, right: b },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -98,7 +138,25 @@ pub struct Sub;
 
 impl Opcode for Sub {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Subtract { left: a, right: b },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -136,7 +194,28 @@ pub struct Div;
 
 impl Opcode for Div {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Divide {
+                dividend: a,
+                divisor:  b,
+            },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -177,7 +256,28 @@ pub struct SDiv;
 
 impl Opcode for SDiv {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::SignedDivide {
+                dividend: a,
+                divisor:  b,
+            },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -215,7 +315,28 @@ pub struct Mod;
 
 impl Opcode for Mod {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Modulo {
+                dividend: a,
+                divisor:  b,
+            },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -256,7 +377,28 @@ pub struct SMod;
 
 impl Opcode for SMod {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::SignedModulo {
+                dividend: a,
+                divisor:  b,
+            },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -300,7 +442,34 @@ pub struct AddMod;
 
 impl Opcode for AddMod {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+        let n = stack.pop()?;
+
+        // As they are semantically equivalent for the purposes of symbolic
+        // execution, we simplify this into nested add and mod.
+        let add = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Add { left: a, right: b },
+        );
+        let modulo = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Modulo {
+                dividend: add,
+                divisor:  n,
+            },
+        );
+
+        // The result gets pushed onto the stack
+        stack.push(modulo)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -344,7 +513,34 @@ pub struct MulMod;
 
 impl Opcode for MulMod {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+        let n = stack.pop()?;
+
+        // As they are semantically equivalent for the purposes of symbolic
+        // execution, we simplify this into nested add and mod.
+        let mul = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Multiply { left: a, right: b },
+        );
+        let modulo = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Modulo {
+                dividend: mul,
+                divisor:  n,
+            },
+        );
+
+        // The result gets pushed onto the stack
+        stack.push(modulo)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -382,7 +578,28 @@ pub struct Exp;
 
 impl Opcode for Exp {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Exp {
+                value:    a,
+                exponent: b,
+            },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -425,7 +642,25 @@ pub struct SignExtend;
 
 impl Opcode for SignExtend {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let x = stack.pop()?;
+
+        // Create the new value
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::SignExtend { value: a, size: x },
+        );
+
+        // Push it onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -442,5 +677,343 @@ impl Opcode for SignExtend {
 
     fn as_byte(&self) -> u8 {
         0x0b
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        opcode::{arithmetic, test_util as util, Opcode},
+        vm::value::{Provenance, SymbolicValue, SymbolicValueData},
+    };
+
+    #[test]
+    fn add_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::Add;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::Add { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn mul_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::Mul;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::Multiply { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sub_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::Sub;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::Subtract { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn div_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::Div;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::Divide { dividend, divisor } => {
+                assert_eq!(dividend, &input_left);
+                assert_eq!(divisor, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn s_div_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::SDiv;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::SignedDivide { dividend, divisor } => {
+                assert_eq!(dividend, &input_left);
+                assert_eq!(divisor, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn mod_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::Mod;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::Modulo { dividend, divisor } => {
+                assert_eq!(dividend, &input_left);
+                assert_eq!(divisor, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn s_mod_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::SMod;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::SignedModulo { dividend, divisor } => {
+                assert_eq!(dividend, &input_left);
+                assert_eq!(divisor, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_mod_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_n = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![
+            input_n.clone(),
+            input_right.clone(),
+            input_left.clone(),
+        ])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::AddMod;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::Modulo { dividend, divisor } => {
+                assert_eq!(divisor, &input_n);
+                assert_eq!(dividend.provenance, Provenance::Execution);
+                match &dividend.data {
+                    SymbolicValueData::Add { left, right } => {
+                        assert_eq!(left, &input_left);
+                        assert_eq!(right, &input_right);
+                    }
+                    _ => panic!("Incorrect payload"),
+                }
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn mul_mod_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_n = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![
+            input_n.clone(),
+            input_right.clone(),
+            input_left.clone(),
+        ])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::MulMod;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::Modulo { dividend, divisor } => {
+                assert_eq!(divisor, &input_n);
+                assert_eq!(dividend.provenance, Provenance::Execution);
+                match &dividend.data {
+                    SymbolicValueData::Multiply { left, right } => {
+                        assert_eq!(left, &input_left);
+                        assert_eq!(right, &input_right);
+                    }
+                    _ => panic!("Incorrect payload"),
+                }
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn exp_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::Exp;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::Exp { value, exponent } => {
+                assert_eq!(value, &input_left);
+                assert_eq!(exponent, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_extend_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the stack and vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = arithmetic::SignExtend;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let item = stack.read(0)?;
+        assert_eq!(item.provenance, Provenance::Execution);
+        match &item.data {
+            SymbolicValueData::SignExtend { value, size } => {
+                assert_eq!(value, &input_left);
+                assert_eq!(size, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
     }
 }

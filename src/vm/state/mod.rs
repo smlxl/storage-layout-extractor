@@ -142,12 +142,12 @@ mod test {
         forked_state.stack.push(value.clone())?;
         forked_state.memory.store(value.clone(), value.clone());
         forked_state.storage.store(value.clone(), value);
-        assert_eq!(forked_state.stack.size(), 1);
+        assert_eq!(forked_state.stack.depth(), 1);
         assert_eq!(forked_state.memory.entry_count(), 1);
         assert_eq!(forked_state.storage.entry_count(), 1);
 
         // Without modifying the other.
-        assert_eq!(state.stack.size(), 0);
+        assert_eq!(state.stack.depth(), 0);
         assert_eq!(state.memory.entry_count(), 0);
         assert_eq!(state.storage.entry_count(), 0);
 

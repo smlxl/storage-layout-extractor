@@ -291,21 +291,21 @@ mod test {
         );
         let prod = SymbolicValue::new_synthetic(
             3,
-            SymbolicValueData::Mul {
+            SymbolicValueData::Multiply {
                 left:  left.clone(),
                 right: right.clone(),
             },
         );
         let sub = SymbolicValue::new_synthetic(
             4,
-            SymbolicValueData::Sub {
+            SymbolicValueData::Subtract {
                 left:  left.clone(),
                 right: right.clone(),
             },
         );
         let div = SymbolicValue::new_synthetic(
             5,
-            SymbolicValueData::Div {
+            SymbolicValueData::Divide {
                 dividend: left,
                 divisor:  right,
             },

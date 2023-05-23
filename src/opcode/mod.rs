@@ -93,3 +93,33 @@ where
 
 /// A type for an [`Opcode`] that is dynamically dispatched.
 pub type DynOpcode = Rc<dyn Opcode>;
+
+#[cfg(test)]
+mod test_util {
+    use crate::vm::{instructions::InstructionStream, value::BoxedVal, Config, VM};
+
+    /// Constructs a new virtual machine with the provided `values` pushed
+    /// onto its stack in order.
+    ///
+    /// This means that the last item in `values` will be put on the top of
+    /// the stack.
+    pub fn new_vm_with_values_on_stack(values: Vec<BoxedVal>) -> anyhow::Result<VM> {
+        // We don't actually care what these are for this test, so we just have
+        // _something_ long enough to account for what is going on.
+        let bytes: Vec<u8> = vec![
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x10, 0x11,
+        ];
+
+        let instructions = InstructionStream::try_from(bytes.as_slice())?;
+        let config = Config::default();
+
+        let mut vm = VM::new(instructions, config)?;
+        let stack = vm.stack()?;
+
+        values.into_iter().for_each(|val| {
+            stack.push(val).expect("Failed to insert value into stack");
+        });
+
+        Ok(vm)
+    }
+}

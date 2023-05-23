@@ -1,8 +1,12 @@
 //! Opcodes that deal with performing boolean logic on the EVM.
 
-#![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
-
-use crate::{opcode::Opcode, vm::VM};
+use crate::{
+    opcode::Opcode,
+    vm::{
+        value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
+        VM,
+    },
+};
 
 /// The `LT` opcode performs a less-than comparison.
 ///
@@ -22,7 +26,23 @@ pub struct Lt;
 
 impl Opcode for Lt {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::LessThan { left: a, right: b },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -60,7 +80,23 @@ pub struct Gt;
 
 impl Opcode for Gt {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::GreaterThan { left: a, right: b },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -99,7 +135,23 @@ pub struct SLt;
 
 impl Opcode for SLt {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::SignedLessThan { left: a, right: b },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -138,7 +190,23 @@ pub struct SGt;
 
 impl Opcode for SGt {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::SignedGreaterThan { left: a, right: b },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -176,7 +244,23 @@ pub struct Eq;
 
 impl Opcode for Eq {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Equals { left: a, right: b },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -213,7 +297,22 @@ pub struct IsZero;
 
 impl Opcode for IsZero {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let number = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::IsZero { number },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -251,7 +350,23 @@ pub struct And;
 
 impl Opcode for And {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::And { left: a, right: b },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -289,7 +404,23 @@ pub struct Or;
 
 impl Opcode for Or {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Or { left: a, right: b },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -327,7 +458,23 @@ pub struct Xor;
 
 impl Opcode for Xor {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let a = stack.pop()?;
+        let b = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Xor { left: a, right: b },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -364,7 +511,22 @@ pub struct Not;
 
 impl Opcode for Not {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let value = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Not { bool: value },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -408,7 +570,69 @@ pub struct Byte;
 
 impl Opcode for Byte {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and the env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands
+        let offset = stack.pop()?;
+        let value = stack.pop()?;
+
+        // Construct the constants
+        let const_0x08 = SymbolicValue::new_known_value(
+            instruction_pointer,
+            KnownData::UInt {
+                value: 0x08u8.to_le_bytes().to_vec(),
+            },
+            Provenance::Bytecode,
+        );
+        let const_0xf8 = SymbolicValue::new_known_value(
+            instruction_pointer,
+            KnownData::UInt {
+                value: 0xf8u8.to_le_bytes().to_vec(),
+            },
+            Provenance::Bytecode,
+        );
+        let const_0xff = SymbolicValue::new_known_value(
+            instruction_pointer,
+            KnownData::UInt {
+                value: 0xffu8.to_le_bytes().to_vec(),
+            },
+            Provenance::Bytecode,
+        );
+
+        // Construct the intermediates
+        let offset_times_0x08 = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Multiply {
+                left:  offset,
+                right: const_0x08,
+            },
+        );
+        let shift = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Subtract {
+                left:  const_0xf8,
+                right: offset_times_0x08,
+            },
+        );
+        let shifted = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::RightShift { value, shift },
+        );
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::And {
+                left:  shifted,
+                right: const_0xff,
+            },
+        );
+
+        // Push the result onto the stack
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -453,7 +677,23 @@ pub struct Shl;
 
 impl Opcode for Shl {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let shift = stack.pop()?;
+        let value = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::LeftShift { shift, value },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -499,7 +739,23 @@ pub struct Shr;
 
 impl Opcode for Shr {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let shift = stack.pop()?;
+        let value = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::RightShift { shift, value },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -547,7 +803,23 @@ pub struct Sar;
 
 impl Opcode for Sar {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let shift = stack.pop()?;
+        let value = stack.pop()?;
+
+        // Construct the result and push it to the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::ArithmeticRightShift { shift, value },
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -564,5 +836,471 @@ impl Opcode for Sar {
 
     fn as_byte(&self) -> u8 {
         0x1d
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        opcode::{logic, test_util as util, Opcode},
+        vm::value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
+    };
+
+    #[test]
+    fn lt_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Lt;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::LessThan { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn gt_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Gt;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::GreaterThan { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn s_lt_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::SLt;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::SignedLessThan { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn s_gt_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::SGt;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::SignedGreaterThan { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn eq_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Eq;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::Equals { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn is_zero_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let operand = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![operand.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::IsZero;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::IsZero { number } => {
+                assert_eq!(number, &operand);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn and_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::And;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::And { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn or_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Or;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::Or { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn xor_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Xor;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::Xor { left, right } => {
+                assert_eq!(left, &input_left);
+                assert_eq!(right, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn not_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let operand = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![operand.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Not;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::Not { bool } => {
+                assert_eq!(bool, &operand);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn byte_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_value.clone(), input_offset.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Byte;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+
+        // At the top level the value should be a logical conjunction
+        match &result.data {
+            SymbolicValueData::And { left, right } => {
+                assert_eq!(left.provenance, Provenance::Execution);
+                assert_eq!(right.provenance, Provenance::Bytecode);
+
+                // The right operand should be a constant 0xff
+                match &right.data {
+                    SymbolicValueData::KnownData { value, .. } => {
+                        assert_eq!(
+                            value,
+                            &KnownData::UInt {
+                                value: 0xffu8.to_le_bytes().to_vec(),
+                            }
+                        );
+                    }
+                    _ => panic!("Invalid payload"),
+                }
+
+                // The left operand should be an unsigned right shift
+                match &left.data {
+                    SymbolicValueData::RightShift { value, shift } => {
+                        assert_eq!(shift.provenance, Provenance::Execution);
+
+                        // The value should come from the inputs
+                        assert_eq!(value, &input_value);
+
+                        // The shift size is computed
+                        match &shift.data {
+                            SymbolicValueData::Subtract { left, right } => {
+                                assert_eq!(left.provenance, Provenance::Bytecode);
+                                assert_eq!(right.provenance, Provenance::Execution);
+
+                                // The left operand is a constant 0xf8
+                                match &left.data {
+                                    SymbolicValueData::KnownData { value, .. } => {
+                                        assert_eq!(
+                                            value,
+                                            &KnownData::UInt {
+                                                value: 0xf8u8.to_le_bytes().to_vec(),
+                                            }
+                                        )
+                                    }
+                                    _ => panic!("Invalid payload"),
+                                }
+
+                                // The right operand is computed
+                                match &right.data {
+                                    SymbolicValueData::Multiply { left, right } => {
+                                        assert_eq!(right.provenance, Provenance::Bytecode);
+
+                                        // The left is the input offset
+                                        assert_eq!(left, &input_offset);
+
+                                        // The right is a constant 0x08
+                                        match &right.data {
+                                            SymbolicValueData::KnownData { value, .. } => {
+                                                assert_eq!(
+                                                    value,
+                                                    &KnownData::UInt {
+                                                        value: 0x08u8.to_le_bytes().to_vec(),
+                                                    }
+                                                )
+                                            }
+                                            _ => panic!("Invalid payload"),
+                                        }
+                                    }
+                                    _ => panic!("Invalid payload"),
+                                }
+                            }
+                            _ => panic!("Invalid payload"),
+                        }
+                    }
+                    _ => panic!("Invalid payload"),
+                }
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn shl_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Shl;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::LeftShift { shift, value } => {
+                assert_eq!(shift, &input_left);
+                assert_eq!(value, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn shr_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Shr;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::RightShift { shift, value } => {
+                assert_eq!(shift, &input_left);
+                assert_eq!(value, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sar_manipulates_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = logic::Sar;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::ArithmeticRightShift { shift, value } => {
+                assert_eq!(shift, &input_left);
+                assert_eq!(value, &input_right);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
     }
 }
