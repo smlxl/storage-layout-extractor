@@ -2,11 +2,19 @@
 
 #![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
 
-use crate::{constant::LOG_OPCODE_BASE_VALUE, error::OpcodeError, opcode::Opcode, vm::VM};
+use crate::{
+    constant::LOG_OPCODE_BASE_VALUE,
+    error::OpcodeError,
+    opcode::Opcode,
+    vm::{
+        value::{BoxedVal, SymbolicValue, SymbolicValueData},
+        VM,
+    },
+};
 
 /// The `SHA3` opcode computes the keccak256 hash of the input.
 ///
-/// The hash is computed on the data in memory at offset `o` over a size `s` in
+/// The hash is computed on the data in memory at `offset` over a `size` in
 /// bytes.
 ///
 /// # Semantics
@@ -30,7 +38,27 @@ pub struct Sha3;
 
 impl Opcode for Sha3 {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let offset = stack.pop()?;
+        let size = stack.pop()?;
+
+        // Get the value at `offset` out of memory
+        let memory = vm.state()?.memory();
+        let value = memory.load(&offset).clone();
+
+        // Build the result and push it onto the stack
+        let result = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Sha3 { value, size },
+        );
+        vm.stack()?.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -67,7 +95,18 @@ pub struct Address;
 
 impl Opcode for Address {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Address,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -109,7 +148,21 @@ pub struct Balance;
 
 impl Opcode for Balance {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the argument from the stack
+        let address = stack.pop()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Balance { address },
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -150,7 +203,18 @@ pub struct Origin;
 
 impl Opcode for Origin {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Origin,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -191,7 +255,18 @@ pub struct Caller;
 
 impl Opcode for Caller {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Caller,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -232,7 +307,18 @@ pub struct CallValue;
 
 impl Opcode for CallValue {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::CallValue,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -273,7 +359,18 @@ pub struct GasPrice;
 
 impl Opcode for GasPrice {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::GasPrice,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -318,7 +415,21 @@ pub struct ExtCodeHash;
 
 impl Opcode for ExtCodeHash {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the argument from the stack
+        let address = stack.pop()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::ExtCodeHash { address },
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -363,7 +474,21 @@ pub struct BlockHash;
 
 impl Opcode for BlockHash {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the argument from the stack
+        let block_number = stack.pop()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::BlockHash { block_number },
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -400,11 +525,22 @@ impl Opcode for BlockHash {
 /// Execution is reverted if there is not enough gas or if there are not enough
 /// operands on the stack.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Coinbase;
+pub struct CoinBase;
 
-impl Opcode for Coinbase {
+impl Opcode for CoinBase {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::CoinBase,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -445,7 +581,18 @@ pub struct Timestamp;
 
 impl Opcode for Timestamp {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::BlockTimestamp,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -482,7 +629,18 @@ pub struct Number;
 
 impl Opcode for Number {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::BlockNumber,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -502,7 +660,7 @@ impl Opcode for Number {
     }
 }
 
-/// The `DIFFICULTY` opcode gets the difficulty of the current block.
+/// The `PREVRANDAO` opcode gets the difficulty of the current block.
 ///
 /// # Semantics
 ///
@@ -515,11 +673,22 @@ impl Opcode for Number {
 /// Execution is reverted if there is not enough gas or if there are not enough
 /// operands on the stack.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Difficulty;
+pub struct Prevrandao;
 
-impl Opcode for Difficulty {
+impl Opcode for Prevrandao {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Prevrandao,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -531,7 +700,7 @@ impl Opcode for Difficulty {
     }
 
     fn as_text_code(&self) -> String {
-        "DIFFICULTY".into()
+        "PREVRANDAO".into()
     }
 
     fn as_byte(&self) -> u8 {
@@ -556,7 +725,18 @@ pub struct GasLimit;
 
 impl Opcode for GasLimit {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::GasLimit,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -594,7 +774,18 @@ pub struct ChainId;
 
 impl Opcode for ChainId {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::ChainId,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -636,7 +827,18 @@ pub struct SelfBalance;
 
 impl Opcode for SelfBalance {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::SelfBalance,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -677,7 +879,18 @@ pub struct BaseFee;
 
 impl Opcode for BaseFee {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::BaseFee,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -719,7 +932,18 @@ pub struct Gas;
 
 impl Opcode for Gas {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and environment data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Create and push the value onto the stack
+        stack.push(SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Gas,
+        ))?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -792,7 +1016,37 @@ impl LogN {
 
 impl Opcode for LogN {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and instruction pointer
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the arguments
+        let offset = stack.pop()?;
+        let size = stack.pop()?;
+        let mut topics: Vec<BoxedVal> = Vec::new();
+        let upper_bound = self.n() as u32 + 2;
+        for frame in 2..upper_bound {
+            topics.push(stack.pop()?);
+        }
+
+        // Read the log value from memory
+        let value = vm.state()?.memory().load(&offset).clone();
+
+        // Build the log call
+        let log = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Log {
+                value,
+                size,
+                topics,
+            },
+        );
+
+        // Write it to the log buffer
+        vm.state()?.log_value(log);
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -852,7 +1106,32 @@ pub struct Create;
 
 impl Opcode for Create {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let value = stack.pop()?;
+        let offset = stack.pop()?;
+        let size = stack.pop()?;
+
+        // Read the create payload from memory
+        let data = vm.state()?.memory().load(&offset).clone();
+
+        // Construct the intermediate and push it onto the stack
+        let address = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Create {
+                value,
+                offset,
+                size,
+                data,
+            },
+        );
+        vm.stack()?.push(address)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -914,7 +1193,34 @@ pub struct Create2;
 
 impl Opcode for Create2 {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands from the stack
+        let value = stack.pop()?;
+        let offset = stack.pop()?;
+        let size = stack.pop()?;
+        let salt = stack.pop()?;
+
+        // Read the create payload from memory
+        let data = vm.state()?.memory().load(&offset).clone();
+
+        // Construct the intermediate and push it onto the stack
+        let address = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Create2 {
+                value,
+                offset,
+                size,
+                salt,
+                data,
+            },
+        );
+        vm.stack()?.push(address)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -957,7 +1263,25 @@ pub struct SelfDestruct;
 
 impl Opcode for SelfDestruct {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the argument from the stack
+        let target = stack.pop()?;
+
+        // Construct the result
+        let destroy = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::SelfDestruct { target },
+        );
+
+        // Store it in the recorded values store, as otherwise it would be dropped and
+        // we would lose info
+        vm.state()?.record_value(destroy);
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -974,5 +1298,552 @@ impl Opcode for SelfDestruct {
 
     fn as_byte(&self) -> u8 {
         0xff
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        opcode::{environment, test_util as util, Opcode},
+        vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+    };
+
+    #[test]
+    fn sha_3_modifies_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let stored_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_size.clone(), input_offset.clone()])?;
+        vm.state()?.memory().store(input_offset, stored_value.clone());
+
+        // Prepare and run the opcode
+        let opcode = environment::Sha3;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::Sha3 { value, size } => {
+                assert_eq!(value, &stored_value);
+                assert_eq!(size, &input_size);
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn address_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::Address;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::Address);
+
+        Ok(())
+    }
+
+    #[test]
+    fn balance_modifies_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![input_address.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::Balance;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::Balance { address } => {
+                assert_eq!(address, &input_address);
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn origin_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::Origin;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::Origin);
+
+        Ok(())
+    }
+
+    #[test]
+    fn caller_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::Caller;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::Caller);
+
+        Ok(())
+    }
+
+    #[test]
+    fn call_value_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::CallValue;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::CallValue);
+
+        Ok(())
+    }
+
+    #[test]
+    fn gas_price_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::GasPrice;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::GasPrice);
+
+        Ok(())
+    }
+
+    #[test]
+    fn ext_code_hash_modifies_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![input_address.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::ExtCodeHash;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::ExtCodeHash { address } => {
+                assert_eq!(address, &input_address);
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn block_hash_modifies_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_block_number = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![input_block_number.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::BlockHash;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        match &result.data {
+            SymbolicValueData::BlockHash { block_number } => {
+                assert_eq!(block_number, &input_block_number);
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn coin_base_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::CoinBase;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::CoinBase);
+
+        Ok(())
+    }
+
+    #[test]
+    fn timestamp_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::Timestamp;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::BlockTimestamp);
+
+        Ok(())
+    }
+
+    #[test]
+    fn number_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::Number;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::BlockNumber);
+
+        Ok(())
+    }
+
+    #[test]
+    fn difficulty_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::Prevrandao;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::Prevrandao);
+
+        Ok(())
+    }
+
+    #[test]
+    fn gas_limit_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::GasLimit;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::GasLimit);
+
+        Ok(())
+    }
+
+    #[test]
+    fn chain_id_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::ChainId;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::ChainId);
+
+        Ok(())
+    }
+
+    #[test]
+    fn self_balance_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::SelfBalance;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::SelfBalance);
+
+        Ok(())
+    }
+
+    #[test]
+    fn base_fee_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::BaseFee;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::BaseFee);
+
+        Ok(())
+    }
+
+    #[test]
+    fn gas_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::Gas;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let result = stack.read(0)?;
+        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.data, SymbolicValueData::Gas);
+
+        Ok(())
+    }
+
+    #[test]
+    fn log_leaves_stack_unchanged() -> anyhow::Result<()> {
+        // We want to test all sizes of log
+        for topic_count in 0..=4 {
+            // Construct the stack
+            let mut topics: Vec<BoxedVal> = vec![];
+            let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+            let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+            let stored_data = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+
+            for i in 0..topic_count as u32 {
+                let value = SymbolicValue::new_synthetic(3 + i, SymbolicValueData::new_value());
+                topics.push(value);
+            }
+
+            let mut input_stack = topics.clone();
+            input_stack.push(input_size.clone());
+            input_stack.push(input_offset.clone());
+
+            // Prepare the vm
+            let mut vm = util::new_vm_with_values_on_stack(input_stack.clone())?;
+            vm.state()?.memory().store(input_offset.clone(), stored_data.clone());
+
+            // Prepare and run the opcode
+            let opcode = environment::LogN { topic_count };
+            opcode.execute(&mut vm)?;
+
+            // Inspect the log data
+            let state = vm.state()?;
+            assert_eq!(state.logged_values().len(), 1);
+            let log_message = &state.logged_values()[0];
+            assert_eq!(log_message.provenance, Provenance::Execution);
+            match &log_message.data {
+                SymbolicValueData::Log {
+                    value,
+                    size,
+                    topics,
+                } => {
+                    assert_eq!(value, &stored_data);
+                    assert_eq!(size, &input_size);
+                    assert_eq!(topics, topics);
+                }
+                _ => panic!("Invalid payload"),
+            }
+
+            // Inspect the stack
+            let stack = vm.stack()?;
+            assert!(stack.is_empty());
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn create_modifies_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_offset = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let input_data = SymbolicValue::new_synthetic(3, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![
+            input_size.clone(),
+            input_offset.clone(),
+            input_value.clone(),
+        ])?;
+        vm.state()?.memory().store(input_offset.clone(), input_data.clone());
+
+        // Prepare and run the opcode
+        let opcode = environment::Create;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let address = stack.read(0)?;
+        assert_eq!(address.provenance, Provenance::Execution);
+        match &address.data {
+            SymbolicValueData::Create {
+                value,
+                offset,
+                size,
+                data,
+            } => {
+                assert_eq!(value, &input_value);
+                assert_eq!(offset, &input_offset);
+                assert_eq!(size, &input_size);
+                assert_eq!(data, &input_data);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn create_2_modifies_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_offset = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let input_salt = SymbolicValue::new_synthetic(3, SymbolicValueData::new_value());
+        let input_data = SymbolicValue::new_synthetic(3, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![
+            input_salt.clone(),
+            input_size.clone(),
+            input_offset.clone(),
+            input_value.clone(),
+        ])?;
+        vm.state()?.memory().store(input_offset.clone(), input_data.clone());
+
+        // Prepare and run the opcode
+        let opcode = environment::Create2;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let address = stack.read(0)?;
+        assert_eq!(address.provenance, Provenance::Execution);
+        match &address.data {
+            SymbolicValueData::Create2 {
+                value,
+                offset,
+                size,
+                salt,
+                data,
+            } => {
+                assert_eq!(value, &input_value);
+                assert_eq!(offset, &input_offset);
+                assert_eq!(size, &input_size);
+                assert_eq!(salt, &input_salt);
+                assert_eq!(data, &input_data);
+            }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn self_destruct_modifies_stack_and_records_value() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![input_address.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = environment::SelfDestruct;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert!(stack.is_empty());
+
+        // Inspect the state
+        let state = vm.state()?;
+        assert_eq!(state.recorded_values().len(), 1);
+        let value = &state.recorded_values()[0];
+        assert_eq!(value.provenance, Provenance::Execution);
+        match &value.data {
+            SymbolicValueData::SelfDestruct { target } => {
+                assert_eq!(target, &input_address)
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
     }
 }

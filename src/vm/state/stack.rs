@@ -150,6 +150,12 @@ impl Stack {
     }
 }
 
+impl From<Stack> for Vec<BoxedVal> {
+    fn from(value: Stack) -> Self {
+        value.data
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::{
