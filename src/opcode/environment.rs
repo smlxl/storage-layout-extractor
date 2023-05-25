@@ -53,7 +53,11 @@ impl Opcode for Sha3 {
         // Build the result and push it onto the stack
         let result = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Sha3 { value, size },
+            SymbolicValueData::Sha3 {
+                value,
+                offset,
+                size,
+            },
         );
         vm.stack()?.push(result)?;
 
@@ -1316,7 +1320,7 @@ mod test {
         let input_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_size.clone(), input_offset.clone()])?;
-        vm.state()?.memory().store(input_offset, stored_value.clone());
+        vm.state()?.memory().store(input_offset.clone(), stored_value.clone());
 
         // Prepare and run the opcode
         let opcode = environment::Sha3;
@@ -1328,8 +1332,13 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Sha3 { value, size } => {
+            SymbolicValueData::Sha3 {
+                value,
+                offset,
+                size,
+            } => {
                 assert_eq!(value, &stored_value);
+                assert_eq!(offset, &input_offset);
                 assert_eq!(size, &input_size);
             }
             _ => panic!("Invalid payload"),

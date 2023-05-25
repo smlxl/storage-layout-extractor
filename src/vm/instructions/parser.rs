@@ -140,6 +140,7 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
                 0x58 => add_op(ops, control::PC),
                 0x59 => add_op(ops, mem::MSize),
                 0x5a => add_op(ops, env::Gas),
+                0x5b => add_op(ops, control::JumpDest),
                 0x5f => add_op(ops, mem::Push0),
                 0x60..=0x7f => {
                     push_size = byte - PUSH_OPCODE_BASE_VALUE;

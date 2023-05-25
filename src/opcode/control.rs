@@ -2,7 +2,14 @@
 
 #![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
 
-use crate::{opcode::Opcode, vm::VM};
+use crate::{
+    error::VMError,
+    opcode::{util, Opcode},
+    vm::{
+        value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
+        VM,
+    },
+};
 
 /// The `STOP` opcode halts execution on the EVM, exiting the current call
 /// context.
@@ -11,7 +18,11 @@ pub struct Stop;
 
 impl Opcode for Stop {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!();
+        // In the case of symbolic execution we only want to stop executing the current
+        // thread, so we mark it as such to return control to the VM.
+        vm.kill_current_thread();
+
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -39,7 +50,12 @@ pub struct Invalid;
 
 impl Opcode for Invalid {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // In the case of symbolic execution we only want to stop executing the current
+        // thread, so we mark it as such to return control to the VM. Reverts actually
+        // do nothing during symbolic execution.
+        vm.kill_current_thread();
+
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -85,7 +101,41 @@ pub struct Jump;
 
 impl Opcode for Jump {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the argument and keep it for later
+        let counter = vm.stack()?.pop()?;
+
+        // In `solc` compiled code, the top of the stack at jump time is a non-computed
+        // immediate, allowing us to actually alter the program counter
+        let jump_target = match util::validate_jump_destination(&counter, vm) {
+            Ok(target) => target,
+            Err(payload) => {
+                // Counter was non-trivial here, so we hold onto it.
+                vm.state()?.record_value(counter);
+
+                let vm_error = payload
+                    .downcast::<VMError>()
+                    .unwrap_or_else(|_| panic!("Impossible error type."));
+
+                return match vm_error {
+                    VMError::NoConcreteJumpDestination => {
+                        // If we do not have an immediate, we instead want to halt
+                        // execution on this branch as it would not be valid to
+                        // continue without knowing where to jump to
+                        vm.kill_current_thread();
+                        Ok(())
+                    }
+                    _ => Err(vm_error.into()),
+                };
+            }
+        };
+
+        // If it is, we set the execution position to there, as executing the next
+        // instruction would be incorrect. Note that the `VM` will step from the target,
+        // but as it is a JUMPDEST no-op this is fine.
+        vm.execution_thread()?.jump(jump_target);
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -134,7 +184,50 @@ pub struct JumpI;
 
 impl Opcode for JumpI {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the arguments
+        let counter = vm.stack()?.pop()?;
+        let condition = vm.stack()?.pop()?;
+
+        // In `solc` compiled code, the top of the stack at jump time is a non-computed
+        // immediate, allowing us to actually alter the program counter
+        let jump_target = match util::validate_jump_destination(&counter, vm) {
+            Ok(target) => target,
+            Err(payload) => {
+                // Counter was non-trivial here, so we hold onto it.
+                vm.state()?.record_value(counter);
+
+                let vm_error = payload
+                    .downcast::<VMError>()
+                    .unwrap_or_else(|_| panic!("Impossible error type."));
+
+                return match vm_error {
+                    VMError::NoConcreteJumpDestination => {
+                        // If we do not have an immediate, we instead want to halt
+                        // execution on this branch as it would not be valid to
+                        // continue without knowing where to jump to
+                        vm.kill_current_thread();
+                        Ok(())
+                    }
+                    _ => Err(vm_error.into()),
+                };
+            }
+        };
+
+        // We want to store that the condition was indeed a condition
+        let condition = SymbolicValue::new_from_execution(
+            vm.instruction_pointer()?,
+            SymbolicValueData::Condition { value: condition },
+        );
+        vm.state()?.record_value(condition);
+
+        // If we do have a valid jump target, we need to fork off an execution thread so
+        // that both branches can be executed. Note that the `VM` will step from the
+        // target, but as it is a JUMPDEST no-op this is fine.
+        vm.fork_current_thread(jump_target)?;
+
+        // Done, so return ok, leaving the current thread in the same position as it
+        // needs to be stepped by the `VM`
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -159,8 +252,8 @@ impl Opcode for JumpI {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input | Output |
-/// | :---------: | :---: | :----: |
+/// | Stack Index | Input | Output  |
+/// | :---------: | :---: | :-----: |
 /// | 1           |       | $pc - 1 |
 ///
 /// where:
@@ -176,7 +269,22 @@ pub struct PC;
 
 impl Opcode for PC {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and instruction pointer
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Construct the value and push it onto the stack
+        let result = SymbolicValue::new_known_value(
+            instruction_pointer,
+            KnownData::UInt {
+                value: instruction_pointer.to_le_bytes().to_vec(),
+            },
+            Provenance::ProgramCounter,
+        );
+        stack.push(result)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -207,7 +315,9 @@ pub struct JumpDest;
 
 impl Opcode for JumpDest {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // This is a no-op at execution time, but allows the virtual machine to perform
+        // some validation.
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -263,7 +373,43 @@ pub struct Call;
 
 impl Opcode for Call {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env info
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Pull the arguments off the stack
+        let gas = stack.pop()?;
+        let address = stack.pop()?;
+        let value = stack.pop()?;
+        let arg_offset = stack.pop()?;
+        let arg_size = stack.pop()?;
+        let ret_offset = stack.pop()?;
+        let ret_size = stack.pop()?;
+
+        // Read the input data to touch it if it hasn't already been touched
+        vm.state()?.memory().load(&arg_offset);
+
+        // Create the return value and store it in memory
+        let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
+        vm.state()?.memory().store(ret_offset, ret_value);
+
+        // Create the value representing the call
+        let call_return = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Call {
+                gas,
+                address,
+                value,
+                arg_size,
+                ret_size,
+            },
+        );
+
+        // Push it onto the stack
+        vm.stack()?.push(call_return)?;
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -324,7 +470,9 @@ pub struct CallCode;
 
 impl Opcode for CallCode {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // As the implementation for symbolic execution is identical, we delegate to the
+        // standard call
+        Call.execute(vm)
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -381,7 +529,9 @@ pub struct DelegateCall;
 
 impl Opcode for DelegateCall {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // As the implementation for symbolic execution is identical, we delegate to the
+        // standard call
+        Call.execute(vm)
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -447,7 +597,9 @@ pub struct StaticCall;
 
 impl Opcode for StaticCall {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // As the implementation for symbolic execution is identical, we delegate to the
+        // standard call
+        Call.execute(vm)
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -493,7 +645,26 @@ pub struct Return;
 
 impl Opcode for Return {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands
+        let offset = stack.pop()?;
+        let size = stack.pop()?;
+
+        // Construct the value and hold onto it
+        let return_val = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Return { offset, size },
+        );
+        vm.state()?.record_value(return_val);
+
+        // Now end execution
+        vm.kill_current_thread();
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -540,7 +711,26 @@ pub struct Revert;
 
 impl Opcode for Revert {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        // Get the stack and env data
+        let instruction_pointer = vm.instruction_pointer()?;
+        let stack = vm.stack()?;
+
+        // Get the operands
+        let offset = stack.pop()?;
+        let size = stack.pop()?;
+
+        // Construct the value and hold onto it
+        let return_val = SymbolicValue::new_from_execution(
+            instruction_pointer,
+            SymbolicValueData::Revert { offset, size },
+        );
+        vm.state()?.record_value(return_val);
+
+        // Now end execution
+        vm.kill_current_thread();
+
+        // Done, so return ok
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -568,7 +758,7 @@ pub struct Nop;
 
 impl Opcode for Nop {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        unimplemented!()
+        Ok(())
     }
 
     fn min_gas_cost(&self) -> usize {
@@ -589,5 +779,479 @@ impl Opcode for Nop {
 
     fn encode(&self) -> Vec<u8> {
         vec![] // This operation takes up no space in the instruction stream.
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use anyhow::anyhow;
+
+    use crate::{
+        error::VMError,
+        opcode::{control, test_util as util, util::bytecode, Opcode},
+        vm::{
+            instructions::InstructionStream,
+            value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
+        },
+    };
+
+    #[test]
+    fn stop_halts_execution_on_thread() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = control::Stop;
+        opcode.execute(&mut vm)?;
+
+        // Check that it has marked execution as needing to halt on the current thread
+        assert!(vm.current_thread_killed());
+
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_instruction_halts_execution_on_thread() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and run the opcode
+        let opcode = control::Invalid;
+        opcode.execute(&mut vm)?;
+
+        // Check that it has marked execution as needing to halt on the current thread
+        assert!(vm.current_thread_killed());
+
+        Ok(())
+    }
+
+    #[test]
+    fn valid_jump_continues_execution() -> anyhow::Result<()> {
+        // Prepare the instruction stream, as it actually does matter this time
+        let bytes: Vec<u8> = bytecode![
+            control::Jump,
+            control::Invalid,
+            control::Invalid,
+            control::JumpDest,
+        ];
+        let instructions = InstructionStream::try_from(bytes.as_slice())?;
+
+        // Prepare the VM
+        let immediate = SymbolicValue::new_known_value(
+            0,
+            KnownData::UInt { value: vec![0x03] }, // Offset of JUMPDEST in the bytes above
+            Provenance::Synthetic,
+        );
+        let mut vm =
+            util::new_vm_with_instructions_and_values_on_stack(instructions, vec![immediate])?;
+
+        // Prepare and execute the opcode
+        let opcode = control::Jump;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        assert!(vm.stack()?.is_empty());
+
+        // Inspect the execution position.
+        assert_eq!(vm.execution_thread()?.instruction_pointer(), 0x03);
+
+        Ok(())
+    }
+
+    #[test]
+    fn jump_without_concrete_immediate_halts_execution() -> anyhow::Result<()> {
+        // Prepare the instruction stream, as it actually does matter this time
+        let bytes: Vec<u8> = bytecode![
+            control::Jump,
+            control::Invalid,
+            control::Invalid,
+            control::JumpDest,
+        ];
+        let instructions = InstructionStream::try_from(bytes.as_slice())?;
+
+        // Prepare the VM
+        let immediate = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_instructions_and_values_on_stack(instructions, vec![immediate])?;
+
+        // Prepare and execute the opcode
+        let opcode = control::Jump;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        assert!(vm.stack()?.is_empty());
+
+        // Inspect the execution position.
+        assert_eq!(vm.execution_thread()?.instruction_pointer(), 0x00);
+
+        // Ensure that the current thread has been marked for death
+        assert!(vm.current_thread_killed());
+
+        Ok(())
+    }
+
+    #[test]
+    fn jump_with_oob_target_halts_execution() -> anyhow::Result<()> {
+        // Prepare the instruction stream, as it actually does matter this time
+        let bytes: Vec<u8> = bytecode![
+            control::Jump,
+            control::Invalid,
+            control::Invalid,
+            control::JumpDest,
+        ];
+        let instructions = InstructionStream::try_from(bytes.as_slice())?;
+
+        // Prepare the VM
+        let immediate = SymbolicValue::new_known_value(
+            0,
+            KnownData::UInt { value: vec![0x04] }, // Out of bounds
+            Provenance::Synthetic,
+        );
+        let mut vm =
+            util::new_vm_with_instructions_and_values_on_stack(instructions, vec![immediate])?;
+
+        // Prepare and execute the opcode
+        let opcode = control::Jump;
+        let result = opcode.execute(&mut vm);
+
+        // Check that it errored
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let concrete_error = error.downcast_ref::<VMError>().ok_or(anyhow!("Bad error type"))?;
+        assert_eq!(
+            concrete_error,
+            &VMError::NonExistentJumpTarget { offset: 0x04 }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn jump_with_invalid_destination_halts_execution() -> anyhow::Result<()> {
+        // Prepare the instruction stream, as it actually does matter this time
+        let bytes: Vec<u8> = bytecode![
+            control::Jump,
+            control::Invalid,
+            control::Invalid,
+            control::Invalid,
+        ];
+        let instructions = InstructionStream::try_from(bytes.as_slice())?;
+
+        // Prepare the VM
+        let immediate = SymbolicValue::new_known_value(
+            0,
+            KnownData::UInt { value: vec![0x03] }, // The final INVALID in the bytes above
+            Provenance::Synthetic,
+        );
+        let mut vm =
+            util::new_vm_with_instructions_and_values_on_stack(instructions, vec![immediate])?;
+
+        // Prepare and execute the opcode
+        let opcode = control::Jump;
+        let result = opcode.execute(&mut vm);
+
+        // Check that it errored
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let concrete_error = error.downcast_ref::<VMError>().ok_or(anyhow!("Bad error type"))?;
+        assert_eq!(concrete_error, &VMError::InvalidJumpTarget { offset: 0x03 });
+
+        Ok(())
+    }
+
+    #[test]
+    fn valid_conditional_jump_continues_execution() -> anyhow::Result<()> {
+        // Prepare the instruction stream, as it actually does matter this time
+        let bytes: Vec<u8> = bytecode![control::Jump, control::PC, control::JumpDest, control::PC];
+        let instructions = InstructionStream::try_from(bytes.as_slice())?;
+
+        // Prepare the VM
+        let immediate = SymbolicValue::new_known_value(
+            0,
+            KnownData::UInt { value: vec![0x02] }, // Offset of JUMPDEST in the bytes above
+            Provenance::Synthetic,
+        );
+        let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_instructions_and_values_on_stack(
+            instructions,
+            vec![cond.clone(), immediate],
+        )?;
+
+        // Ensure that we start with one thread
+        assert_eq!(vm.remaining_thread_count(), 1);
+
+        // Prepare and execute the opcode
+        let opcode = control::JumpI;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        assert!(vm.stack()?.is_empty());
+
+        // Inspect the execution position.
+        assert_eq!(vm.execution_thread()?.instruction_pointer(), 0x00);
+
+        // Check that there is an additional thread in the VM
+        assert_eq!(vm.remaining_thread_count(), 2);
+
+        // Check that the second thread's execution position is where it should be
+        assert_eq!(
+            vm.remaining_threads()
+                .back_mut()
+                .expect("No threads remaining")
+                .instructions()
+                .instruction_pointer(),
+            0x02
+        );
+
+        // Check that we stored the condition in the auxiliary buffer
+        assert_eq!(
+            vm.state()?.recorded_values()[0].data,
+            SymbolicValueData::Condition { value: cond }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn conditional_jump_with_oob_target_halts_execution() -> anyhow::Result<()> {
+        // Prepare the instruction stream, as it actually does matter this time
+        let bytes: Vec<u8> = bytecode![control::Jump, control::PC, control::JumpDest, control::PC];
+        let instructions = InstructionStream::try_from(bytes.as_slice())?;
+
+        // Prepare the VM
+        let immediate = SymbolicValue::new_known_value(
+            0,
+            KnownData::UInt { value: vec![0x04] }, // OOB target
+            Provenance::Synthetic,
+        );
+        let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_instructions_and_values_on_stack(
+            instructions,
+            vec![cond, immediate],
+        )?;
+
+        // Prepare and execute the opcode
+        let opcode = control::Jump;
+        let result = opcode.execute(&mut vm);
+
+        // Check that it errored
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let concrete_error = error.downcast_ref::<VMError>().ok_or(anyhow!("Bad error type"))?;
+        assert_eq!(
+            concrete_error,
+            &VMError::NonExistentJumpTarget { offset: 0x04 }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn conditional_jump_with_invalid_destination_halts_execution() -> anyhow::Result<()> {
+        // Prepare the instruction stream, as it actually does matter this time
+        let bytes: Vec<u8> = bytecode![control::Jump, control::PC, control::Invalid, control::PC];
+        let instructions = InstructionStream::try_from(bytes.as_slice())?;
+
+        // Prepare the VM
+        let immediate = SymbolicValue::new_known_value(
+            0,
+            KnownData::UInt { value: vec![0x02] }, // Invalid jump target
+            Provenance::Synthetic,
+        );
+        let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_instructions_and_values_on_stack(
+            instructions,
+            vec![cond, immediate],
+        )?;
+
+        // Prepare and execute the opcode
+        let opcode = control::Jump;
+        let result = opcode.execute(&mut vm);
+
+        // Check that it errored
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let concrete_error = error.downcast_ref::<VMError>().ok_or(anyhow!("Bad error type"))?;
+        assert_eq!(concrete_error, &VMError::InvalidJumpTarget { offset: 0x02 });
+
+        Ok(())
+    }
+
+    #[test]
+    fn pc_pushes_value_onto_stack() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+
+        // Prepare and execute the opcode
+        let opcode = control::PC;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let value = stack.read(0)?;
+        match &value.data {
+            SymbolicValueData::KnownData { value, .. } => {
+                assert_eq!(
+                    value,
+                    &KnownData::UInt {
+                        value: 0x00u32.to_le_bytes().to_vec(),
+                    }
+                )
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn jump_dest_does_nothing() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+        let initial_state = vm.state()?.clone();
+
+        // Prepare and execute the opcode
+        let opcode = control::JumpDest;
+        opcode.execute(&mut vm)?;
+
+        // Check that no state has changed
+        assert_eq!(vm.state()?, &initial_state);
+
+        Ok(())
+    }
+
+    #[test]
+    fn call_manipulates_stack_and_memory() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_gas = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_arg_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_arg_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_ret_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_ret_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_data = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![
+            input_ret_size.clone(),
+            input_ret_offset.clone(),
+            input_arg_size.clone(),
+            input_arg_offset.clone(),
+            input_value.clone(),
+            input_address.clone(),
+            input_gas.clone(),
+        ])?;
+        vm.state()?
+            .memory()
+            .store(input_arg_offset.clone(), input_data.clone());
+
+        // Prepare and execute the opcode
+        let opcode = control::Call;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let value = stack.read(0)?;
+        assert_eq!(value.provenance, Provenance::Execution);
+        match &value.data {
+            SymbolicValueData::Call {
+                gas,
+                address,
+                value,
+                arg_size,
+                ret_size,
+            } => {
+                assert_eq!(gas, &input_gas);
+                assert_eq!(address, &input_address);
+                assert_eq!(value, &input_value);
+                assert_eq!(arg_size, &input_arg_size);
+                assert_eq!(ret_size, &input_ret_size);
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        // Inspect the memory state
+        let memory = vm.state()?.memory();
+        let return_value = memory.load(&input_ret_offset);
+        assert_eq!(return_value.provenance, Provenance::MessageCall);
+        let input_value = memory.load(&input_arg_offset);
+        assert_eq!(input_value, &input_data);
+
+        Ok(())
+    }
+
+    #[test]
+    fn return_stores_data_and_ends_execution() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_size.clone(), input_offset.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = control::Return;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        assert!(vm.stack()?.is_empty());
+
+        // Ensure the value was stored
+        let value = &vm.state()?.recorded_values()[0];
+        assert_eq!(value.provenance, Provenance::Execution);
+        match &value.data {
+            SymbolicValueData::Return { offset, size } => {
+                assert_eq!(offset, &input_offset);
+                assert_eq!(size, &input_size);
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn revert_stores_data_and_ends_execution() -> anyhow::Result<()> {
+        // Prepare the vm
+        let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_size.clone(), input_offset.clone()])?;
+
+        // Prepare and run the opcode
+        let opcode = control::Revert;
+        opcode.execute(&mut vm)?;
+
+        // Inspect the stack
+        assert!(vm.stack()?.is_empty());
+
+        // Ensure the value was stored
+        let value = &vm.state()?.recorded_values()[0];
+        assert_eq!(value.provenance, Provenance::Execution);
+        match &value.data {
+            SymbolicValueData::Revert { offset, size } => {
+                assert_eq!(offset, &input_offset);
+                assert_eq!(size, &input_size);
+            }
+            _ => panic!("Invalid payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn nop_does_nothing() -> anyhow::Result<()> {
+        // Prepare the vm
+        let mut vm = util::new_vm_with_values_on_stack(vec![])?;
+        let initial_state = vm.state()?.clone();
+
+        // Prepare and execute the opcode
+        let opcode = control::Nop;
+        opcode.execute(&mut vm)?;
+
+        // Check that no state has changed
+        assert_eq!(vm.state()?, &initial_state);
+
+        Ok(())
     }
 }

@@ -198,7 +198,7 @@ impl ExecutionThread {
     /// stream, it will return [`None`] and leave the instruction pointer
     /// unchanged.
     pub fn step(&mut self) -> Option<DynOpcode> {
-        self.jump(1)
+        self.jump_by(1)
     }
 
     /// Steps the instruction pointer, moving it to the previous instruction and
@@ -208,15 +208,15 @@ impl ExecutionThread {
     /// instruction stream, it will return [`None`] and leave the instruction
     /// pointer unchanged.
     pub fn step_backward(&mut self) -> Option<DynOpcode> {
-        self.jump(-1)
+        self.jump_by(-1)
     }
 
-    /// Jumps `jump` bytes in the instruction stream.
+    /// Jumps by `jump` bytes in the instruction stream.
     ///
     /// If the jump target is not an instruction within the bounds of the
     /// instruction stream, returns [`None`] and leaves the instruction pointer
     /// unchanged.
-    pub fn jump(&mut self, jump: i64) -> Option<DynOpcode> {
+    pub fn jump_by(&mut self, jump: i64) -> Option<DynOpcode> {
         let new_pointer: u32 = if self.instruction_pointer as i64 + jump < 0 {
             return None;
         } else {
@@ -225,6 +225,20 @@ impl ExecutionThread {
         if let Some(opcode) = self.instructions.get(new_pointer as usize) {
             self.instruction_pointer = new_pointer;
             Some(opcode.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Jumps to the opcode at an offset of `target` bytes in the instruction
+    /// stream.
+    ///
+    /// Returns [`None`] if the `target` is not within the bounds of the
+    /// instruction stream, and leaves the pointer unchanged.
+    pub fn jump(&mut self, target: u32) -> Option<DynOpcode> {
+        if (target as usize) < self.len() {
+            self.instruction_pointer = target;
+            Some(self.current())
         } else {
             None
         }
@@ -514,8 +528,8 @@ mod test {
                 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x20, 0x30,
                 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e,
                 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x50, 0x51, 0x52, 0x53,
-                0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x5f, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5,
-                0xfa, 0xfd, 0xfe, 0xff,
+                0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x5b, 0x5f, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4,
+                0xf5, 0xfa, 0xfd, 0xfe, 0xff,
             ];
 
             bytes

@@ -170,52 +170,20 @@ pub enum SymbolicValueData {
     /// Program counter.
     ProgramCounter,
 
-    /// A standard message call.
+    /// A message call.
+    ///
+    /// We explicitly _do not care_ about the specific kind of call here, as it
+    /// makes no difference to the kind of information we get.
     Call {
-        gas:        BoxedVal,
-        address:    BoxedVal,
-        value:      BoxedVal,
-        arg_offset: BoxedVal,
-        arg_size:   BoxedVal,
-        ret_offset: BoxedVal,
-        ret_size:   BoxedVal,
-    },
-
-    /// A `CALLCODE` message call.
-    CallCode {
-        gas:        BoxedVal,
-        address:    BoxedVal,
-        value:      BoxedVal,
-        arg_offset: BoxedVal,
-        arg_size:   BoxedVal,
-        ret_offset: BoxedVal,
-        ret_size:   BoxedVal,
-    },
-
-    /// A `DELEGATECALL` message call.
-    DelegateCall {
-        gas:        BoxedVal,
-        address:    BoxedVal,
-        value:      BoxedVal,
-        arg_offset: BoxedVal,
-        arg_size:   BoxedVal,
-        ret_offset: BoxedVal,
-        ret_size:   BoxedVal,
-    },
-
-    /// A `STATICCALL` message call.
-    StaticCall {
-        gas:        BoxedVal,
-        address:    BoxedVal,
-        value:      BoxedVal,
-        arg_offset: BoxedVal,
-        arg_size:   BoxedVal,
-        ret_offset: BoxedVal,
-        ret_size:   BoxedVal,
+        gas:      BoxedVal,
+        address:  BoxedVal,
+        value:    BoxedVal,
+        arg_size: BoxedVal,
+        ret_size: BoxedVal,
     },
 
     /// A keccak256 hash on symbolic values.
-    Sha3 { value: BoxedVal, size: BoxedVal },
+    Sha3 { value: BoxedVal, offset: BoxedVal, size: BoxedVal },
 
     /// The address of the currently-executing contract.
     Address,
@@ -351,6 +319,15 @@ pub enum SymbolicValueData {
     /// Data copied from the return data from the previous call at `offset` for
     /// `size`.
     ReturnDataCopy { offset: BoxedVal, size: BoxedVal },
+
+    /// The return. Does not stay on the stack but is stored nevertheless.
+    Return { offset: BoxedVal, size: BoxedVal },
+
+    /// The revert. Does not stay on the stack but is stored nevertheless.
+    Revert { offset: BoxedVal, size: BoxedVal },
+
+    /// A value that was used as the input to a conditional.
+    Condition { value: BoxedVal },
 }
 
 impl SymbolicValueData {
@@ -410,6 +387,9 @@ pub enum Provenance {
 
     /// The value originated from an `SLOAD` from uninitialized storage.
     UninitializedStorage,
+
+    /// The data came from the data returned from a message call.
+    MessageCall,
 
     /// There is no concrete source for this variable.
     Unknown,

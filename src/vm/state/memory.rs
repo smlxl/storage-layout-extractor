@@ -112,6 +112,11 @@ impl Memory {
     pub fn is_empty(&self) -> bool {
         self.entry_count() == 0
     }
+
+    /// Gets the offsets in memory that have been written to.
+    pub fn offsets(&self) -> Vec<&BoxedVal> {
+        self.mem.keys().collect()
+    }
 }
 
 impl Default for Memory {
