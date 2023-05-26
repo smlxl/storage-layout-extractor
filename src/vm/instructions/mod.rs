@@ -10,7 +10,7 @@ use downcast_rs::Downcast;
 use hex::FromHexError;
 
 use crate::{
-    error::{ParseError, VMError},
+    error::{container::Locatable, disassembly, execution},
     opcode::{DynOpcode, Opcode},
 };
 
@@ -58,7 +58,7 @@ pub const INSTRUCTION_STREAM_MAX_SIZE: u32 = u32::MAX;
 /// This limit is validated upon construction of the instruction stream, but the
 /// stream makes no guarantees as to being able to allocate sufficient memory to
 /// contain that many opcodes.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct InstructionStream {
     /// The sequence of [`Opcode`]s.
     instructions: Rc<Vec<DynOpcode>>,
@@ -74,13 +74,13 @@ impl InstructionStream {
     ///
     /// Returns `Err` if the requested instruction pointer is out of range for
     /// the instruction stream.
-    pub fn new_thread(&self, instruction_pointer: u32) -> anyhow::Result<ExecutionThread> {
+    pub fn new_thread(&self, instruction_pointer: u32) -> execution::Result<ExecutionThread> {
         if instruction_pointer as usize >= self.instructions.len() {
-            let err = VMError::InstructionPointerOutOfBounds {
+            return Err(execution::Error::InstructionPointerOutOfBounds {
                 requested: 1,
                 available: 1,
-            };
-            return Err(err.into());
+            }
+            .locate(instruction_pointer));
         }
         let instructions = self.instructions.clone();
         Ok(ExecutionThread {
@@ -104,7 +104,7 @@ impl InstructionStream {
 
 /// An [`InstructionStream`] is usually created from a byte array of bytecode.
 impl<'a> TryFrom<&'a [u8]> for InstructionStream {
-    type Error = anyhow::Error;
+    type Error = disassembly::LocatedError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         let instructions = Rc::new(parser::parse(value)?);
@@ -115,7 +115,7 @@ impl<'a> TryFrom<&'a [u8]> for InstructionStream {
 /// An [`InstructionStream`] can be created from a string as long as that string
 /// is a hexadecimal encoding of the equivalent bytes.
 impl TryFrom<&str> for InstructionStream {
-    type Error = anyhow::Error;
+    type Error = disassembly::LocatedError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let bytes = match hex::decode(value) {
@@ -123,11 +123,11 @@ impl TryFrom<&str> for InstructionStream {
             Err(e) => {
                 let error = match e {
                     FromHexError::InvalidHexCharacter { c, index } => {
-                        ParseError::InvalidHexCharacter(c, index)
+                        disassembly::Error::InvalidHexCharacter(c, index).locate(index as u32)
                     }
-                    _ => ParseError::InvalidHexLength,
+                    _ => disassembly::Error::InvalidHexLength.locate(value.len() as u32),
                 };
-                return Err(error.into());
+                return Err(error);
             }
         };
         InstructionStream::try_from(bytes.as_slice())
@@ -299,7 +299,7 @@ impl ExecutionThread {
 mod test {
     use crate::{
         constant::{DUP_OPCODE_BASE_VALUE, LOG_OPCODE_BASE_VALUE, SWAP_OPCODE_BASE_VALUE},
-        error::ParseError,
+        error::disassembly,
         opcode::{control, memory, Opcode},
         vm::instructions::InstructionStream,
     };
@@ -344,10 +344,8 @@ mod test {
         // So this should fail.
         let result =
             InstructionStream::try_from(bytes.as_slice()).expect_err("Parsing did not error");
-        let err = result
-            .downcast_ref::<ParseError>()
-            .expect("Error was not a parse error");
-        assert_eq!(*err, ParseError::InvalidOpcode(0xf9));
+        assert_eq!(result.location, 0);
+        assert_eq!(result.payload, disassembly::Error::InvalidOpcode(0xf9));
 
         Ok(())
     }
@@ -362,10 +360,11 @@ mod test {
             InstructionStream::try_from(not_hex_encoded).expect_err("Parsing did not error");
 
         // It should be a specific error.
-        let error = result
-            .downcast_ref::<ParseError>()
-            .expect("Error was not a parse error");
-        assert_eq!(*error, ParseError::InvalidHexCharacter('n', 5));
+        assert_eq!(result.location, 5);
+        assert_eq!(
+            result.payload,
+            disassembly::Error::InvalidHexCharacter('n', 5)
+        );
 
         Ok(())
     }
@@ -379,10 +378,8 @@ mod test {
         let result = InstructionStream::try_from(bad_length).expect_err("Parsing did not error");
 
         // It should be a specific error.
-        let error = result
-            .downcast_ref::<ParseError>()
-            .expect("Error was not a parse error");
-        assert_eq!(*error, ParseError::InvalidHexLength);
+        assert_eq!(result.location, bad_length.len() as u32);
+        assert_eq!(result.payload, disassembly::Error::InvalidHexLength);
 
         Ok(())
     }
@@ -397,10 +394,8 @@ mod test {
             InstructionStream::try_from(input.as_slice()).expect_err("Parsing did not error");
 
         // It should be a specific error.
-        let error = result
-            .downcast_ref::<ParseError>()
-            .expect("Error was not a parse error");
-        assert_eq!(*error, ParseError::EmptyBytecode);
+        assert_eq!(result.location, 0);
+        assert_eq!(result.payload, disassembly::Error::EmptyBytecode);
 
         Ok(())
     }

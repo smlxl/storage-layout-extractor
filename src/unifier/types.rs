@@ -2,6 +2,19 @@
 
 use ethnum::U256;
 
+// TODO [Ara] Heuristic as a function from `SymbolicValue` to `Type`, and they
+//   get fed every terminal symbolic value.
+
+// TODO [Ara] Run it on each terminal value and combine their results via the
+//   algebra.
+
+// TODO [Ara] How do we abstract the traversal patterns?
+
+// TODO [Ara] Fuzzy logic.
+
+// TODO [Ara] Negation in the algebra. Make the algebra constructed lazily and
+//   then evaluated.
+
 /// The type representations that this analysis can figure out.
 ///
 /// These types span the gamut from types that are concretely resolved to EVM

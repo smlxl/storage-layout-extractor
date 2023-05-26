@@ -170,14 +170,35 @@ pub enum SymbolicValueData {
     /// Program counter.
     ProgramCounter,
 
-    /// A message call.
+    /// A message call that passes a value.
     ///
     /// We explicitly _do not care_ about the specific kind of call here, as it
     /// makes no difference to the kind of information we get.
-    Call {
+    ///
+    /// We also do not store the argument data or return data in the opcode, as
+    /// we know nothing about what the call will do with the argument. Internal
+    /// execution will read from memory directly, so we pick up the returned
+    /// value there.
+    CallWithValue {
         gas:      BoxedVal,
         address:  BoxedVal,
         value:    BoxedVal,
+        arg_size: BoxedVal,
+        ret_size: BoxedVal,
+    },
+
+    /// A message call that passes a value.
+    ///
+    /// We explicitly _do not care_ about the specific kind of call here, as it
+    /// makes no difference to the kind of information we get.
+    ///
+    /// We also do not store the argument data or return data in the opcode, as
+    /// we know nothing about what the call will do with the argument. Internal
+    /// execution will read from memory directly, so we pick up the returned
+    /// value there.
+    CallWithoutValue {
+        gas:      BoxedVal,
+        address:  BoxedVal,
         arg_size: BoxedVal,
         ret_size: BoxedVal,
     },

@@ -14,9 +14,15 @@ use crate::vm::value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValu
 /// To that end, the memory for the symbolic EVM maps from symbolic expressions
 /// to other symbolic expressions, relying on the identity or similarity of
 /// symbolic expressions.
+///
+/// # Generational Memory
+///
+/// Each memory location stores the total history of writes made to it during
+/// the course of a given thread of execution. You can call the `generations`
+/// method to get at these for a given key.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Memory {
-    mem: HashMap<BoxedVal, MemStore>,
+    mem: HashMap<BoxedVal, Vec<MemStore>>,
 }
 
 impl Memory {
@@ -38,11 +44,7 @@ impl Memory {
     /// account for sub-word writes by dissecting the arguments to this
     /// function.
     pub fn store(&mut self, offset: BoxedVal, value: BoxedVal) {
-        let store_value = MemStore {
-            data: value,
-            size: MemStoreSize::Word,
-        };
-        self.mem.insert(offset, store_value);
+        self.store_with_size(offset, value, MemStoreSize::Word)
     }
 
     /// Stores the provided `value` (of size 8-bits) at the provided `offset`
@@ -57,39 +59,63 @@ impl Memory {
     /// account for sub-word writes by dissecting the arguments to this
     /// function.
     pub fn store_8(&mut self, offset: BoxedVal, value: BoxedVal) {
-        let store_value = MemStore {
-            data: value,
-            size: MemStoreSize::Byte,
-        };
-        self.mem.insert(offset, store_value);
+        self.store_with_size(offset, value, MemStoreSize::Byte)
+    }
+
+    /// Performs an internal store of `value` at `offset` using the specified
+    /// `size.
+    /// # Note
+    ///
+    /// Be careful with overlapping stores, as the storage is not able to track
+    /// these. Implementation of the `MLOAD` and MSTORE*` opcodes may want to
+    /// account for sub-word writes by dissecting the arguments to this
+    /// function.
+    fn store_with_size(&mut self, offset: BoxedVal, value: BoxedVal, size: MemStoreSize) {
+        let store_value = MemStore { data: value, size };
+        let entry = self.mem.entry(offset).or_insert(vec![]);
+        entry.push(store_value);
     }
 
     /// Loads the 256-bits at the given `offset` in memory, or returns 0 if the
     /// offset has never been written to.
+    ///
+    /// This always returns the _most-recently written_ value, and does not
+    /// account for the generations.
     ///
     /// # Note
     ///
     /// This is a best-effort analysis as we cannot guarantee knowing if there
     /// have been overwrites between adjacent slots.
     pub fn load(&mut self, offset: &BoxedVal) -> &BoxedVal {
-        &self
-            .mem
-            .entry(offset.clone())
-            .or_insert_with(|| {
-                // The instruction pointer is 0 here, as the uninitialized value was created
-                // when the program started.
+        let entry = self.mem.entry(offset.clone()).or_insert_with(|| {
+            // The instruction pointer is 0 here, as the uninitialized value was created
+            // when the program started.
+            let data = SymbolicValue::new_known_value(
+                0,
+                KnownData::zero(),
+                Provenance::UninitializedMemory,
+            );
 
-                let data = SymbolicValue::new_known_value(
-                    0,
-                    KnownData::zero(),
-                    Provenance::UninitializedMemory,
-                );
-                MemStore {
-                    data,
-                    size: MemStoreSize::Word,
-                }
-            })
-            .data
+            vec![MemStore {
+                data,
+                size: MemStoreSize::Word,
+            }]
+        });
+
+        // This is safe as we always guarantee that there at least one item in the
+        // generational vector.
+        &entry.last().unwrap().data
+    }
+
+    /// Gets all of the stores that were made at the provided `offset` during
+    /// the course of execution.
+    ///
+    /// Returns [`Some`] for offsets that have seen at least one write, and
+    /// otherwise returns [`None`].
+    pub fn generations(&self, offset: &BoxedVal) -> Option<Vec<&BoxedVal>> {
+        self.mem
+            .get(offset)
+            .map(|stores| stores.iter().map(|store| &store.data).collect())
     }
 
     /// Asks the memory about the size of the store that was made at a given
@@ -97,7 +123,10 @@ impl Memory {
     ///
     /// This functionality exists primarily for introspection.
     pub fn query_store_size(&self, offset: &BoxedVal) -> Option<MemStoreSize> {
-        self.mem.get(offset).map(|result| result.size)
+        self.mem
+            .get(offset)
+            .and_then(|generations| generations.first())
+            .map(|result| result.size)
     }
 
     /// Asks the memory for the number of entries it has in it.
@@ -323,5 +352,19 @@ mod test {
         memory.store(sub.clone(), div.clone());
         assert_eq!(memory.entry_count(), 2);
         assert_eq!(memory.load(&sub), &div);
+    }
+
+    #[test]
+    fn can_access_generations_at_offset() {
+        let mut memory = Memory::new();
+        let offset = new_synthetic_value(0);
+        let value_1 = new_synthetic_value(1);
+        let value_2 = new_synthetic_value(2);
+
+        memory.store(offset.clone(), value_1.clone());
+        memory.store(offset.clone(), value_2.clone());
+
+        let generations = memory.generations(&offset).unwrap();
+        assert_eq!(generations, vec![&value_1, &value_2]);
     }
 }

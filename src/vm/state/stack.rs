@@ -1,7 +1,14 @@
 //! This module contains the implementation of the symbolic virtual machine's
 //! stack.
 
-use crate::{constant::MAXIMUM_STACK_DEPTH, error::VMError, vm::value::BoxedVal};
+use crate::{
+    constant::MAXIMUM_STACK_DEPTH,
+    error::{
+        container::Locatable,
+        execution::{Error, Result},
+    },
+    vm::value::BoxedVal,
+};
 
 /// The representation of the symbolic virtual machine's stack.
 ///
@@ -33,12 +40,11 @@ impl Stack {
     /// # Errors
     ///
     /// If the stack cannot grow to accommodate the requested `data`.
-    pub fn push(&mut self, data: BoxedVal) -> anyhow::Result<()> {
+    pub fn push(&mut self, data: BoxedVal) -> StackResult<()> {
         if self.data.len() + 1 > MAXIMUM_STACK_DEPTH {
-            return Err(VMError::StackDepthExceeded {
+            return Err(Error::StackDepthExceeded {
                 requested: self.data.len() + 1,
-            }
-            .into());
+            });
         }
         self.data.push(data);
         Ok(())
@@ -49,8 +55,8 @@ impl Stack {
     /// # Errors
     ///
     /// If the stack has no item to pop.
-    pub fn pop(&mut self) -> anyhow::Result<BoxedVal> {
-        self.data.pop().ok_or(VMError::NoSuchStackFrame { depth: 0 }.into())
+    pub fn pop(&mut self) -> StackResult<BoxedVal> {
+        self.data.pop().ok_or(Error::NoSuchStackFrame { depth: 0 })
     }
 
     /// Reads from the stack frame at the provided `depth`.
@@ -58,7 +64,7 @@ impl Stack {
     /// # Errors
     ///
     /// If `depth` does not exist in the stack.
-    pub fn read(&self, depth: u32) -> anyhow::Result<&BoxedVal> {
+    pub fn read(&self, depth: u32) -> StackResult<&BoxedVal> {
         self.check_frame_at(depth)?;
 
         // This is a safe unsigned subtraction as `check_frame_at will have returned
@@ -78,7 +84,7 @@ impl Stack {
     /// # Errors
     ///
     /// If `frame` doesn't exist.
-    pub fn dup(&mut self, frame: u32) -> anyhow::Result<()> {
+    pub fn dup(&mut self, frame: u32) -> StackResult<()> {
         self.check_frame_at(frame)?;
         let index = self.top_frame_index()? - frame as usize;
 
@@ -97,7 +103,7 @@ impl Stack {
     /// # Errors
     ///
     /// If either the source or target stack frame do not exist.
-    pub fn swap(&mut self, frame: u32) -> anyhow::Result<()> {
+    pub fn swap(&mut self, frame: u32) -> StackResult<()> {
         let top_frame = self.top_frame_index()?;
         self.check_frame_at(0)?;
         self.check_frame_at(frame)?;
@@ -123,14 +129,13 @@ impl Stack {
     /// # Errors
     ///
     /// If there is no such stack frame.
-    pub fn check_frame_at(&self, depth: u32) -> anyhow::Result<()> {
+    fn check_frame_at(&self, depth: u32) -> StackResult<()> {
         let current_depth = self.data.len();
 
         if depth as usize >= current_depth {
-            return Err(VMError::NoSuchStackFrame {
+            return Err(Error::NoSuchStackFrame {
                 depth: depth as i64,
-            }
-            .into());
+            });
         }
 
         Ok(())
@@ -141,18 +146,96 @@ impl Stack {
     /// # Error
     ///
     /// If there are no frames on the stack.
-    fn top_frame_index(&self) -> anyhow::Result<usize> {
+    fn top_frame_index(&self) -> StackResult<usize> {
         if self.data.is_empty() {
-            return Err(VMError::NoSuchStackFrame { depth: -1 }.into());
+            return Err(Error::NoSuchStackFrame { depth: -1 });
         }
 
         Ok(self.data.len() - 1)
+    }
+
+    /// Creates a new wrapper of the stack that knows about the instruction
+    /// pointer location where its operations are taking place.
+    pub fn new_located(&mut self, instruction_pointer: u32) -> LocatedStackHandle<'_> {
+        LocatedStackHandle {
+            instruction_pointer,
+            stack: self,
+        }
     }
 }
 
 impl From<Stack> for Vec<BoxedVal> {
     fn from(value: Stack) -> Self {
         value.data
+    }
+}
+
+/// The result type used for error handling in the stack implementation.
+///
+/// Specifically, this is a non-located counterpart to [`Result`] as it is not
+/// the duty of the stack to know about where it is being used.
+pub type StackResult<T> = std::result::Result<T, Error>;
+
+/// A wrapper of the stack that knows the instruction pointer at which its
+/// operations are performed, allowing the holder to perform mutable operations
+/// that return located errors.
+#[derive(Debug)]
+pub struct LocatedStackHandle<'a> {
+    instruction_pointer: u32,
+    stack:               &'a mut Stack,
+}
+
+impl<'a> LocatedStackHandle<'a> {
+    /// Pushes the provided value onto the top of the stack.
+    ///
+    /// # Errors
+    ///
+    /// If the stack cannot grow to accommodate the requested `data`.
+    pub fn push(&mut self, data: BoxedVal) -> Result<()> {
+        self.stack.push(data).locate(self.instruction_pointer)
+    }
+
+    /// Pops the top value from the stack.
+    ///
+    /// # Errors
+    ///
+    /// If the stack has no item to pop.
+    pub fn pop(&mut self) -> Result<BoxedVal> {
+        self.stack.pop().locate(self.instruction_pointer)
+    }
+
+    /// Reads from the stack frame at the provided `depth`.
+    ///
+    /// # Errors
+    ///
+    /// If `depth` does not exist in the stack.
+    pub fn read(&self, depth: u32) -> Result<&BoxedVal> {
+        self.stack.read(depth).locate(self.instruction_pointer)
+    }
+
+    /// Duplicates the stack item at `frame` onto the top of the stack.
+    ///
+    /// This is a more general case of the `DUP` opcodes as it can duplicate any
+    /// available stack frame.
+    ///
+    /// # Errors
+    ///
+    /// If `frame` doesn't exist.
+    pub fn dup(&mut self, frame: u32) -> Result<()> {
+        self.stack.dup(frame).locate(self.instruction_pointer)
+    }
+
+    /// Swaps the first stack item with the item in `frame`.
+    ///
+    /// Note that this is a more general case of the `SWAP` opcodes as it can
+    /// swap any two stack frames. It also swaps with the indicated frame
+    /// directly, rather than the `n+1`th frame as for the `SWAP` opcodes.
+    ///
+    /// # Errors
+    ///
+    /// If either the source or target stack frame do not exist.
+    pub fn swap(&mut self, frame: u32) -> Result<()> {
+        self.stack.swap(frame).locate(self.instruction_pointer)
     }
 }
 

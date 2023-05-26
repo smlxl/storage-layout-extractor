@@ -17,7 +17,10 @@ use crate::{
         PUSH_OPCODE_MAX_BYTES,
         SWAP_OPCODE_BASE_VALUE,
     },
-    error::ParseError,
+    error::{
+        container::Locatable,
+        disassembly::{Error, Result},
+    },
     opcode::{
         arithmetic as arith,
         control,
@@ -38,19 +41,23 @@ use crate::{
 ///
 /// When one of the `bytes` cannot be parsed as a valid opcode, or when `bytes`
 /// is empty.
-pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
+pub fn parse(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
     if bytes.is_empty() {
-        return Err(ParseError::EmptyBytecode.into());
+        return Err(Error::EmptyBytecode.locate(0));
     }
 
     let mut opcodes: Vec<DynOpcode> = Vec::with_capacity(bytes.len());
     let ops = &mut opcodes;
+    let mut last_push_start: u32 = 0;
     let mut push_size: u8 = 0;
     let mut push_size_bytes: u8 = push_size;
     let mut push_bytes: Vec<u8> = Vec::with_capacity(PUSH_OPCODE_MAX_BYTES as usize);
 
     // Iterate over the bytes, parsing into Opcodes as necessary.
-    for byte in bytes.iter() {
+    for (offset, byte) in bytes.iter().enumerate() {
+        // We assume bytecodes are far less than [`u32::MAX`] bytes already.
+        #[allow(clippy::cast_possible_truncation)]
+        let instruction_pointer = offset as u32;
         if push_size_bytes != 0 {
             // While we have bytes remaining as part of the push opcode we want to consume
             // them.
@@ -60,7 +67,8 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
             if push_size_bytes == 0 && !push_bytes.is_empty() {
                 // If the push bytes buffer has data in it and there are no more bytes to read
                 // we want to construct the opcode.
-                let opcode = mem::PushN::new(push_size, push_bytes.clone())?;
+                let opcode = mem::PushN::new(push_size, push_bytes.clone())
+                    .map_err(|e| e.locate(last_push_start))?;
                 add_op(ops, opcode);
 
                 // To maintain correct byte offsets in the instruction stream (a correspondence
@@ -143,22 +151,26 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
                 0x5b => add_op(ops, control::JumpDest),
                 0x5f => add_op(ops, mem::Push0),
                 0x60..=0x7f => {
+                    last_push_start = instruction_pointer;
                     push_size = byte - PUSH_OPCODE_BASE_VALUE;
                     push_size_bytes = push_size;
                 }
                 0x80..=0x8f => {
                     let item_to_duplicate = byte - DUP_OPCODE_BASE_VALUE;
-                    let opcode = mem::DupN::new(item_to_duplicate)?;
+                    let opcode = mem::DupN::new(item_to_duplicate)
+                        .map_err(|e| e.locate(instruction_pointer))?;
                     add_op(ops, opcode);
                 }
                 0x90..=0x9f => {
                     let item_to_swap_with = byte - SWAP_OPCODE_BASE_VALUE;
-                    let opcode = mem::SwapN::new(item_to_swap_with)?;
+                    let opcode = mem::SwapN::new(item_to_swap_with)
+                        .map_err(|e| e.locate(instruction_pointer))?;
                     add_op(ops, opcode);
                 }
                 0xa0..=0xa4 => {
                     let topic_count = byte - LOG_OPCODE_BASE_VALUE;
-                    let opcode = env::LogN::new(topic_count)?;
+                    let opcode =
+                        env::LogN::new(topic_count).map_err(|e| e.locate(instruction_pointer))?;
                     add_op(ops, opcode)
                 }
                 0xf0 => add_op(ops, env::Create),
@@ -171,7 +183,9 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
                 0xfd => add_op(ops, control::Revert),
                 0xfe => add_op(ops, control::Invalid),
                 0xff => add_op(ops, env::SelfDestruct),
-                _ => return Err(ParseError::InvalidOpcode(*byte).into()),
+                _ => {
+                    return Err(Error::InvalidOpcode(*byte).locate(instruction_pointer));
+                }
             }
         }
     }

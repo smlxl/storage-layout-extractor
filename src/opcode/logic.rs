@@ -1,7 +1,7 @@
 //! Opcodes that deal with performing boolean logic on the EVM.
 
 use crate::{
-    opcode::Opcode,
+    opcode::{ExecuteResult, Opcode},
     vm::{
         value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
         VM,
@@ -25,10 +25,10 @@ use crate::{
 pub struct Lt;
 
 impl Opcode for Lt {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let a = stack.pop()?;
@@ -79,10 +79,10 @@ impl Opcode for Lt {
 pub struct Gt;
 
 impl Opcode for Gt {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let a = stack.pop()?;
@@ -134,10 +134,10 @@ impl Opcode for Gt {
 pub struct SLt;
 
 impl Opcode for SLt {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let a = stack.pop()?;
@@ -189,10 +189,10 @@ impl Opcode for SLt {
 pub struct SGt;
 
 impl Opcode for SGt {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let a = stack.pop()?;
@@ -243,10 +243,10 @@ impl Opcode for SGt {
 pub struct Eq;
 
 impl Opcode for Eq {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let a = stack.pop()?;
@@ -296,10 +296,10 @@ impl Opcode for Eq {
 pub struct IsZero;
 
 impl Opcode for IsZero {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let number = stack.pop()?;
@@ -349,10 +349,10 @@ impl Opcode for IsZero {
 pub struct And;
 
 impl Opcode for And {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let a = stack.pop()?;
@@ -403,10 +403,10 @@ impl Opcode for And {
 pub struct Or;
 
 impl Opcode for Or {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let a = stack.pop()?;
@@ -457,10 +457,10 @@ impl Opcode for Or {
 pub struct Xor;
 
 impl Opcode for Xor {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let a = stack.pop()?;
@@ -510,10 +510,10 @@ impl Opcode for Xor {
 pub struct Not;
 
 impl Opcode for Not {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let value = stack.pop()?;
@@ -569,10 +569,10 @@ impl Opcode for Not {
 pub struct Byte;
 
 impl Opcode for Byte {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and the env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands
         let offset = stack.pop()?;
@@ -676,10 +676,10 @@ impl Opcode for Byte {
 pub struct Shl;
 
 impl Opcode for Shl {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let shift = stack.pop()?;
@@ -738,10 +738,10 @@ impl Opcode for Shl {
 pub struct Shr;
 
 impl Opcode for Shr {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let shift = stack.pop()?;
@@ -802,10 +802,10 @@ impl Opcode for Shr {
 pub struct Sar;
 
 impl Opcode for Sar {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let shift = stack.pop()?;
@@ -859,7 +859,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -887,7 +887,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -915,7 +915,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -943,7 +943,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -971,7 +971,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -997,7 +997,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1024,7 +1024,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1052,7 +1052,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1080,7 +1080,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1106,7 +1106,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1133,7 +1133,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1233,7 +1233,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1261,7 +1261,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1289,7 +1289,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
