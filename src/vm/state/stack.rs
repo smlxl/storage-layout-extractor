@@ -1,7 +1,7 @@
 //! This module contains the implementation of the symbolic virtual machine's
 //! stack.
 
-use crate::{constant::MAXIMUM_STACK_DEPTH, error::VMError, vm::symbolic_value::BoxedVal};
+use crate::{constant::MAXIMUM_STACK_DEPTH, error::VMError, vm::value::BoxedVal};
 
 /// The representation of the symbolic virtual machine's stack.
 ///
@@ -14,7 +14,8 @@ use crate::{constant::MAXIMUM_STACK_DEPTH, error::VMError, vm::symbolic_value::B
 ///
 /// In a true EVM, it is a depth [`MAXIMUM_STACK_DEPTH`] stack, where each item
 /// is word (256-bit) sized. Here, the symbolic virtual machine maintains the
-/// same maximum depth, but instead stores [`SymbolicValue`]s instead of words.
+/// same maximum depth, but instead stores [`crate::vm::value::SymbolicValue`]s
+/// instead of words.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Stack {
     data: Vec<BoxedVal>,
@@ -154,7 +155,7 @@ mod test {
         constant::MAXIMUM_STACK_DEPTH,
         vm::{
             state::stack::Stack,
-            symbolic_value::{BoxedVal, Provenance, SymbolicValue},
+            value::{BoxedVal, Provenance, SymbolicValue},
         },
     };
 

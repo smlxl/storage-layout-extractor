@@ -6,6 +6,9 @@
 /// This is specified in [EIP-170](https://eips.ethereum.org/EIPS/eip-170).
 pub const CONTRACT_MAXIMUM_SIZE_BYTES: usize = 24576;
 
+/// The maximum amount of gas that can be spent in a given block on the EVM.
+pub const BLOCK_GAS_LIMIT: usize = 30_000_000;
+
 /// The base byte value for the `PUSH` opcode, for `N > 0`.
 ///
 /// This is constructed such that for `PUSHN`, `PUSH_OPCODE_BASE_VALUE` + `N`

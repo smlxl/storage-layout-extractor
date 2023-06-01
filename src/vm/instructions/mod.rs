@@ -4,7 +4,7 @@
 
 mod parser;
 
-use std::ops::Range;
+use std::{ops::Range, rc::Rc};
 
 use downcast_rs::Downcast;
 use hex::FromHexError;
@@ -61,7 +61,7 @@ pub const INSTRUCTION_STREAM_MAX_SIZE: u32 = u32::MAX;
 #[derive(Debug)]
 pub struct InstructionStream {
     /// The sequence of [`Opcode`]s.
-    instructions: Vec<DynOpcode>,
+    instructions: Rc<Vec<DynOpcode>>,
 }
 
 impl InstructionStream {
@@ -74,7 +74,7 @@ impl InstructionStream {
     ///
     /// Returns `Err` if the requested instruction pointer is out of range for
     /// the instruction stream.
-    pub fn new_thread(&self, instruction_pointer: u32) -> anyhow::Result<ExecutionThread<'_>> {
+    pub fn new_thread(&self, instruction_pointer: u32) -> anyhow::Result<ExecutionThread> {
         if instruction_pointer as usize >= self.instructions.len() {
             let err = VMError::InstructionPointerOutOfBounds {
                 requested: 1,
@@ -82,7 +82,7 @@ impl InstructionStream {
             };
             return Err(err.into());
         }
-        let instructions = &self.instructions;
+        let instructions = self.instructions.clone();
         Ok(ExecutionThread {
             instruction_pointer,
             instructions,
@@ -107,7 +107,7 @@ impl<'a> TryFrom<&'a [u8]> for InstructionStream {
     type Error = anyhow::Error;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        let instructions = parser::parse(value)?;
+        let instructions = Rc::new(parser::parse(value)?);
         Ok(Self { instructions })
     }
 }
@@ -149,17 +149,17 @@ impl From<InstructionStream> for Vec<u8> {
 ///
 /// The current execution position, as represented by the `instruction_pointer`
 /// is guaranteed to always point to an instruction in the stream.
-#[derive(Copy, Clone, Debug)]
-pub struct ExecutionThread<'opcode> {
+#[derive(Clone, Debug)]
+pub struct ExecutionThread {
     /// The current position of execution, represented as a reference to a slot
     /// in the sequence of instructions.
     instruction_pointer: u32,
 
     /// The sequence of [`Opcode`]s.
-    instructions: &'opcode Vec<DynOpcode>,
+    instructions: Rc<Vec<DynOpcode>>,
 }
 
-impl<'opcode> ExecutionThread<'opcode> {
+impl ExecutionThread {
     /// Gets the current value of the instruction pointer for this thread of
     /// execution.
     pub fn instruction_pointer(&self) -> u32 {
@@ -167,8 +167,8 @@ impl<'opcode> ExecutionThread<'opcode> {
     }
 
     /// Gets the opcode at the current execution position.
-    pub fn current(&self) -> &DynOpcode {
-        &self.instructions[self.instruction_pointer as usize]
+    pub fn current(&self) -> DynOpcode {
+        self.instructions[self.instruction_pointer as usize].clone()
     }
 
     /// Gets the instruction at the specified `instruction_pointer` location, if
@@ -176,8 +176,8 @@ impl<'opcode> ExecutionThread<'opcode> {
     ///
     /// If no instruction exists at the specified `instruction_pointer` location
     /// this method returns [`None`].
-    pub fn instruction(&self, instruction_pointer: u32) -> Option<&DynOpcode> {
-        self.instructions.get(instruction_pointer as usize)
+    pub fn instruction(&self, instruction_pointer: u32) -> Option<DynOpcode> {
+        self.instructions.get(instruction_pointer as usize).cloned()
     }
 
     /// Gets the instruction at the specified `instruction_pointer` location as
@@ -186,9 +186,9 @@ impl<'opcode> ExecutionThread<'opcode> {
     /// If no instruction exists at the specified `instruction_pointer`
     /// location, or the instruction exists but is not of type `T`, this method
     /// returns [`None`],
-    pub fn instruction_as<T: Opcode>(&self, instruction_pointer: u32) -> Option<&T> {
+    pub fn instruction_as<T: Opcode + Clone>(&self, instruction_pointer: u32) -> Option<T> {
         self.instruction(instruction_pointer)
-            .and_then(|op| op.as_any().downcast_ref::<T>())
+            .and_then(|op| op.as_any().downcast_ref::<T>().cloned())
     }
 
     /// Steps the instruction pointer, moving it to the next instruction and
@@ -197,7 +197,7 @@ impl<'opcode> ExecutionThread<'opcode> {
     /// If the instruction pointer cannot be stepped within the instruction
     /// stream, it will return [`None`] and leave the instruction pointer
     /// unchanged.
-    pub fn step(&mut self) -> Option<&DynOpcode> {
+    pub fn step(&mut self) -> Option<DynOpcode> {
         self.jump(1)
     }
 
@@ -207,7 +207,7 @@ impl<'opcode> ExecutionThread<'opcode> {
     /// If the instruction pointer cannot be stepped backward within the
     /// instruction stream, it will return [`None`] and leave the instruction
     /// pointer unchanged.
-    pub fn step_backward(&mut self) -> Option<&DynOpcode> {
+    pub fn step_backward(&mut self) -> Option<DynOpcode> {
         self.jump(-1)
     }
 
@@ -216,7 +216,7 @@ impl<'opcode> ExecutionThread<'opcode> {
     /// If the jump target is not an instruction within the bounds of the
     /// instruction stream, returns [`None`] and leaves the instruction pointer
     /// unchanged.
-    pub fn jump(&mut self, jump: i64) -> Option<&DynOpcode> {
+    pub fn jump(&mut self, jump: i64) -> Option<DynOpcode> {
         let new_pointer: u32 = if self.instruction_pointer as i64 + jump < 0 {
             return None;
         } else {
@@ -224,7 +224,7 @@ impl<'opcode> ExecutionThread<'opcode> {
         };
         if let Some(opcode) = self.instructions.get(new_pointer as usize) {
             self.instruction_pointer = new_pointer;
-            Some(opcode)
+            Some(opcode.clone())
         } else {
             None
         }
@@ -234,7 +234,7 @@ impl<'opcode> ExecutionThread<'opcode> {
     /// stream if possible, returning that opcode if so.
     ///
     /// Returns [`None`] if there is no opcode at `offset.
-    pub fn at(&mut self, offset: u32) -> Option<&DynOpcode> {
+    pub fn at(&mut self, offset: u32) -> Option<DynOpcode> {
         if offset as usize >= self.instructions.len() {
             return None;
         }
@@ -264,14 +264,14 @@ impl<'opcode> ExecutionThread<'opcode> {
 
     /// Gets the first instruction in the opcode stream without altering the
     /// position of the instruction pointer.
-    pub fn start(&self) -> &DynOpcode {
-        &self.instructions[0]
+    pub fn start(&self) -> DynOpcode {
+        self.instructions[0].clone()
     }
 
     /// Gets the last instruction in the opcode stream without altering the
     /// position of the instruction pointer.
-    pub fn end(&self) -> &DynOpcode {
-        &self.instructions[self.instructions.len() - 1]
+    pub fn end(&self) -> DynOpcode {
+        self.instructions[self.instructions.len() - 1].clone()
     }
 
     /// Gets the length of the instruction stream in bytes.
@@ -287,7 +287,7 @@ mod test {
         constant::{DUP_OPCODE_BASE_VALUE, LOG_OPCODE_BASE_VALUE, SWAP_OPCODE_BASE_VALUE},
         error::ParseError,
         opcode::{control, memory, Opcode},
-        vm::instruction_stream::InstructionStream,
+        vm::instructions::InstructionStream,
     };
 
     #[test]
@@ -477,7 +477,7 @@ mod test {
         assert_eq!(thread.len(), bytes.len());
 
         // The bytes corresponding to an arbitrary push instruction should be the same.
-        let push3 = thread.instruction(5).unwrap().as_ref();
+        let push3 = thread.instruction(5).unwrap();
         assert_eq!(push3.as_byte(), bytes[5]);
 
         // But the bytes after it should exist in the instruction not the stream,
@@ -487,6 +487,7 @@ mod test {
             control::Nop.as_text_code()
         );
         let concrete = push3
+            .as_ref()
             .as_any()
             .downcast_ref::<memory::PushN>()
             .expect("Was not a PUSH opcode");

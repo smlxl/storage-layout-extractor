@@ -17,11 +17,18 @@ pub enum VMError {
     #[error("Maximum stack depth exceeded with request for {requested:?} frames")]
     StackDepthExceeded { requested: usize },
 
-    #[error("A stack frame at depth {depth:?} was requested but none was available.")]
+    #[error("A stack frame at depth {depth:?} was requested but none was available")]
     NoSuchStackFrame { depth: i64 },
+
+    #[error("A VM thread was requested but none are available")]
+    NoSuchThread,
+
+    #[error("Tried to step the virtual machine when no target exists")]
+    InvalidStep,
 }
 
-/// Errors encountered during parsing a bytecode stream.
+/// Errors encountered during parsing a bytecode stream in
+/// [`crate::vm::instructions`].
 #[derive(Debug, Eq, Error, PartialEq)]
 pub enum ParseError {
     #[error("{_0:?} is not a valid EVM opcode")]

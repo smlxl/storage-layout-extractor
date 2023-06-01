@@ -6,7 +6,7 @@ pub mod known_data;
 use derivative::Derivative;
 use uuid::Uuid;
 
-use crate::vm::symbolic_value::known_data::KnownData;
+use crate::vm::value::known_data::KnownData;
 
 /// A symbolic value is an "execution tree" that records the informative
 /// operations that are made to a piece of data. Note that the
@@ -369,8 +369,8 @@ pub enum SymbolicValueData {
     },
 }
 
-/// The default value for a symbolic value's data is a [`SymbolicValue::Value`]
-/// about which nothing else is known.
+/// The default value for a symbolic value's data is a
+/// [`SymbolicValueData::Value`] about which nothing else is known.
 impl Default for SymbolicValueData {
     fn default() -> Self {
         SymbolicValueData::Value { id: Uuid::new_v4() }
@@ -424,7 +424,7 @@ pub enum Provenance {
 mod test {
     use uuid::Uuid;
 
-    use crate::vm::symbolic_value::{SymbolicValue, SymbolicValueData};
+    use crate::vm::value::{SymbolicValue, SymbolicValueData};
 
     #[test]
     fn equality_ignores_instruction_pointer() {

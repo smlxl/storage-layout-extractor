@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use crate::vm::symbolic_value::{
+use crate::vm::value::{
     known_data::KnownData,
     BoxedVal,
     Provenance,
@@ -112,13 +112,7 @@ mod test {
 
     use crate::vm::{
         state::storage::Storage,
-        symbolic_value::{
-            known_data::KnownData,
-            BoxedVal,
-            Provenance,
-            SymbolicValue,
-            SymbolicValueData,
-        },
+        value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
     };
 
     /// Creates a new synthetic value for testing purposes.
