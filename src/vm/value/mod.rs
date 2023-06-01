@@ -58,7 +58,7 @@ impl SymbolicValue {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
-    pub fn new_from_program(instruction_pointer: u32, data: SymbolicValueData) -> Box<Self> {
+    pub fn new_from_execution(instruction_pointer: u32, data: SymbolicValueData) -> Box<Self> {
         Self::new(instruction_pointer, data, Provenance::Execution)
     }
 
@@ -144,28 +144,22 @@ pub enum SymbolicValueData {
     Add { left: BoxedVal, right: BoxedVal },
 
     /// Multiplication of symbolic values.
-    Mul { left: BoxedVal, right: BoxedVal },
+    Multiply { left: BoxedVal, right: BoxedVal },
 
     /// Subtraction of symbolic values.
-    Sub { left: BoxedVal, right: BoxedVal },
+    Subtract { left: BoxedVal, right: BoxedVal },
 
     /// Division of symbolic values.
-    Div { dividend: BoxedVal, divisor: BoxedVal },
+    Divide { dividend: BoxedVal, divisor: BoxedVal },
 
     /// Signed division of symbolic values.
-    SDiv { dividend: BoxedVal, divisor: BoxedVal },
+    SignedDivide { dividend: BoxedVal, divisor: BoxedVal },
 
     /// Modulo of symbolic values.
-    Mod { dividend: BoxedVal, divisor: BoxedVal },
+    Modulo { dividend: BoxedVal, divisor: BoxedVal },
 
     /// Signed modulo of symbolic values.
-    SMod { dividend: BoxedVal, divisor: BoxedVal },
-
-    /// Addition followed by modulo.
-    AddMod { left: BoxedVal, right: BoxedVal, exponent: BoxedVal },
-
-    /// Multiplication followed by modulo.
-    MulMod { left: BoxedVal, right: BoxedVal, exponent: BoxedVal },
+    SignedModulo { dividend: BoxedVal, divisor: BoxedVal },
 
     /// Exponentiation of symbolic values.
     Exp { value: BoxedVal, exponent: BoxedVal },
@@ -290,19 +284,19 @@ pub enum SymbolicValueData {
     SelfDestruct { target: BoxedVal },
 
     /// Less than for symbolic values.
-    Lt { left: BoxedVal, right: BoxedVal },
+    LessThan { left: BoxedVal, right: BoxedVal },
 
     /// Greater than for symbolic values.
-    Gt { left: BoxedVal, right: BoxedVal },
+    GreaterThan { left: BoxedVal, right: BoxedVal },
 
     /// Less than for symbolic values where the values are signed.
-    SLt { left: BoxedVal, right: BoxedVal },
+    SignedLessThan { left: BoxedVal, right: BoxedVal },
 
     /// Greater than for symbolic values where the values are signed.
-    SGt { left: BoxedVal, right: BoxedVal },
+    SignedGreaterThan { left: BoxedVal, right: BoxedVal },
 
     /// Equality for symbolic values.
-    Eq { left: BoxedVal, right: BoxedVal },
+    Equals { left: BoxedVal, right: BoxedVal },
 
     /// Checking if a symbolic value is zero.
     IsZero { number: BoxedVal },
@@ -319,17 +313,14 @@ pub enum SymbolicValueData {
     /// Negation of a symbolic value.
     Not { bool: BoxedVal },
 
-    /// Gets a byte from a word.
-    Byte { offset: BoxedVal, value: BoxedVal },
-
     /// Left shift with symbolic values.
-    Shl { shift: BoxedVal, value: BoxedVal },
+    LeftShift { shift: BoxedVal, value: BoxedVal },
 
     /// Right shift with symbolic values.
-    Shr { shift: BoxedVal, value: BoxedVal },
+    RightShift { shift: BoxedVal, value: BoxedVal },
 
     /// Signed right shift with symbolic values.
-    Sar { shift: BoxedVal, value: BoxedVal },
+    ArithmeticRightShift { shift: BoxedVal, value: BoxedVal },
 
     /// Loading the data at `offset` for `size` in the call data.
     CallData { offset: BoxedVal, size: BoxedVal },
@@ -435,7 +426,7 @@ mod test {
     fn equality_includes_provenance() {
         let id = Uuid::new_v4();
         let data = SymbolicValueData::Value { id };
-        let value_1 = SymbolicValue::new_from_program(0, data.clone());
+        let value_1 = SymbolicValue::new_from_execution(0, data.clone());
         let value_2 = SymbolicValue::new_synthetic(1, data);
 
         assert_ne!(value_1, value_2);

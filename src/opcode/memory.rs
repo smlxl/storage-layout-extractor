@@ -1,7 +1,5 @@
 //! Opcodes that perform operations on memory or stack on the EVM.
 
-#![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
-
 use crate::{
     constant::{
         DUP_OPCODE_BASE_VALUE,
@@ -57,7 +55,7 @@ impl Opcode for CallDataLoad {
         );
 
         // Then we construct the returned value
-        let value = SymbolicValue::new_from_program(
+        let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::CallData { offset, size },
         );
@@ -172,7 +170,7 @@ impl Opcode for CallDataCopy {
 
         // Modify the memory
         let memory = vm.state()?.memory();
-        let value = SymbolicValue::new_from_program(
+        let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::CallData { offset, size },
         );
@@ -291,7 +289,7 @@ impl Opcode for CodeCopy {
 
         // Modify the memory
         let memory = vm.state()?.memory();
-        let value = SymbolicValue::new_from_program(
+        let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::CodeCopy { offset, size },
         );
@@ -348,7 +346,7 @@ impl Opcode for ExtCodeSize {
         let address = stack.pop()?;
 
         // Construct the value and push it onto the stack
-        let value = SymbolicValue::new_from_program(
+        let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::ExtCodeSize { address },
         );
@@ -416,7 +414,7 @@ impl Opcode for ExtCodeCopy {
 
         // Modify the memory
         let memory = vm.state()?.memory();
-        let value = SymbolicValue::new_from_program(
+        let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::ExtCodeCopy {
                 address,
@@ -537,7 +535,7 @@ impl Opcode for ReturnDataCopy {
 
         // Modify the memory
         let memory = vm.state()?.memory();
-        let value = SymbolicValue::new_from_program(
+        let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::ReturnDataCopy { offset, size },
         );
@@ -586,7 +584,6 @@ pub struct Pop;
 impl Opcode for Pop {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
         // Get the stack and context data
-        let instruction_pointer = vm.instruction_pointer()?;
         let stack = vm.stack()?;
 
         // Pop the value from the stack.
@@ -636,9 +633,6 @@ pub struct MLoad;
 
 impl Opcode for MLoad {
     fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        // Get the prerequisite data
-        let instruction_pointer = vm.instruction_pointer()?;
-
         // Load the input from the stack
         let offset = vm.stack()?.pop()?;
 
@@ -1056,7 +1050,6 @@ impl Opcode for PushN {
 
         // Pull the data out of the opcode; validation is done in parsing
         let item_data = self.bytes.clone();
-        let size = self.byte_count;
 
         // Construct the value to push
         let item = SymbolicValue::new(
@@ -1253,7 +1246,7 @@ mod test {
     use rand::random;
 
     use crate::{
-        opcode::{memory, Opcode},
+        opcode::{memory, test_util as util, Opcode},
         vm::{
             state::memory::MemStoreSize,
             value::{
@@ -1278,12 +1271,14 @@ mod test {
 
         // And then inspect the stack
         let stack = vm.stack()?;
-        assert_eq!(stack.size(), 1);
+        assert_eq!(stack.depth(), 1);
 
         let item = stack.read(0)?;
         assert_eq!(item.instruction_pointer, 0);
         match &item.data {
-            SymbolicValueData::CallData { offset, .. } => {}
+            SymbolicValueData::CallData { offset, .. } => {
+                assert_eq!(offset.provenance, Provenance::Synthetic)
+            }
             _ => panic!("Invalid data"),
         };
         assert_eq!(item.provenance, Provenance::Execution);
@@ -1302,7 +1297,7 @@ mod test {
 
         // Inspect the stack
         let stack = vm.stack()?;
-        assert_eq!(stack.size(), 1);
+        assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::CallDataSize);
 
@@ -1352,10 +1347,12 @@ mod test {
 
         // Run the opcode
         let opcode = memory::CodeSize;
-        let result = opcode.execute(&mut vm);
+        opcode.execute(&mut vm)?;
 
         // Check that the correct value is on the stack.
-        let value = vm.stack()?.read(0)?;
+        let stack = vm.stack()?;
+        assert_eq!(stack.depth(), 1);
+        let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
             SymbolicValueData::KnownData { value, .. } => {
@@ -1419,7 +1416,7 @@ mod test {
 
         // Inspect the stack
         let stack = vm.stack()?;
-        assert_eq!(stack.size(), 1);
+        assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
         assert_eq!(value.data, SymbolicValueData::ExtCodeSize { address });
@@ -1480,7 +1477,7 @@ mod test {
 
         // Inspect the stack
         let stack = vm.stack()?;
-        assert_eq!(stack.size(), 1);
+        assert_eq!(stack.depth(), 1);
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::ReturnDataSize);
 
@@ -1555,7 +1552,7 @@ mod test {
 
         // Inspect the stack state
         let stack = vm.stack()?;
-        assert_eq!(stack.size(), 1);
+        assert_eq!(stack.depth(), 1);
         assert_eq!(stack.read(0)?, &data);
 
         // Inspect the memory state
@@ -1623,7 +1620,7 @@ mod test {
 
         // Inspect the stack state
         let stack = vm.stack()?;
-        assert_eq!(stack.size(), 1);
+        assert_eq!(stack.depth(), 1);
         assert_eq!(stack.read(0)?, &value);
 
         // Inspect the storage state
@@ -1667,7 +1664,7 @@ mod test {
 
         // Inspect the stack
         let stack = vm.stack()?;
-        assert_eq!(stack.size(), 1);
+        assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::MSize);
 
@@ -1685,7 +1682,7 @@ mod test {
 
         // Inspect the stack
         let stack = vm.stack()?;
-        assert_eq!(stack.size(), 1);
+        assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Bytecode);
         match &value.data {
@@ -1718,7 +1715,7 @@ mod test {
 
             // Inspect the stack to check on things
             let stack = vm.stack()?;
-            assert_eq!(stack.size(), 1);
+            assert_eq!(stack.depth(), 1);
             let value = stack.read(0)?;
             assert_eq!(value.provenance, Provenance::Bytecode);
             match &value.data {
@@ -1757,7 +1754,7 @@ mod test {
 
             // Inspect the stack
             let stack = vm.stack()?;
-            assert_eq!(stack.size(), item as usize + 1);
+            assert_eq!(stack.depth(), item as usize + 1);
             assert_eq!(stack.read(0)?, &item_to_dup);
         }
 
@@ -1798,7 +1795,7 @@ mod test {
 
             // Inspect the stack
             let stack = vm.stack()?;
-            assert_eq!(stack.size(), input_stack_size);
+            assert_eq!(stack.depth(), input_stack_size);
             let item_at_depth = stack.read(item as u32)?;
             let item_at_top = stack.read(0)?;
             assert_eq!(item_at_depth, &stack_top);
@@ -1806,34 +1803,5 @@ mod test {
         }
 
         Ok(())
-    }
-
-    mod util {
-        use crate::vm::{instructions::InstructionStream, value::BoxedVal, Config, VM};
-
-        /// Constructs a new virtual machine with the provided `values` pushed
-        /// onto its stack in order.
-        ///
-        /// This means that the last item in `values` will be put on the top of
-        /// the stack.
-        pub fn new_vm_with_values_on_stack(values: Vec<BoxedVal>) -> anyhow::Result<VM> {
-            // We don't actually care what these are for this test, so we just have
-            // _something_ long enough to account for what is going on.
-            let bytes: Vec<u8> = vec![
-                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x10, 0x11,
-            ];
-
-            let instructions = InstructionStream::try_from(bytes.as_slice())?;
-            let config = Config::default();
-
-            let mut vm = VM::new(instructions, config)?;
-            let stack = vm.stack()?;
-
-            values.into_iter().for_each(|val| {
-                stack.push(val).expect("Failed to insert value into stack");
-            });
-
-            Ok(vm)
-        }
     }
 }

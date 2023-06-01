@@ -108,14 +108,14 @@ impl Stack {
         Ok(())
     }
 
-    /// Gets the current size of the stack.
-    pub fn size(&self) -> usize {
+    /// Gets the current depth of the stack.
+    pub fn depth(&self) -> usize {
         self.data.len()
     }
 
     /// Checks if the stack is empty.
     pub fn is_empty(&self) -> bool {
-        self.size() == 0
+        self.depth() == 0
     }
 
     /// Checks if a frame exists at the provided `depth`.
@@ -178,7 +178,7 @@ mod test {
     #[test]
     fn can_construct_new_stack() {
         let stack = Stack::new();
-        assert_eq!(stack.size(), 0);
+        assert_eq!(stack.depth(), 0);
     }
 
     #[test]
@@ -243,9 +243,9 @@ mod test {
     #[test]
     fn can_dup_existing_item() -> anyhow::Result<()> {
         let mut stack = new_stack_with_items(10)?;
-        assert_eq!(stack.size(), 10);
+        assert_eq!(stack.depth(), 10);
         stack.dup(3)?;
-        assert_eq!(stack.size(), 11);
+        assert_eq!(stack.depth(), 11);
 
         Ok(())
     }
@@ -303,11 +303,11 @@ mod test {
     #[test]
     fn can_get_size_for_stack() -> anyhow::Result<()> {
         let empty = Stack::default();
-        assert_eq!(empty.size(), 0);
+        assert_eq!(empty.depth(), 0);
         assert!(empty.is_empty());
 
         let non_empty = new_stack_with_items(100)?;
-        assert_eq!(non_empty.size(), 100);
+        assert_eq!(non_empty.depth(), 100);
         assert!(!non_empty.is_empty());
 
         Ok(())
