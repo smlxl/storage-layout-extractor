@@ -23,6 +23,7 @@ pub struct VMState {
     memory:          Memory,
     storage:         Storage,
     recorded_values: Vec<BoxedVal>,
+    logged_values:   Vec<BoxedVal>,
 }
 
 impl VMState {
@@ -33,6 +34,7 @@ impl VMState {
         let memory = Memory::new();
         let storage = Storage::new();
         let recorded_values = Vec::default();
+        let logged_values = Vec::default();
 
         Self {
             fork_point,
@@ -40,6 +42,7 @@ impl VMState {
             memory,
             storage,
             recorded_values,
+            logged_values,
         }
     }
 
@@ -69,6 +72,19 @@ impl VMState {
     /// though not stored in the VM's working memories.
     pub fn recorded_values(&self) -> &[BoxedVal] {
         self.recorded_values.as_slice()
+    }
+
+    /// Records the provided `value` so that it is available for later analysis
+    /// even if it is no longer accounted for in one of the VM's working
+    /// memories.
+    pub fn log_value(&mut self, value: BoxedVal) {
+        self.logged_values.push(value);
+    }
+
+    /// Gets the values that have been recorded to be available for analysis
+    /// though not stored in the VM's working memories.
+    pub fn logged_values(&self) -> &[BoxedVal] {
+        self.logged_values.as_slice()
     }
 
     /// Gets the point in the instruction stream, specifically the value of the

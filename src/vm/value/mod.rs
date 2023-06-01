@@ -215,7 +215,7 @@ pub enum SymbolicValueData {
     },
 
     /// A keccak256 hash on symbolic values.
-    Sha3 { offset: BoxedVal, size: BoxedVal },
+    Sha3 { value: BoxedVal, size: BoxedVal },
 
     /// The address of the currently-executing contract.
     Address,
@@ -239,19 +239,19 @@ pub enum SymbolicValueData {
     ExtCodeHash { address: BoxedVal },
 
     /// Gets the block hash from one of the
-    BlockHash { block_number: u8 },
+    BlockHash { block_number: BoxedVal },
 
     /// Gets the block's beneficiary address.
     CoinBase,
 
     /// Gets the timestamp of the current block.
-    Timestamp,
+    BlockTimestamp,
 
     /// Gets the number of the current block.
-    Number,
+    BlockNumber,
 
     /// Gets the difficulty of the current block.
-    Difficulty,
+    Prevrandao,
 
     /// Gets the gas limit of  the current block.
     GasLimit,
@@ -269,8 +269,16 @@ pub enum SymbolicValueData {
     /// Gets the currently available gas.
     Gas,
 
+    /// Logs the `value` from memory of `size` with the provided `topics`.
+    Log { value: BoxedVal, size: BoxedVal, topics: Vec<BoxedVal> },
+
     /// Creates a new contract.
-    Create { value: BoxedVal, offset: BoxedVal, size: BoxedVal },
+    Create {
+        value:  BoxedVal,
+        offset: BoxedVal,
+        size:   BoxedVal,
+        data:   BoxedVal,
+    },
 
     /// Creates a new contract at a predictable address.
     Create2 {
@@ -278,6 +286,7 @@ pub enum SymbolicValueData {
         offset: BoxedVal,
         size:   BoxedVal,
         salt:   BoxedVal,
+        data:   BoxedVal,
     },
 
     /// Registers the account for deletion.

@@ -116,9 +116,13 @@ mod test_util {
         let mut vm = VM::new(instructions, config)?;
         let stack = vm.stack()?;
 
+        let values_len = values.len();
         values.into_iter().for_each(|val| {
             stack.push(val).expect("Failed to insert value into stack");
         });
+
+        // Check that we have constructed the stack correctly
+        assert_eq!(stack.depth(), values_len);
 
         Ok(vm)
     }
