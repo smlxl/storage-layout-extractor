@@ -39,7 +39,11 @@ impl SymbolicValue {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
-    fn new(instruction_pointer: u32, data: SymbolicValueData, provenance: Provenance) -> Box<Self> {
+    pub fn new(
+        instruction_pointer: u32,
+        data: SymbolicValueData,
+        provenance: Provenance,
+    ) -> Box<Self> {
         Box::new(Self {
             instruction_pointer,
             provenance,
@@ -49,13 +53,13 @@ impl SymbolicValue {
 
     /// Constructs a new `SymbolicValue` representing the operation performed at
     /// `instruction_pointer` on the symbolic `data`. It is created with a
-    /// provenance of [`Provenance::ProgramCode`] to indicate that the symbolic
+    /// provenance of [`Provenance::Execution`] to indicate that the symbolic
     /// execution of the program created the value.
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
     pub fn new_from_program(instruction_pointer: u32, data: SymbolicValueData) -> Box<Self> {
-        Self::new(instruction_pointer, data, Provenance::ProgramCode)
+        Self::new(instruction_pointer, data, Provenance::Execution)
     }
 
     /// Constructs a new, synthetic, `SymbolicValue` representing the operation
@@ -77,7 +81,7 @@ impl SymbolicValue {
     pub fn new_value(instruction_pointer: u32, provenance: Provenance) -> Box<Self> {
         Self::new(
             instruction_pointer,
-            SymbolicValueData::default(),
+            SymbolicValueData::new_value(),
             provenance,
         )
     }
@@ -104,7 +108,7 @@ impl SymbolicValue {
     }
 
     /// Compares two symbolic values for strict equality, _including_ the value
-    /// of the `instruction_pointer` and `synthetic` flag.
+    /// of the `instruction_pointer`.
     pub fn strict_eq(&self, other: &Self) -> bool {
         self.instruction_pointer == other.instruction_pointer && self == other
     }
@@ -327,76 +331,67 @@ pub enum SymbolicValueData {
     /// Signed right shift with symbolic values.
     Sar { shift: BoxedVal, value: BoxedVal },
 
+    /// Loading the data at `offset` for `size` in the call data.
+    CallData { offset: BoxedVal, size: BoxedVal },
+
     /// The size of the current call data.
     CallDataSize,
 
-    /// Copies the calldata into memory.
-    CallDataCopy {
-        dest_offset: BoxedVal,
-        offset:      BoxedVal,
-        size:        BoxedVal,
-    },
-
-    /// Gets the code size of the VM.
-    CodeSize,
-
-    /// Copies the code from the current contract into memory.
-    CodeCopy {
-        dest_offset: BoxedVal,
-        offset:      BoxedVal,
-        size:        BoxedVal,
-    },
+    /// Data copied from the code of the current contract starting at `offset`
+    /// for `size`.
+    CodeCopy { offset: BoxedVal, size: BoxedVal },
 
     /// Gets the code size of the target contract.
     ExtCodeSize { address: BoxedVal },
 
-    /// Copies the code from an external contract into memory.
-    ExtCodeCopy {
-        address:     BoxedVal,
-        dest_offset: BoxedVal,
-        offset:      BoxedVal,
-        size:        BoxedVal,
-    },
+    /// Data copied from the code of the contract at `address` starting at
+    /// `offset` for `size`.
+    ExtCodeCopy { address: BoxedVal, offset: BoxedVal, size: BoxedVal },
 
-    /// Gets the size of the return data from the previous call.
-    ReturnDataSize,
-
-    /// Copies the return data from the previous call into memory.
-    ReturnDataCopy {
-        dest_offset: BoxedVal,
-        offset:      BoxedVal,
-        size:        BoxedVal,
-    },
+    /// Data copied from the return data from the previous call at `offset` for
+    /// `size`.
+    ReturnDataCopy { offset: BoxedVal, size: BoxedVal },
 }
 
-/// The default value for a symbolic value's data is a
-/// [`SymbolicValueData::Value`] about which nothing else is known.
-impl Default for SymbolicValueData {
-    fn default() -> Self {
-        SymbolicValueData::Value { id: Uuid::new_v4() }
+impl SymbolicValueData {
+    /// Constructs a new [`Self::KnownData`] containing the data `value`.
+    pub fn new_known(value: KnownData) -> Self {
+        let id = Uuid::new_v4();
+        SymbolicValueData::KnownData { id, value }
+    }
+
+    /// Constructs a new [`Self::Value`] about which only its existence and
+    /// identity are known.
+    pub fn new_value() -> Self {
+        let id = Uuid::new_v4();
+        SymbolicValueData::Value { id }
     }
 }
 
 /// A descriptor for where a symbolic value originated in the program.
 ///
 /// In essence, these can be thought of as tags that provide more information
-/// about the given value.
+/// about the given value when the value is newly and dynamically created.
 #[derive(Clone, Debug, Eq, Hash, Derivative, PartialEq)]
 pub enum Provenance {
-    /// The value originated in a read from call data.
-    CallData,
-
     /// The value originated from the result of the `CALLDATASIZE` opcode.
     CallDataSize,
 
     /// The value deposited by the caller.
     CallValue,
 
+    /// The size of the memory at the time the program requested it.
+    MSize,
+
     /// The value originated from the result of the `GAS` opcode.
     Gas,
 
-    /// The value originated in operations performed by the bytecode.
-    ProgramCode,
+    /// The value originated in operations performed by the bytecode in the
+    /// course of execution.
+    Execution,
+
+    /// The value was encoded in the bytecode of the program.
+    Bytecode,
 
     /// The value originated from a read of the current program counter.
     ProgramCounter,
@@ -411,10 +406,10 @@ pub enum Provenance {
     Synthetic,
 
     /// The value originated from an `MLOAD` from uninitialized memory.
-    UninitializedMemory { key: BoxedVal },
+    UninitializedMemory,
 
     /// The value originated from an `SLOAD` from uninitialized storage.
-    UninitializedStorage { key: BoxedVal },
+    UninitializedStorage,
 
     /// There is no concrete source for this variable.
     Unknown,

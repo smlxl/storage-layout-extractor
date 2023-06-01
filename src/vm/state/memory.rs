@@ -82,9 +82,7 @@ impl Memory {
                 let data = SymbolicValue::new_known_value(
                     0,
                     KnownData::zero(),
-                    Provenance::UninitializedMemory {
-                        key: offset.clone(),
-                    },
+                    Provenance::UninitializedMemory,
                 );
                 MemStore {
                     data,
@@ -256,12 +254,7 @@ mod test {
                 ..
             } => {
                 assert_eq!(value, &KnownData::zero());
-                assert_eq!(
-                    provenance,
-                    &Provenance::UninitializedMemory {
-                        key: offset.clone(),
-                    }
-                );
+                assert_eq!(provenance, &Provenance::UninitializedMemory,);
             }
             _ => panic!("Test failure"),
         }

@@ -147,7 +147,7 @@ pub fn parse(bytes: &[u8]) -> anyhow::Result<Vec<DynOpcode>> {
                 }
                 0x80..=0x8f => {
                     let item_to_duplicate = byte - DUP_OPCODE_BASE_VALUE;
-                    let opcode = mem::Dup::new(item_to_duplicate)?;
+                    let opcode = mem::DupN::new(item_to_duplicate)?;
                     add_op(ops, opcode);
                 }
                 0x90..=0x9f => {

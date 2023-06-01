@@ -96,7 +96,7 @@ impl VM {
     ///
     /// Returns [`Err`] if execution fails, or if there is no thread to execute.
     pub fn execute(&mut self) -> anyhow::Result<()> {
-        while let Some(instruction) = self.current_instruction() {
+        while let Ok(instruction) = self.current_instruction() {
             instruction.execute(self)?;
             self.thread_queue
                 .front_mut()
@@ -109,7 +109,7 @@ impl VM {
     }
 
     /// Gets the instruction indicated by the current instruction pointer.
-    pub fn current_instruction(&mut self) -> Option<DynOpcode> {
+    pub fn current_instruction(&mut self) -> anyhow::Result<DynOpcode> {
         self.current_thread().map(|thread| thread.instructions().current())
     }
 
@@ -153,25 +153,32 @@ impl VM {
 
     /// Gets the virtual machine stack for the thread that is currently being
     /// executed.
-    pub fn current_stack(&mut self) -> Option<&mut Stack> {
+    pub fn stack(&mut self) -> anyhow::Result<&mut Stack> {
         self.current_thread().map(|thread| thread.state().stack())
     }
 
     /// Gets the virtual machine state that is currently being executed.
-    pub fn current_state(&mut self) -> Option<&mut VMState> {
+    pub fn state(&mut self) -> anyhow::Result<&mut VMState> {
         self.current_thread().map(|thread| thread.state())
     }
 
     /// Gets the current execution thread (instruction sequence) that is being
     /// executed.
-    pub fn current_instructions(&mut self) -> Option<&mut ExecutionThread> {
+    pub fn execution_thread(&mut self) -> anyhow::Result<&mut ExecutionThread> {
         self.current_thread().map(|thread| thread.instructions())
+    }
+
+    /// Gets the current value of the instruction pointer for the thread that is
+    /// being executed.
+    pub fn instruction_pointer(&mut self) -> anyhow::Result<u32> {
+        self.current_thread()
+            .map(|thread| thread.instructions().instruction_pointer())
     }
 
     /// Gets the currently executing virtual machine thread if there is one, or
     /// [`None`] if there is no such thread.
-    pub fn current_thread(&mut self) -> Option<&mut VMThread> {
-        self.thread_queue.front_mut()
+    pub fn current_thread(&mut self) -> anyhow::Result<&mut VMThread> {
+        self.thread_queue.front_mut().ok_or(VMError::NoSuchThread.into())
     }
 
     /// Adds a virtual machine thread to the queue for execution.
@@ -186,7 +193,7 @@ impl VM {
     ///
     /// Returns [`Err`] if the thread cannot be forked.
     pub fn fork_current_thread(&mut self, jump_target: u32) -> anyhow::Result<()> {
-        let new_thread = self.current_thread().ok_or(VMError::NoSuchThread)?.fork(jump_target);
+        let new_thread = self.current_thread()?.fork(jump_target);
         self.enqueue_thread(new_thread);
 
         Ok(())

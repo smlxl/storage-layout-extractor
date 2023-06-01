@@ -58,7 +58,7 @@ impl Stack {
     /// # Errors
     ///
     /// If `depth` does not exist in the stack.
-    pub fn read(&self, depth: u16) -> anyhow::Result<&BoxedVal> {
+    pub fn read(&self, depth: u32) -> anyhow::Result<&BoxedVal> {
         self.check_frame_at(depth)?;
 
         // This is a safe unsigned subtraction as `check_frame_at will have returned
@@ -78,7 +78,7 @@ impl Stack {
     /// # Errors
     ///
     /// If `frame` doesn't exist.
-    pub fn dup(&mut self, frame: u16) -> anyhow::Result<()> {
+    pub fn dup(&mut self, frame: u32) -> anyhow::Result<()> {
         self.check_frame_at(frame)?;
         let index = self.top_frame_index()? - frame as usize;
 
@@ -97,12 +97,13 @@ impl Stack {
     /// # Errors
     ///
     /// If either the source or target stack frame do not exist.
-    pub fn swap(&mut self, frame: u16) -> anyhow::Result<()> {
+    pub fn swap(&mut self, frame: u32) -> anyhow::Result<()> {
+        let top_frame = self.top_frame_index()?;
         self.check_frame_at(0)?;
         self.check_frame_at(frame)?;
-        let frame_index = self.top_frame_index()? - frame as usize;
+        let frame_index = top_frame - frame as usize;
 
-        self.data.swap(0, frame_index);
+        self.data.swap(top_frame, frame_index);
 
         Ok(())
     }
@@ -122,7 +123,7 @@ impl Stack {
     /// # Errors
     ///
     /// If there is no such stack frame.
-    pub fn check_frame_at(&self, depth: u16) -> anyhow::Result<()> {
+    pub fn check_frame_at(&self, depth: u32) -> anyhow::Result<()> {
         let current_depth = self.data.len();
 
         if depth as usize >= current_depth {
@@ -167,7 +168,7 @@ mod test {
     /// Constructs a new stack with `item_count` unknown items pushed onto it.
     fn new_stack_with_items(item_count: usize) -> anyhow::Result<Stack> {
         let mut stack = Stack::new();
-        for i in 0..item_count {
+        for i in (0..item_count).rev() {
             stack.push(new_synthetic_value(i as u32))?
         }
 
@@ -270,7 +271,15 @@ mod test {
     #[test]
     fn can_swap_with_valid_item() -> anyhow::Result<()> {
         let mut stack = new_stack_with_items(100)?;
+        let item_top = stack.read(0)?.clone();
+        let item_to_swap = stack.read(83)?.clone();
         stack.swap(83).expect("Unable to swap valid stack frames");
+
+        let new_top = stack.read(0)?.clone();
+        let swapped_item = stack.read(83)?.clone();
+
+        assert_eq!(swapped_item, item_top);
+        assert_eq!(new_top, item_to_swap);
 
         Ok(())
     }
