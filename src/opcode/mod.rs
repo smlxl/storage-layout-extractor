@@ -6,6 +6,7 @@ pub mod control;
 pub mod environment;
 pub mod logic;
 pub mod memory;
+mod util;
 
 use std::{any::Any, fmt::Debug, rc::Rc};
 
@@ -111,6 +112,18 @@ mod test_util {
         ];
 
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
+        new_vm_with_instructions_and_values_on_stack(instructions, values)
+    }
+
+    /// Constructs a new virtual machine with the provided `instructions` and
+    /// with the provided values` pushed onto its stack in order.
+    ///
+    /// This means that the last item in `values` will be put on the top of
+    /// the stack.
+    pub fn new_vm_with_instructions_and_values_on_stack(
+        instructions: InstructionStream,
+        values: Vec<BoxedVal>,
+    ) -> anyhow::Result<VM> {
         let config = Config::default();
 
         let mut vm = VM::new(instructions, config)?;

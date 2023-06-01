@@ -49,6 +49,9 @@ pub struct VM {
 
     /// The configuration of the virtual machine.
     config: Config,
+
+    /// Whether the currently executing thread needs to die.
+    current_thread_killed: bool,
 }
 
 impl VM {
@@ -73,6 +76,7 @@ impl VM {
         thread_queue.push_back(initial_thread);
         let visited_opcodes = VisitedOpcodes::new(instructions.len() as u32);
         let stored_states = Vec::new();
+        let current_thread_killed = false;
 
         Ok(Self {
             instructions,
@@ -80,6 +84,7 @@ impl VM {
             visited_opcodes,
             stored_states,
             config,
+            current_thread_killed,
         })
     }
 
@@ -124,25 +129,27 @@ impl VM {
             return Err(VMError::InvalidStep.into());
         }
 
-        let instruction_pointer = self
+        let i_ptr = self
             .thread_queue
             .front_mut()
             .unwrap()
             .instructions()
             .instruction_pointer();
         let instructions_len = self.thread_queue.front_mut().unwrap().instructions().len() as u32;
-        let is_visited = self.visited_opcodes.visited(instruction_pointer)?;
+        let is_visited = self.visited_opcodes.visited(i_ptr)?;
         let gas_usage = self.thread_queue.front_mut().unwrap().gas_usage();
         let is_out_of_gas = gas_usage > self.config.gas_limit;
+        let should_die = self.current_thread_killed;
 
-        if instruction_pointer + 1 >= instructions_len || is_visited || is_out_of_gas {
+        if i_ptr + 1 >= instructions_len || is_visited || is_out_of_gas || should_die {
             // In this case we are at the end of this thread, so we need to collect it and
             // move on by removing it from the queue.
             let thread = self.thread_queue.pop_front().unwrap();
             self.stored_states.push(thread.into_state());
+            self.current_thread_killed = false;
         } else {
             // Here we need to mark the current opcode as visited.
-            self.visited_opcodes.mark_visited(instruction_pointer)?;
+            self.visited_opcodes.mark_visited(i_ptr)?;
 
             // And then continue execution on the current thread.
             self.current_thread().unwrap().instructions().step();
@@ -199,15 +206,31 @@ impl VM {
         Ok(())
     }
 
+    /// Checks if the current thread has been killed.
+    pub fn current_thread_killed(&self) -> bool {
+        self.current_thread_killed
+    }
+
+    /// Says that the current thread has encountered an instruction that forces
+    /// it to cease execution.
+    pub fn kill_current_thread(&mut self) {
+        self.current_thread_killed = true;
+    }
+
     /// Gets the count of remaining threads of execution for this virtual
     /// machine.
-    pub fn remaining_threads(&self) -> usize {
+    pub fn remaining_thread_count(&self) -> usize {
         self.thread_queue.len()
+    }
+
+    /// Gets the queue of remaining threads for inspection.
+    pub fn remaining_threads(&mut self) -> &mut VecDeque<VMThread> {
+        &mut self.thread_queue
     }
 
     /// Checks if the virtual machine has any more code to execute.
     pub fn is_complete(&self) -> bool {
-        self.remaining_threads() == 0
+        self.remaining_thread_count() == 0
     }
 
     /// Gets the instruction stream associated with this virtual machine.
@@ -257,7 +280,7 @@ mod test {
 
         // A newly-constructed virtual machine should have one thread of
         // execution to explore.
-        assert_eq!(vm.remaining_threads(), 1);
+        assert_eq!(vm.remaining_thread_count(), 1);
 
         Ok(())
     }

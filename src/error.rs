@@ -6,6 +6,8 @@
 
 use thiserror::Error;
 
+use crate::vm::value::known_data::KnownData;
+
 /// Errors from the [`crate::vm`] subsystem of the library.
 #[derive(Debug, Eq, Error, PartialEq)]
 pub enum VMError {
@@ -25,6 +27,18 @@ pub enum VMError {
 
     #[error("Tried to step the virtual machine when no target exists")]
     InvalidStep,
+
+    #[error("{data:?} cannot be used as an immediate for a jump")]
+    InvalidOffsetForJump { data: KnownData },
+
+    #[error("The opcode at {offset:?} is not a valid jump destination")]
+    InvalidJumpTarget { offset: u32 },
+
+    #[error("No opcode exists at {offset:?}")]
+    NonExistentJumpTarget { offset: u32 },
+
+    #[error("No concrete immediate was found for the jump destination")]
+    NoConcreteJumpDestination,
 }
 
 /// Errors encountered during parsing a bytecode stream in

@@ -614,8 +614,8 @@ impl Opcode for Pop {
 ///
 /// # Semantics
 ///
-/// | Stack Index | Input    | Output                    |
-/// | :---------: | :------: | :-----------------------: |
+/// | Stack Index | Input    | Output                              |
+/// | :---------: | :------: | :---------------------------------: |
 /// | 1           | `offset` | `result := mem\[offset:offset+32\]` |
 ///
 /// where:
@@ -1014,11 +1014,15 @@ pub struct PushN {
 impl PushN {
     /// Construct a new instance of the `PUSHN` opcode for some `n`.
     ///
+    /// The `bytes` are assumed to be in big-endian byte ordering, and are
+    /// converted to be stored in little endian ordering.
+    ///
     /// # Errors
     ///
     /// If `n` is not in the specified range.
     pub fn new(n: u8, bytes: impl Into<Vec<u8>>) -> anyhow::Result<Self> {
-        let bytes: Vec<u8> = bytes.into();
+        let mut bytes: Vec<u8> = bytes.into();
+        bytes = bytes.into_iter().rev().collect();
         if n > 0 && n <= PUSH_OPCODE_MAX_BYTES && bytes.len() == n as usize {
             Ok(Self {
                 byte_count: n,
@@ -1083,7 +1087,8 @@ impl Opcode for PushN {
 
     fn encode(&self) -> Vec<u8> {
         let mut data = vec![self.as_byte()];
-        data.extend(self.bytes_data());
+        let bytes_be: Vec<u8> = self.bytes_data().iter().rev().cloned().collect();
+        data.extend(bytes_be);
         data
     }
 }
