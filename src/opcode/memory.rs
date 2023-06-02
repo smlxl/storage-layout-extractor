@@ -169,7 +169,7 @@ impl Opcode for CallDataCopy {
         let size = stack.pop()?;
 
         // Modify the memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::CallData { offset, size },
@@ -288,7 +288,7 @@ impl Opcode for CodeCopy {
         let size = stack.pop()?;
 
         // Modify the memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::CodeCopy { offset, size },
@@ -413,7 +413,7 @@ impl Opcode for ExtCodeCopy {
         let size = stack.pop()?;
 
         // Modify the memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::ExtCodeCopy {
@@ -534,7 +534,7 @@ impl Opcode for ReturnDataCopy {
         let size = stack.pop()?;
 
         // Modify the memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let value = SymbolicValue::new_from_execution(
             instruction_pointer,
             SymbolicValueData::ReturnDataCopy { offset, size },
@@ -637,7 +637,7 @@ impl Opcode for MLoad {
         let offset = vm.stack_handle()?.pop()?;
 
         // Load the word at that offset from memory
-        let result = vm.state()?.memory().load(&offset).clone();
+        let result = vm.state()?.memory_mut().load(&offset).clone();
 
         // Push it onto the stack
         vm.stack_handle()?.push(result)?;
@@ -695,7 +695,7 @@ impl Opcode for MStore {
         let value = stack.pop()?;
 
         // Write these to memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         memory.store(offset, value);
 
         // Done, so return ok
@@ -751,7 +751,7 @@ impl Opcode for MStore8 {
         let value = stack.pop()?;
 
         // Write these to memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         memory.store_8(offset, value);
 
         // Done, so return ok
@@ -802,7 +802,7 @@ impl Opcode for SLoad {
         let key = vm.stack_handle()?.pop()?;
 
         // Read from storage using that key
-        let storage = vm.state()?.storage();
+        let storage = vm.state()?.storage_mut();
         let result = storage.load(&key).clone();
 
         // Write it into the stack
@@ -861,7 +861,7 @@ impl Opcode for SStore {
         let value = stack.pop()?;
 
         // Store the value into storage
-        vm.state()?.storage().store(key, value);
+        vm.state()?.storage_mut().store(key, value);
 
         // Done, so return ok
         Ok(())
@@ -1271,7 +1271,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // And then inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
 
         let item = stack.read(0)?;
@@ -1297,7 +1297,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::CallDataSize);
@@ -1322,11 +1322,11 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert!(stack.is_empty());
 
         // Inspect the memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
             SymbolicValueData::CallData { offset, size } => {
@@ -1351,7 +1351,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Check that the correct value is on the stack.
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
@@ -1387,11 +1387,11 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert!(stack.is_empty());
 
         // Inspect the memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
             SymbolicValueData::CodeCopy { offset, size } => {
@@ -1416,7 +1416,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
@@ -1444,11 +1444,11 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert!(stack.is_empty());
 
         // Inspect the memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
             SymbolicValueData::ExtCodeCopy {
@@ -1477,7 +1477,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::ReturnDataSize);
@@ -1502,11 +1502,11 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert!(stack.is_empty());
 
         // Inspect the memory
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
             SymbolicValueData::ReturnDataCopy { offset, size } => {
@@ -1533,7 +1533,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert!(stack.is_empty());
 
         Ok(())
@@ -1545,19 +1545,19 @@ mod test {
         let offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         let data = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![offset.clone()])?;
-        vm.state()?.memory().store(offset.clone(), data.clone());
+        vm.state()?.memory_mut().store(offset.clone(), data.clone());
 
         // Prepare and run the opcode
         let opcode = memory::MLoad;
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         assert_eq!(stack.read(0)?, &data);
 
         // Inspect the memory state
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         assert_eq!(memory.load(&offset), &data);
 
         Ok(())
@@ -1575,10 +1575,10 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        assert!(vm.state()?.stack().is_empty());
+        assert!(vm.state()?.stack_mut().is_empty());
 
         // Inspect the memory state
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         assert_eq!(memory.load(&offset), &data);
         assert_eq!(memory.query_store_size(&offset), Some(MemStoreSize::Word));
 
@@ -1597,10 +1597,10 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        assert!(vm.state()?.stack().is_empty());
+        assert!(vm.state()?.stack_mut().is_empty());
 
         // Inspect the memory state
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         assert_eq!(memory.load(&offset), &data);
         assert_eq!(memory.query_store_size(&offset), Some(MemStoreSize::Byte));
 
@@ -1613,19 +1613,19 @@ mod test {
         let key = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         let value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![key.clone()])?;
-        vm.state()?.storage().store(key.clone(), value.clone());
+        vm.state()?.storage_mut().store(key.clone(), value.clone());
 
         // Prepare and run the opcode
         let opcode = memory::SLoad;
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         assert_eq!(stack.read(0)?, &value);
 
         // Inspect the storage state
-        let storage = vm.state()?.storage();
+        let storage = vm.state()?.storage_mut();
         assert_eq!(storage.entry_count(), 1);
         assert_eq!(storage.load(&key), &value);
 
@@ -1644,10 +1644,10 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        assert!(vm.state()?.stack().is_empty());
+        assert!(vm.state()?.stack_mut().is_empty());
 
         // Inspect the storage state
-        let storage = vm.state()?.storage();
+        let storage = vm.state()?.storage_mut();
         assert_eq!(storage.entry_count(), 1);
         assert_eq!(storage.load(&key), &value);
 
@@ -1664,7 +1664,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::MSize);
@@ -1682,7 +1682,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Bytecode);
@@ -1715,7 +1715,7 @@ mod test {
             opcode.execute(&mut vm)?;
 
             // Inspect the stack to check on things
-            let stack = vm.state()?.stack();
+            let stack = vm.state()?.stack_mut();
             assert_eq!(stack.depth(), 1);
             let value = stack.read(0)?;
             assert_eq!(value.provenance, Provenance::Bytecode);
@@ -1754,7 +1754,7 @@ mod test {
             opcode.execute(&mut vm)?;
 
             // Inspect the stack
-            let stack = vm.state()?.stack();
+            let stack = vm.state()?.stack_mut();
             assert_eq!(stack.depth(), item as usize + 1);
             assert_eq!(stack.read(0)?, &item_to_dup);
         }
@@ -1795,7 +1795,7 @@ mod test {
             opcode.execute(&mut vm)?;
 
             // Inspect the stack
-            let stack = vm.state()?.stack();
+            let stack = vm.state()?.stack_mut();
             assert_eq!(stack.depth(), input_stack_size);
             let item_at_depth = stack.read(item as u32)?;
             let item_at_top = stack.read(0)?;

@@ -25,7 +25,7 @@ use crate::{
 
 /// The virtual machine used to perform symbolic execution of the contract
 /// bytecode.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct VM {
     /// The instructions that are being executed by this virtual machine.
     instructions: InstructionStream,
@@ -118,7 +118,9 @@ impl VM {
                 Ok(_) => {
                     // We know that there is a thread here as we just executed an instruction from
                     // it.
-                    self.current_thread().unwrap().consume_gas(instruction.min_gas_cost());
+                    self.current_thread_mut()
+                        .unwrap()
+                        .consume_gas(instruction.min_gas_cost());
                 }
                 Err(payload) => {
                     // If execution errored, add the error to the collection of them and then kill
@@ -144,7 +146,7 @@ impl VM {
     }
 
     /// Gets the instruction indicated by the current instruction pointer.
-    pub fn current_instruction(&mut self) -> Result<DynOpcode> {
+    pub fn current_instruction(&self) -> Result<DynOpcode> {
         self.current_thread().map(|thread| thread.instructions().current())
     }
 
@@ -163,7 +165,7 @@ impl VM {
             .thread_queue
             .front_mut()
             .unwrap()
-            .instructions()
+            .instructions_mut()
             .instruction_pointer();
 
         // Here we need to mark the current opcode as visited. It is a programmer bug if
@@ -171,7 +173,8 @@ impl VM {
         // forwarded.
         self.visited_opcodes.mark_visited(instruction_pointer)?;
 
-        let instructions_len = self.thread_queue.front_mut().unwrap().instructions().len() as u32;
+        let instructions_len =
+            self.thread_queue.front_mut().unwrap().instructions_mut().len() as u32;
         let next_offset = instruction_pointer + 1;
 
         // It is a programmer bug if a non-existent opcode is asked about here, so the
@@ -199,7 +202,7 @@ impl VM {
             }
         } else {
             // And then continue execution on the current thread.
-            self.current_thread().unwrap().instructions().step();
+            self.current_thread_mut().unwrap().instructions_mut().step();
         }
 
         Ok(())
@@ -213,31 +216,44 @@ impl VM {
     /// call `.state()?.stack`.
     pub fn stack_handle(&mut self) -> Result<LocatedStackHandle<'_>> {
         let instruction_pointer = self.instruction_pointer()?;
-        self.current_thread()
-            .map(|thread| thread.state().stack().new_located(instruction_pointer))
+        self.current_thread_mut()
+            .map(|thread| thread.state_mut().stack_mut().new_located(instruction_pointer))
     }
 
     /// Gets the virtual machine state that is currently being executed.
     pub fn state(&mut self) -> Result<&mut VMState> {
-        self.current_thread().map(|thread| thread.state())
+        self.current_thread_mut().map(|thread| thread.state_mut())
     }
 
     /// Gets the current execution thread (instruction sequence) that is being
     /// executed.
-    pub fn execution_thread(&mut self) -> Result<&mut ExecutionThread> {
+    pub fn execution_thread(&self) -> Result<&ExecutionThread> {
         self.current_thread().map(|thread| thread.instructions())
+    }
+
+    /// Gets the current execution thread (instruction sequence) that is being
+    /// executed.
+    pub fn execution_thread_mut(&mut self) -> Result<&mut ExecutionThread> {
+        self.current_thread_mut().map(|thread| thread.instructions_mut())
     }
 
     /// Gets the current value of the instruction pointer for the thread that is
     /// being executed.
     pub fn instruction_pointer(&mut self) -> Result<u32> {
-        self.current_thread()
-            .map(|thread| thread.instructions().instruction_pointer())
+        self.current_thread_mut()
+            .map(|thread| thread.instructions_mut().instruction_pointer())
     }
 
     /// Gets the currently executing virtual machine thread if there is one, or
     /// [`None`] if there is no such thread.
-    pub fn current_thread(&mut self) -> Result<&mut VMThread> {
+    pub fn current_thread(&self) -> Result<&VMThread> {
+        let offset = self.instructions.len() as u32;
+        self.thread_queue.front().ok_or(Error::NoSuchThread.locate(offset))
+    }
+
+    /// Gets the currently executing virtual machine thread if there is one, or
+    /// [`None`] if there is no such thread.
+    pub fn current_thread_mut(&mut self) -> Result<&mut VMThread> {
         let offset = self.instructions.len() as u32;
         self.thread_queue
             .front_mut()
@@ -258,7 +274,7 @@ impl VM {
     pub fn fork_current_thread(&mut self, jump_target: u32) -> Result<()> {
         // It is a programmer error to ask for a thread to be forked when none exists,
         // so we forward the error immediately.
-        let new_thread = self.current_thread()?.fork(jump_target);
+        let new_thread = self.current_thread_mut()?.fork(jump_target);
         self.enqueue_thread(new_thread);
 
         Ok(())
@@ -282,7 +298,12 @@ impl VM {
     }
 
     /// Gets the queue of remaining threads for inspection.
-    pub fn remaining_threads(&mut self) -> &mut VecDeque<VMThread> {
+    pub fn remaining_threads(&self) -> &VecDeque<VMThread> {
+        &self.thread_queue
+    }
+
+    /// Gets the queue of remaining threads for inspection or modification.
+    pub fn remaining_threads_mut(&mut self) -> &mut VecDeque<VMThread> {
         &mut self.thread_queue
     }
 
@@ -417,17 +438,17 @@ mod test {
 
         // In the first thread
         let thread_1 = &mut data.states[0];
-        assert!(thread_1.memory().is_empty());
-        assert!(thread_1.stack().is_empty());
+        assert!(thread_1.memory_mut().is_empty());
+        assert!(thread_1.stack_mut().is_empty());
         assert_eq!(thread_1.recorded_values().len(), 1);
-        assert_eq!(thread_1.storage().entry_count(), 1);
+        assert_eq!(thread_1.storage_mut().entry_count(), 1);
 
         // In the second thread
         let thread_2 = &mut data.states[1];
-        assert_eq!(thread_2.memory().entry_count(), 1);
-        assert!(thread_2.stack().is_empty());
+        assert_eq!(thread_2.memory_mut().entry_count(), 1);
+        assert!(thread_2.stack_mut().is_empty());
         assert_eq!(thread_2.recorded_values().len(), 2);
-        assert_eq!(thread_2.storage().entry_count(), 0);
+        assert_eq!(thread_2.storage_mut().entry_count(), 0);
 
         Ok(())
     }
@@ -468,12 +489,12 @@ mod test {
 
         // In the first thread
         let thread_1 = &mut data.states[0];
-        assert!(thread_1.memory().is_empty());
-        assert!(thread_1.stack().is_empty());
+        assert!(thread_1.memory_mut().is_empty());
+        assert!(thread_1.stack_mut().is_empty());
         assert_eq!(thread_1.recorded_values().len(), 2);
 
         // It should never have stored anything
-        assert_eq!(thread_1.storage().entry_count(), 0);
+        assert_eq!(thread_1.storage_mut().entry_count(), 0);
 
         // We should have multiple errors
         let error_container = result.unwrap_err();

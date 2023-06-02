@@ -130,7 +130,7 @@ impl Opcode for Jump {
         // If it is, we set the execution position to there, as executing the next
         // instruction would be incorrect. Note that the `VM` will step from the target,
         // but as it is a JUMPDEST no-op this is fine.
-        vm.execution_thread()?.jump(jump_target);
+        vm.execution_thread_mut()?.jump(jump_target);
 
         // Done, so return ok
         Ok(())
@@ -386,11 +386,11 @@ impl Opcode for Call {
         let ret_size = stack.pop()?;
 
         // Read the input data to touch it if it hasn't already been touched
-        vm.state()?.memory().load(&arg_offset);
+        vm.state()?.memory_mut().load(&arg_offset);
 
         // Create the return value and store it in memory
         let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
-        vm.state()?.memory().store(ret_offset, ret_value);
+        vm.state()?.memory_mut().store(ret_offset, ret_value);
 
         // Create the value representing the call
         let call_return = SymbolicValue::new_from_execution(
@@ -539,11 +539,11 @@ impl Opcode for DelegateCall {
         let ret_size = stack.pop()?;
 
         // Read the input data to touch it if it hasn't already been touched
-        vm.state()?.memory().load(&arg_offset);
+        vm.state()?.memory_mut().load(&arg_offset);
 
         // Create the return value and store it in memory
         let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
-        vm.state()?.memory().store(ret_offset, ret_value);
+        vm.state()?.memory_mut().store(ret_offset, ret_value);
 
         // Create the value representing the call
         let call_return = SymbolicValue::new_from_execution(
@@ -875,10 +875,10 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        assert!(vm.state()?.stack().is_empty());
+        assert!(vm.state()?.stack_mut().is_empty());
 
         // Inspect the execution position.
-        assert_eq!(vm.execution_thread()?.instruction_pointer(), 0x03);
+        assert_eq!(vm.execution_thread_mut()?.instruction_pointer(), 0x03);
 
         Ok(())
     }
@@ -904,10 +904,10 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        assert!(vm.state()?.stack().is_empty());
+        assert!(vm.state()?.stack_mut().is_empty());
 
         // Inspect the execution position.
-        assert_eq!(vm.execution_thread()?.instruction_pointer(), 0x00);
+        assert_eq!(vm.execution_thread_mut()?.instruction_pointer(), 0x00);
 
         // Ensure that the current thread has been marked for death
         assert!(vm.current_thread_killed());
@@ -1011,20 +1011,20 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        assert!(vm.state()?.stack().is_empty());
+        assert!(vm.state()?.stack_mut().is_empty());
 
         // Inspect the execution position.
-        assert_eq!(vm.execution_thread()?.instruction_pointer(), 0x00);
+        assert_eq!(vm.execution_thread_mut()?.instruction_pointer(), 0x00);
 
         // Check that there is an additional thread in the VM
         assert_eq!(vm.remaining_thread_count(), 2);
 
         // Check that the second thread's execution position is where it should be
         assert_eq!(
-            vm.remaining_threads()
+            vm.remaining_threads_mut()
                 .back_mut()
                 .expect("No threads remaining")
-                .instructions()
+                .instructions_mut()
                 .instruction_pointer(),
             0x02
         );
@@ -1114,7 +1114,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         match &value.data {
@@ -1169,7 +1169,7 @@ mod test {
             input_gas.clone(),
         ])?;
         vm.state()?
-            .memory()
+            .memory_mut()
             .store(input_arg_offset.clone(), input_data.clone());
 
         // Prepare and execute the opcode
@@ -1177,7 +1177,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
@@ -1199,7 +1199,7 @@ mod test {
         }
 
         // Inspect the memory state
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let return_value = memory.load(&input_ret_offset);
         assert_eq!(return_value.provenance, Provenance::MessageCall);
         let input_value = memory.load(&input_arg_offset);
@@ -1227,7 +1227,7 @@ mod test {
             input_gas.clone(),
         ])?;
         vm.state()?
-            .memory()
+            .memory_mut()
             .store(input_arg_offset.clone(), input_data.clone());
 
         // Prepare and execute the opcode
@@ -1235,7 +1235,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
@@ -1255,7 +1255,7 @@ mod test {
         }
 
         // Inspect the memory state
-        let memory = vm.state()?.memory();
+        let memory = vm.state()?.memory_mut();
         let return_value = memory.load(&input_ret_offset);
         assert_eq!(return_value.provenance, Provenance::MessageCall);
         let input_value = memory.load(&input_arg_offset);
@@ -1277,7 +1277,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        assert!(vm.state()?.stack().is_empty());
+        assert!(vm.state()?.stack_mut().is_empty());
 
         // Ensure the value was stored
         let value = &vm.state()?.recorded_values()[0];
@@ -1306,7 +1306,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        assert!(vm.state()?.stack().is_empty());
+        assert!(vm.state()?.stack_mut().is_empty());
 
         // Ensure the value was stored
         let value = &vm.state()?.recorded_values()[0];

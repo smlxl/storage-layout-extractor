@@ -28,15 +28,15 @@
 
 #![warn(clippy::all, clippy::cargo)]
 
+pub mod analyzer;
 pub mod constant;
+pub mod contract;
 pub mod error;
+pub mod layout;
 pub mod opcode;
 pub mod unifier;
 pub mod vm;
 
-/// The core of the storage layout analysis, the `Analyzer` is responsible for
-/// ingesting user data and outputting a storage layout.
-pub struct Analyzer;
-
-/// The most-concrete layout discovered for the input contract.
-pub struct StorageLayout;
+// Re-exports to provide the library interface.
+pub use analyzer::new;
+pub use layout::StorageLayout;
