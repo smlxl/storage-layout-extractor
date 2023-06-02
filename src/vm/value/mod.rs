@@ -99,10 +99,7 @@ impl SymbolicValue {
     ) -> Box<Self> {
         Self::new(
             instruction_pointer,
-            SymbolicValueData::KnownData {
-                id:    Uuid::new_v4(),
-                value: value_data,
-            },
+            SymbolicValueData::KnownData { value: value_data },
             provenance,
         )
     }
@@ -135,10 +132,7 @@ pub enum SymbolicValueData {
     Value { id: Uuid },
 
     /// A value that has is made up of a known sequence of bytes.
-    ///
-    /// It has an `id` in order to allow the program to distinguish the same
-    /// value created in different places.
-    KnownData { id: Uuid, value: KnownData },
+    KnownData { value: KnownData },
 
     /// Addition of symbolic values.
     Add { left: BoxedVal, right: BoxedVal },
@@ -349,13 +343,15 @@ pub enum SymbolicValueData {
 
     /// A value that was used as the input to a conditional.
     Condition { value: BoxedVal },
+
+    /// A value representing the return from a storage load at `key`.
+    SLoad { key: BoxedVal },
 }
 
 impl SymbolicValueData {
     /// Constructs a new [`Self::KnownData`] containing the data `value`.
     pub fn new_known(value: KnownData) -> Self {
-        let id = Uuid::new_v4();
-        SymbolicValueData::KnownData { id, value }
+        SymbolicValueData::KnownData { value }
     }
 
     /// Constructs a new [`Self::Value`] about which only its existence and
@@ -407,7 +403,7 @@ pub enum Provenance {
     UninitializedMemory,
 
     /// The value originated from an `SLOAD` from uninitialized storage.
-    UninitializedStorage,
+    NonWrittenStorage,
 
     /// The data came from the data returned from a message call.
     MessageCall,

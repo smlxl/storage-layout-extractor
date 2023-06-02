@@ -3,13 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::vm::value::{
-    known_data::KnownData,
-    BoxedVal,
-    Provenance,
-    SymbolicValue,
-    SymbolicValueData,
-};
+use crate::vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData};
 
 /// A representation of the persistent storage of the symbolic virtual machine.
 ///
@@ -61,11 +55,13 @@ impl Storage {
         entry.push(value);
     }
 
-    /// Loads the value found at the provided `key`, returning 0 if the slot has
-    /// never been written to.
+    /// Loads the value found at the provided `key`.
     ///
     /// This always returns the _most-recently written_ value, and does not
     /// account for the generations.
+    ///
+    /// If the slot has not been written to during the current execution, it
+    /// returns a symbolic value representing the potential value of the slot.
     ///
     /// # Note
     ///
@@ -83,10 +79,10 @@ impl Storage {
         let entry = target_map.entry(key.clone()).or_insert_with(|| {
             // The instruction pointer is 0 here, as the uninitialized value was created
             // when the program started. It is _not_ synthetic.
-            vec![SymbolicValue::new_known_value(
+            vec![SymbolicValue::new(
                 0,
-                KnownData::zero(),
-                Provenance::UninitializedStorage,
+                SymbolicValueData::SLoad { key: key.clone() },
+                Provenance::NonWrittenStorage,
             )]
         });
 
@@ -196,24 +192,24 @@ mod test {
 
         match storage.load(&key_1).deref() {
             SymbolicValue {
-                data: SymbolicValueData::KnownData { value, .. },
+                data: SymbolicValueData::SLoad { key },
                 provenance,
                 ..
             } => {
-                assert_eq!(value, &KnownData::zero());
-                assert_eq!(provenance, &Provenance::UninitializedStorage)
+                assert_eq!(key, &key_1);
+                assert_eq!(provenance, &Provenance::NonWrittenStorage)
             }
             _ => panic!("Test failure"),
         }
 
-        match &storage.load(&key_2).deref() {
+        match storage.load(&key_2).deref() {
             SymbolicValue {
-                data: SymbolicValueData::KnownData { value, .. },
+                data: SymbolicValueData::SLoad { key },
                 provenance,
                 ..
             } => {
-                assert_eq!(value, &KnownData::zero());
-                assert_eq!(provenance, &Provenance::UninitializedStorage)
+                assert_eq!(key, &key_2);
+                assert_eq!(provenance, &Provenance::NonWrittenStorage)
             }
             _ => panic!("Test failure"),
         }
