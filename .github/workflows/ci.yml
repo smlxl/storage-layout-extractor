@@ -8,7 +8,7 @@ on:
 
 # Environment variables that will be set on all runners
 env:
-  RUST_VERSION: 1.69.0       # Specify the Rust version to be used on CI.
+  RUST_VERSION: 1.70.0       # Specify the Rust version to be used on CI.
   CARGO_TERM_COLOR: always   # Always colour Cargo's output.
   CARGO_INCREMENTAL: 0       # Always run without incremental builds on CI.
   CARGO_PROFILE_DEV_DEBUG: 0 # Don't embed debug info even though the build is a dev build.

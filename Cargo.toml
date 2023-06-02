@@ -19,7 +19,7 @@ readme = "README.md"
 # to let authors opt in to backwards-incompatible changes. Crates using one edition can interoperate with crates using
 # another edition, thereby ensuring that there's no ecosystem split.
 edition = "2021"
-rust-version = "1.69.0"
+rust-version = "1.70.0"
 
 # Prevent publishing by accident.
 publish = false
