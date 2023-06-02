@@ -19,7 +19,7 @@ readme = "README.md"
 # to let authors opt in to backwards-incompatible changes. Crates using one edition can interoperate with crates using
 # another edition, thereby ensuring that there's no ecosystem split.
 edition = "2021"
-rust-version = "1.69.0"
+rust-version = "1.70.0"
 
 # Prevent publishing by accident.
 publish = false
@@ -31,6 +31,7 @@ derivative = "2.2.0"
 downcast-rs = "1.2.0"
 ethnum = "1.3.2"
 hex = "0.4.3"
+serde = { version = "1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
 thiserror = "1.0.40"
 uuid = { version = "1.3.2", features = ["v4", "fast-rng", "macro-diagnostics"]}
@@ -39,6 +40,7 @@ uuid = { version = "1.3.2", features = ["v4", "fast-rng", "macro-diagnostics"]}
 #
 # These are the dependencies required purely for internal development of the library such as testing or benchmarking.
 [dev-dependencies]
+project-root = "0.2.2"
 rand = "0.8.5"
 
 # Profiles specify the build settings for different kinds of build.

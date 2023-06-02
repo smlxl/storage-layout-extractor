@@ -81,6 +81,15 @@ impl From<disassembly::LocatedError> for LocatedError {
     }
 }
 
+/// Allow simple conversions from located disassembly errors by re-wrapping the
+/// located error around the more general payload in the Errors container.
+impl From<disassembly::LocatedError> for Errors {
+    fn from(value: disassembly::LocatedError) -> Self {
+        let re_wrapped: LocatedError = value.into();
+        re_wrapped.into()
+    }
+}
+
 /// Allow simple conversions from located execution errors by re-wrapping the
 /// located error around the more general payload.
 impl From<execution::LocatedError> for LocatedError {
@@ -91,6 +100,26 @@ impl From<execution::LocatedError> for LocatedError {
             location: instruction_pointer,
             payload,
         }
+    }
+}
+
+/// Allow simple conversions from located execution errors by re-wrapping the
+/// located error around the more general payload in the Errors container.
+impl From<execution::LocatedError> for Errors {
+    fn from(value: execution::LocatedError) -> Self {
+        let re_wrapped: LocatedError = value.into();
+        re_wrapped.into()
+    }
+}
+
+/// Allow conversion from the execution errors container to the general errors
+/// container.
+impl From<execution::Errors> for Errors {
+    fn from(value: execution::Errors) -> Self {
+        let errs: Vec<execution::LocatedError> = value.into();
+        let new_errs: Vec<LocatedError> = errs.into_iter().map(|e| e.into()).collect();
+
+        new_errs.into()
     }
 }
 

@@ -47,17 +47,32 @@ impl VMState {
     }
 
     /// Gets the stack associated with this virtual machine state.
-    pub fn stack(&mut self) -> &mut Stack {
+    pub fn stack(&self) -> &Stack {
+        &self.stack
+    }
+
+    /// Gets the stack associated with this virtual machine state.
+    pub fn stack_mut(&mut self) -> &mut Stack {
         &mut self.stack
     }
 
     /// Gets the memory associated with this virtual machine state.
-    pub fn memory(&mut self) -> &mut Memory {
+    pub fn memory(&self) -> &Memory {
+        &self.memory
+    }
+
+    /// Gets the memory associated with this virtual machine state.
+    pub fn memory_mut(&mut self) -> &mut Memory {
         &mut self.memory
     }
 
     /// Gets the storage associated with this virtual machine state.
-    pub fn storage(&mut self) -> &mut Storage {
+    pub fn storage(&self) -> &Storage {
+        &self.storage
+    }
+
+    /// Gets the storage associated with this virtual machine state.
+    pub fn storage_mut(&mut self) -> &mut Storage {
         &mut self.storage
     }
 

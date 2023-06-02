@@ -151,6 +151,26 @@ where
     }
 }
 
+/// Allow conversion from the errors container to a vector of errors.
+impl<E> From<Errors<E>> for Vec<E>
+where
+    E: std::error::Error,
+{
+    fn from(value: Errors<E>) -> Self {
+        value.payloads
+    }
+}
+
+/// Allow conversion from a vector of errors to the errors container.
+impl<E> From<Vec<E>> for Errors<E>
+where
+    E: std::error::Error,
+{
+    fn from(value: Vec<E>) -> Self {
+        Self { payloads: value }
+    }
+}
+
 /// Displays the errors in the sequence in which they occur in the container.
 ///
 /// It has a header specifying how many errors occurred, and then prints one

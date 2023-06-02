@@ -44,7 +44,7 @@ pub fn validate_jump_destination(counter: &BoxedVal, vm: &mut VM) -> execution::
     };
 
     // We need to check that the jump target is valid.
-    let thread = vm.execution_thread()?;
+    let thread = vm.execution_thread_mut()?;
     let target_instruction = thread.instruction(jump_target).ok_or(
         execution::Error::NonExistentJumpTarget {
             offset: jump_target,

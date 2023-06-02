@@ -859,7 +859,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -887,7 +887,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -915,7 +915,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -943,7 +943,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -971,7 +971,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -997,7 +997,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1024,7 +1024,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1052,7 +1052,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1080,7 +1080,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1106,7 +1106,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1133,7 +1133,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1233,7 +1233,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1261,7 +1261,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1289,7 +1289,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);

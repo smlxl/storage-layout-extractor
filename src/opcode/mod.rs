@@ -131,7 +131,7 @@ mod test_util {
         let config = Config::default();
 
         let mut vm = VM::new(instructions, config)?;
-        let stack = vm.state()?.stack();
+        let stack = vm.state()?.stack_mut();
 
         let values_len = values.len();
         values.into_iter().for_each(|val| {

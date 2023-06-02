@@ -8,7 +8,7 @@ use crate::vm::{instructions::ExecutionThread, state::VMState};
 ///
 /// The construct can be forked at will to represent the branches in execution,
 /// but contains no logic for performing that execution itself.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct VMThread {
     /// The virtual machine's state for this thread of execution.
     state: VMState,
@@ -33,13 +33,24 @@ impl VMThread {
     }
 
     /// Gets the current virtual machine state for this virtual machine thread.
-    pub fn state(&mut self) -> &mut VMState {
+    pub fn state(&self) -> &VMState {
+        &self.state
+    }
+
+    /// Gets the current virtual machine state for this virtual machine thread.
+    pub fn state_mut(&mut self) -> &mut VMState {
         &mut self.state
     }
 
     /// Gets the instruction stream and current execution position associated
     /// with this virtual machine thread.
-    pub fn instructions(&mut self) -> &mut ExecutionThread {
+    pub fn instructions(&self) -> &ExecutionThread {
+        &self.thread
+    }
+
+    /// Gets the instruction stream and current execution position associated
+    /// with this virtual machine thread.
+    pub fn instructions_mut(&mut self) -> &mut ExecutionThread {
         &mut self.thread
     }
 
