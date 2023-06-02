@@ -3,7 +3,7 @@
 use crate::{
     opcode::{ExecuteResult, Opcode},
     vm::{
-        value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
+        value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
         VM,
     },
 };
@@ -581,23 +581,17 @@ impl Opcode for Byte {
         // Construct the constants
         let const_0x08 = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownData::UInt {
-                value: 0x08u8.to_le_bytes().to_vec(),
-            },
+            KnownWord::from(0x08u8.to_le_bytes().to_vec()),
             Provenance::Bytecode,
         );
         let const_0xf8 = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownData::UInt {
-                value: 0xf8u8.to_le_bytes().to_vec(),
-            },
+            KnownWord::from(0xf8u8.to_le_bytes().to_vec()),
             Provenance::Bytecode,
         );
         let const_0xff = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownData::UInt {
-                value: 0xffu8.to_le_bytes().to_vec(),
-            },
+            KnownWord::from(0xffu8.to_le_bytes().to_vec()),
             Provenance::Bytecode,
         );
 
@@ -843,7 +837,7 @@ impl Opcode for Sar {
 mod test {
     use crate::{
         opcode::{logic, test_util as util, Opcode},
-        vm::value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
+        vm::value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
     };
 
     #[test]
@@ -1147,12 +1141,7 @@ mod test {
                 // The right operand should be a constant 0xff
                 match &right.data {
                     SymbolicValueData::KnownData { value, .. } => {
-                        assert_eq!(
-                            value,
-                            &KnownData::UInt {
-                                value: 0xffu8.to_le_bytes().to_vec(),
-                            }
-                        );
+                        assert_eq!(value, &KnownWord::from(0xffu8.to_le_bytes().to_vec(),));
                     }
                     _ => panic!("Invalid payload"),
                 }
@@ -1176,9 +1165,7 @@ mod test {
                                     SymbolicValueData::KnownData { value, .. } => {
                                         assert_eq!(
                                             value,
-                                            &KnownData::UInt {
-                                                value: 0xf8u8.to_le_bytes().to_vec(),
-                                            }
+                                            &KnownWord::from(0xf8u8.to_le_bytes().to_vec(),)
                                         )
                                     }
                                     _ => panic!("Invalid payload"),
@@ -1197,9 +1184,7 @@ mod test {
                                             SymbolicValueData::KnownData { value, .. } => {
                                                 assert_eq!(
                                                     value,
-                                                    &KnownData::UInt {
-                                                        value: 0x08u8.to_le_bytes().to_vec(),
-                                                    }
+                                                    &KnownWord::from(0x08u8.to_le_bytes().to_vec())
                                                 )
                                             }
                                             _ => panic!("Invalid payload"),

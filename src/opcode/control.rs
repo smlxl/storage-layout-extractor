@@ -4,7 +4,7 @@ use crate::{
     error::execution,
     opcode::{util, ExecuteResult, Opcode},
     vm::{
-        value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
+        value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
         VM,
     },
 };
@@ -275,9 +275,7 @@ impl Opcode for PC {
         // Construct the value and push it onto the stack
         let result = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownData::UInt {
-                value: instruction_pointer.to_le_bytes().to_vec(),
-            },
+            KnownWord::from(instruction_pointer.to_le_bytes().to_vec()),
             Provenance::ProgramCounter,
         );
         stack.push(result)?;
@@ -336,6 +334,57 @@ impl Opcode for JumpDest {
     }
 }
 
+/// Stores the return data from an external message call for `ret_size` at
+/// `ret_offset`.
+fn store_return_data(ret_size: &BoxedVal, ret_offset: &BoxedVal, vm: &mut VM) -> ExecuteResult {
+    let instruction_pointer = vm.instruction_pointer()?;
+    let memory = vm.state()?.memory_mut();
+    let ret_size = ret_size.clone().constant_fold();
+    match ret_size.data {
+        SymbolicValueData::KnownData { value } => {
+            let num_32 = SymbolicValue::new_known_value(
+                instruction_pointer,
+                KnownWord::from(32),
+                Provenance::Execution,
+            );
+            let actual_size: usize = value.into();
+            for internal_offset in (0..actual_size).step_by(32) {
+                let to_add_to_offset = SymbolicValue::new_known_value(
+                    instruction_pointer,
+                    KnownWord::from(internal_offset),
+                    Provenance::Execution,
+                );
+                let dest_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  ret_offset.clone().constant_fold(),
+                        right: to_add_to_offset.clone(),
+                    },
+                );
+                // Offsets in the _return data_ start at zero.
+                let src_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::new_known(KnownWord::from(internal_offset)),
+                );
+                let value = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::ReturnData {
+                        offset: src_offset,
+                        size:   num_32.clone(),
+                    },
+                );
+                memory.store(dest_offset, value);
+            }
+        }
+        _ => {
+            let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
+            vm.state()?.memory_mut().store(ret_offset.clone(), ret_value);
+        }
+    };
+
+    Ok(())
+}
+
 /// The `CALL` opcode performs a message call into an account.
 ///
 /// # Semantics
@@ -385,12 +434,14 @@ impl Opcode for Call {
         let ret_offset = stack.pop()?;
         let ret_size = stack.pop()?;
 
-        // Read the input data to touch it if it hasn't already been touched
-        vm.state()?.memory_mut().load(&arg_offset);
+        // Read the input data out of memory
+        let argument_data =
+            vm.state()?
+                .memory_mut()
+                .load_slice(&arg_offset, &arg_size, instruction_pointer);
 
         // Create the return value and store it in memory
-        let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
-        vm.state()?.memory_mut().store(ret_offset, ret_value);
+        store_return_data(&ret_size, &ret_offset, vm)?;
 
         // Create the value representing the call
         let call_return = SymbolicValue::new_from_execution(
@@ -399,7 +450,8 @@ impl Opcode for Call {
                 gas,
                 address,
                 value,
-                arg_size,
+                argument_data,
+                ret_offset,
                 ret_size,
             },
         );
@@ -538,12 +590,14 @@ impl Opcode for DelegateCall {
         let ret_offset = stack.pop()?;
         let ret_size = stack.pop()?;
 
-        // Read the input data to touch it if it hasn't already been touched
-        vm.state()?.memory_mut().load(&arg_offset);
+        // Read the input data out of memory
+        let argument_data =
+            vm.state()?
+                .memory_mut()
+                .load_slice(&arg_offset, &arg_size, instruction_pointer);
 
         // Create the return value and store it in memory
-        let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
-        vm.state()?.memory_mut().store(ret_offset, ret_value);
+        store_return_data(&ret_size, &ret_offset, vm)?;
 
         // Create the value representing the call
         let call_return = SymbolicValue::new_from_execution(
@@ -551,7 +605,8 @@ impl Opcode for DelegateCall {
             SymbolicValueData::CallWithoutValue {
                 gas,
                 address,
-                arg_size,
+                argument_data,
+                ret_offset,
                 ret_size,
             },
         );
@@ -681,9 +736,13 @@ impl Opcode for Return {
         let size = stack.pop()?;
 
         // Construct the value and hold onto it
+        let data = vm
+            .state()?
+            .memory_mut()
+            .load_slice(&offset, &size, instruction_pointer);
         let return_val = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Return { offset, size },
+            SymbolicValueData::Return { data },
         );
         vm.state()?.record_value(return_val);
 
@@ -747,9 +806,13 @@ impl Opcode for Revert {
         let size = stack.pop()?;
 
         // Construct the value and hold onto it
+        let data = vm
+            .state()?
+            .memory_mut()
+            .load_slice(&offset, &size, instruction_pointer);
         let return_val = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Revert { offset, size },
+            SymbolicValueData::Revert { data },
         );
         vm.state()?.record_value(return_val);
 
@@ -816,7 +879,7 @@ mod test {
         opcode::{control, macros::bytecode, test_util as util, Opcode},
         vm::{
             instructions::InstructionStream,
-            value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
+            value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
         },
     };
 
@@ -864,7 +927,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownData::Bytes { value: vec![0x03] }, // Offset of JUMPDEST in the bytes above
+            KnownWord::from(vec![0x03]), // Offset of JUMPDEST in the bytes above
             Provenance::Synthetic,
         );
         let mut vm =
@@ -929,7 +992,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownData::Bytes { value: vec![0x04] }, // Out of bounds
+            KnownWord::from(vec![0x04]), // Out of bounds
             Provenance::Synthetic,
         );
         let mut vm =
@@ -964,7 +1027,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownData::Bytes { value: vec![0x03] }, // The final INVALID in the bytes above
+            KnownWord::from(vec![0x03]), // The final INVALID in the bytes above
             Provenance::Synthetic,
         );
         let mut vm =
@@ -994,7 +1057,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownData::Bytes { value: vec![0x02] }, // Offset of JUMPDEST in the bytes above
+            KnownWord::from(vec![0x02]), // Offset of JUMPDEST in the bytes above
             Provenance::Synthetic,
         );
         let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
@@ -1047,7 +1110,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownData::Bytes { value: vec![0x04] }, // OOB target
+            KnownWord::from(vec![0x04]), // OOB target
             Provenance::Synthetic,
         );
         let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
@@ -1080,7 +1143,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownData::Bytes { value: vec![0x02] }, // Invalid jump target
+            KnownWord::from(vec![0x02]), // Invalid jump target
             Provenance::Synthetic,
         );
         let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
@@ -1119,12 +1182,7 @@ mod test {
         let value = stack.read(0)?;
         match &value.data {
             SymbolicValueData::KnownData { value, .. } => {
-                assert_eq!(
-                    value,
-                    &KnownData::UInt {
-                        value: 0x00u32.to_le_bytes().to_vec(),
-                    }
-                )
+                assert_eq!(value, &KnownWord::from(0x00u32.to_le_bytes().to_vec(),))
             }
             _ => panic!("Invalid payload"),
         }
@@ -1162,7 +1220,7 @@ mod test {
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_ret_size.clone(),
             input_ret_offset.clone(),
-            input_arg_size.clone(),
+            input_arg_size,
             input_arg_offset.clone(),
             input_value.clone(),
             input_address.clone(),
@@ -1186,13 +1244,15 @@ mod test {
                 gas,
                 address,
                 value,
-                arg_size,
+                argument_data,
+                ret_offset,
                 ret_size,
             } => {
                 assert_eq!(gas, &input_gas);
                 assert_eq!(address, &input_address);
                 assert_eq!(value, &input_value);
-                assert_eq!(arg_size, &input_arg_size);
+                assert_eq!(argument_data, &input_data);
+                assert_eq!(ret_offset, &input_ret_offset);
                 assert_eq!(ret_size, &input_ret_size);
             }
             _ => panic!("Invalid payload"),
@@ -1203,7 +1263,7 @@ mod test {
         let return_value = memory.load(&input_ret_offset);
         assert_eq!(return_value.provenance, Provenance::MessageCall);
         let input_value = memory.load(&input_arg_offset);
-        assert_eq!(input_value, &input_data);
+        assert_eq!(input_value, input_data);
 
         Ok(())
     }
@@ -1221,7 +1281,7 @@ mod test {
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_ret_size.clone(),
             input_ret_offset.clone(),
-            input_arg_size.clone(),
+            input_arg_size,
             input_arg_offset.clone(),
             input_address.clone(),
             input_gas.clone(),
@@ -1243,12 +1303,14 @@ mod test {
             SymbolicValueData::CallWithoutValue {
                 gas,
                 address,
-                arg_size,
+                argument_data,
+                ret_offset,
                 ret_size,
             } => {
                 assert_eq!(gas, &input_gas);
                 assert_eq!(address, &input_address);
-                assert_eq!(arg_size, &input_arg_size);
+                assert_eq!(argument_data, &input_data);
+                assert_eq!(ret_offset, &input_ret_offset);
                 assert_eq!(ret_size, &input_ret_size);
             }
             _ => panic!("Invalid payload"),
@@ -1259,7 +1321,7 @@ mod test {
         let return_value = memory.load(&input_ret_offset);
         assert_eq!(return_value.provenance, Provenance::MessageCall);
         let input_value = memory.load(&input_arg_offset);
-        assert_eq!(input_value, &input_data);
+        assert_eq!(input_value, input_data);
 
         Ok(())
     }
@@ -1269,8 +1331,9 @@ mod test {
         // Prepare the vm
         let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let mut vm =
-            util::new_vm_with_values_on_stack(vec![input_size.clone(), input_offset.clone()])?;
+        let revert_data = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![input_size, input_offset.clone()])?;
+        vm.state()?.memory_mut().store(input_offset, revert_data.clone());
 
         // Prepare and run the opcode
         let opcode = control::Return;
@@ -1283,9 +1346,8 @@ mod test {
         let value = &vm.state()?.recorded_values()[0];
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
-            SymbolicValueData::Return { offset, size } => {
-                assert_eq!(offset, &input_offset);
-                assert_eq!(size, &input_size);
+            SymbolicValueData::Return { data } => {
+                assert_eq!(data, &revert_data);
             }
             _ => panic!("Invalid payload"),
         }
@@ -1298,8 +1360,9 @@ mod test {
         // Prepare the vm
         let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let mut vm =
-            util::new_vm_with_values_on_stack(vec![input_size.clone(), input_offset.clone()])?;
+        let revert_data = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![input_size, input_offset.clone()])?;
+        vm.state()?.memory_mut().store(input_offset, revert_data.clone());
 
         // Prepare and run the opcode
         let opcode = control::Revert;
@@ -1312,9 +1375,8 @@ mod test {
         let value = &vm.state()?.recorded_values()[0];
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
-            SymbolicValueData::Revert { offset, size } => {
-                assert_eq!(offset, &input_offset);
-                assert_eq!(size, &input_size);
+            SymbolicValueData::Revert { data } => {
+                assert_eq!(data, &revert_data);
             }
             _ => panic!("Invalid payload"),
         }
