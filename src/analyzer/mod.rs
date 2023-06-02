@@ -178,7 +178,6 @@ impl Analyzer<state::VMReady> {
 
 #[cfg(test)]
 mod test {
-    use ethnum::U256;
     use project_root::get_project_root;
 
     use crate::{
@@ -187,87 +186,8 @@ mod test {
             Chain,
         },
         contract::Contract,
-        vm::{
-            value::{known_data::KnownData, BoxedVal, SymbolicValueData},
-            Config,
-        },
+        vm::Config,
     };
-
-    fn pprint_known_data(value: &KnownData) -> String {
-        match value {
-            KnownData::Bytes { value } => format!("bytes({:?})", value),
-            KnownData::UInt { value } => {
-                let mut bytes = value.clone();
-                bytes.resize(32, 0);
-                format!(
-                    "uint({})",
-                    U256::from_le_bytes(bytes.as_slice().try_into().unwrap())
-                )
-            }
-            _ => format!("{:?}", value),
-        }
-    }
-
-    fn pprint_symbolic_value_data(value: &SymbolicValueData) -> String {
-        match value {
-            SymbolicValueData::KnownData { value, .. } => pprint_known_data(value),
-            SymbolicValueData::Sha3 {
-                value,
-                offset,
-                size,
-            } => format!(
-                "sha3({}, {}, {})",
-                pprint_boxed_val(value),
-                pprint_boxed_val(offset),
-                pprint_boxed_val(size)
-            ),
-            SymbolicValueData::CallData { offset, size } => format!(
-                "calldata({}, {})",
-                pprint_boxed_val(offset),
-                pprint_boxed_val(size)
-            ),
-            SymbolicValueData::Or { left, right } => {
-                format!(
-                    "or({}, {})",
-                    pprint_boxed_val(left),
-                    pprint_boxed_val(right)
-                )
-            }
-            SymbolicValueData::And { left, right } => {
-                format!(
-                    "and({}, {})",
-                    pprint_boxed_val(left),
-                    pprint_boxed_val(right)
-                )
-            }
-            SymbolicValueData::Subtract { left, right } => {
-                format!(
-                    "sub({}, {})",
-                    pprint_boxed_val(left),
-                    pprint_boxed_val(right)
-                )
-            }
-            SymbolicValueData::LeftShift { shift, value } => {
-                format!(
-                    "shl({}, {})",
-                    pprint_boxed_val(value),
-                    pprint_boxed_val(shift)
-                )
-            }
-            SymbolicValueData::Not { bool } => {
-                format!("not({})", pprint_boxed_val(bool))
-            }
-            SymbolicValueData::SLoad { key } => {
-                format!("sload({})", pprint_boxed_val(key))
-            }
-
-            _ => format!("{:?}", value),
-        }
-    }
-
-    fn pprint_boxed_val(value: &BoxedVal) -> String {
-        return pprint_symbolic_value_data(&value.data);
-    }
 
     #[test]
     pub fn analyze_bytecode_from_file() -> anyhow::Result<()> {
@@ -296,12 +216,12 @@ mod test {
 
             for key in storage_keys {
                 println!("  ===== Slot =====");
-                println!("  KEY: {}", pprint_boxed_val(key));
+                println!("  KEY: {key}");
 
                 let generations = state.storage().generations(key).unwrap();
 
                 for gen in generations {
-                    println!("  VALUE: {}", pprint_boxed_val(gen));
+                    println!("  VALUE: {gen}");
                 }
             }
 

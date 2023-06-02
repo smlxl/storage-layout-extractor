@@ -3,6 +3,8 @@
 
 pub mod known_data;
 
+use std::fmt::{Display, Formatter};
+
 use derivative::Derivative;
 use uuid::Uuid;
 
@@ -109,6 +111,12 @@ impl SymbolicValue {
     /// of the `instruction_pointer`.
     pub fn strict_eq(&self, other: &Self) -> bool {
         self.instruction_pointer == other.instruction_pointer && self == other
+    }
+}
+
+impl Display for SymbolicValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.data)
     }
 }
 
@@ -363,6 +371,107 @@ impl SymbolicValueData {
     }
 }
 
+impl Display for SymbolicValueData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Value { id } => write!(f, "{id}"),
+            Self::KnownData { value } => write!(f, "{value}"),
+            Self::Add { left, right } => write!(f, "({left} + {right})"),
+            Self::Multiply { left, right } => write!(f, "({left} * {right})"),
+            Self::Subtract { left, right } => write!(f, "({left} - {right})"),
+            Self::Divide { dividend, divisor } => write!(f, "({dividend} / {divisor})"),
+            Self::SignedDivide { dividend, divisor } => write!(f, "({dividend} s/ {divisor})"),
+            Self::Modulo { dividend, divisor } => write!(f, "({dividend} % {divisor})"),
+            Self::SignedModulo { dividend, divisor } => write!(f, "({dividend} s% {divisor})"),
+            Self::Exp { value, exponent } => write!(f, "({value} ** {exponent})"),
+            Self::SignExtend { size, value } => write!(f, "sign_ext({size}, {value})"),
+            Self::ProgramCounter => write!(f, "pc"),
+            Self::CallWithValue {
+                gas,
+                address,
+                value,
+                arg_size,
+                ret_size,
+            } => write!(
+                f,
+                "call_val({gas}, {address}, {value}, {arg_size}, {ret_size})"
+            ),
+            Self::CallWithoutValue {
+                gas,
+                address,
+                arg_size,
+                ret_size,
+            } => write!(f, "call_val({gas}, {address}, {arg_size}, {ret_size})"),
+            Self::Sha3 { offset, size, .. } => write!(f, "sha3({offset}, {size}"),
+            Self::Address => write!(f, "address(this)"),
+            Self::Balance { address } => write!(f, "balance({address})"),
+            Self::Origin => write!(f, "tx.origin"),
+            Self::Caller => write!(f, "msg.sender"),
+            Self::CallValue => write!(f, "msg.value"),
+            Self::GasPrice => write!(f, "tx.gasprice"),
+            Self::ExtCodeHash { address } => write!(f, "ext_code_hash({address})"),
+            Self::BlockHash { block_number } => write!(f, "block_hash({block_number}"),
+            Self::CoinBase => write!(f, "block.coinbase"),
+            Self::BlockTimestamp => write!(f, "block.timestamp"),
+            Self::BlockNumber => write!(f, "block.number"),
+            Self::Prevrandao => write!(f, "block.prevrandao"),
+            Self::GasLimit => write!(f, "block.gaslimit"),
+            Self::ChainId => write!(f, "block.chain_id"),
+            Self::SelfBalance => write!(f, "address(this).balance"),
+            Self::BaseFee => write!(f, "block.basefee"),
+            Self::Gas => write!(f, "gasRemaining"),
+            Self::Log {
+                value,
+                size,
+                topics,
+            } => write!(f, "log({value}, {size}, {topics:?})"),
+            Self::Create {
+                value,
+                offset,
+                size,
+                data,
+            } => write!(f, "create({value}, {offset}, {size}, {data})"),
+            Self::Create2 {
+                value,
+                offset,
+                size,
+                data,
+                salt,
+            } => write!(f, "create({value}, {offset}, {size}, {salt}, {data})"),
+            Self::SelfDestruct { target } => write!(f, "self_destruct({target})"),
+            Self::LessThan { left, right } => write!(f, "({left} < {right})"),
+            Self::GreaterThan { left, right } => write!(f, "({left} > {right})"),
+            Self::SignedLessThan { left, right } => write!(f, "({left} s< {right})"),
+            Self::SignedGreaterThan { left, right } => write!(f, "({left} s> {right})"),
+            Self::Equals { left, right } => write!(f, "({left} == {right})"),
+            Self::IsZero { number } => write!(f, "({number} == 0)"),
+            Self::And { left, right } => write!(f, "({left} & {right})"),
+            Self::Or { left, right } => write!(f, "({left} | {right})"),
+            Self::Xor { left, right } => write!(f, "({left} ^ {right})"),
+            Self::Not { bool } => write!(f, "!{bool}"),
+            Self::LeftShift { shift, value } => write!(f, "({value} << {shift})"),
+            Self::RightShift { shift, value } => write!(f, "({value} >> {shift})"),
+            Self::ArithmeticRightShift { shift, value } => write!(f, "({value} >>> {shift})"),
+            Self::CallData { offset, size } => write!(f, "call_data({offset}, {size})"),
+            Self::CallDataSize => write!(f, "call_data_size"),
+            Self::CodeCopy { offset, size } => write!(f, "code_copy({offset}, {size})"),
+            Self::ExtCodeSize { address } => write!(f, "ext_code_size({address})"),
+            Self::ExtCodeCopy {
+                address,
+                offset,
+                size,
+            } => write!(f, "ext_code_copy({address}, {offset}, {size})"),
+            Self::ReturnDataCopy { offset, size } => {
+                write!(f, "return_data_copy({offset}, {size})")
+            }
+            Self::Return { offset, size } => write!(f, "return({offset}, {size})"),
+            Self::Revert { offset, size } => write!(f, "revert({offset}, {size})"),
+            Self::Condition { value } => write!(f, "bool({value})"),
+            Self::SLoad { key } => write!(f, "s_load({key})"),
+        }
+    }
+}
+
 /// A descriptor for where a symbolic value originated in the program.
 ///
 /// In essence, these can be thought of as tags that provide more information
@@ -430,13 +539,13 @@ mod test {
     }
 
     #[test]
-    fn equality_includes_provenance() {
+    fn equality_ignores_provenance() {
         let id = Uuid::new_v4();
         let data = SymbolicValueData::Value { id };
         let value_1 = SymbolicValue::new_from_execution(0, data.clone());
         let value_2 = SymbolicValue::new_synthetic(1, data);
 
-        assert_ne!(value_1, value_2);
+        assert_eq!(value_1, value_2);
     }
 
     #[test]
@@ -444,6 +553,16 @@ mod test {
         let id = Uuid::new_v4();
         let data = SymbolicValueData::Value { id };
         let value_1 = SymbolicValue::new_synthetic(0, data.clone());
+        let value_2 = SymbolicValue::new_synthetic(1, data);
+
+        assert!(!value_1.strict_eq(&value_2));
+    }
+
+    #[test]
+    fn strict_equality_ignores_provenance() {
+        let id = Uuid::new_v4();
+        let data = SymbolicValueData::Value { id };
+        let value_1 = SymbolicValue::new_from_execution(0, data.clone());
         let value_2 = SymbolicValue::new_synthetic(1, data);
 
         assert!(!value_1.strict_eq(&value_2));
