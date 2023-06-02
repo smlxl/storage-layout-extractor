@@ -6,7 +6,7 @@ use std::mem;
 use ethnum::U256;
 
 use crate::{
-    error::VMError,
+    error::{container::Locatable, execution},
     opcode::control::JumpDest,
     vm::{
         value::{known_data::KnownData, BoxedVal, SymbolicValueData},
@@ -32,28 +32,31 @@ use crate::{
 /// It is assumed that all errors returned by this function are instances of
 /// [`VMError`].
 #[allow(clippy::boxed_local)]
-pub fn validate_jump_destination(counter: &BoxedVal, vm: &mut VM) -> anyhow::Result<u32> {
+pub fn validate_jump_destination(counter: &BoxedVal, vm: &mut VM) -> execution::Result<u32> {
+    let instruction_pointer = vm.instruction_pointer()?;
     let jump_target = match &counter.data {
-        SymbolicValueData::KnownData { value, .. } => parse_jump_destination(value)?,
+        SymbolicValueData::KnownData { value, .. } => {
+            parse_jump_destination(value).locate(instruction_pointer)?
+        }
         _ => {
-            return Err(VMError::NoConcreteJumpDestination.into());
+            return Err(execution::Error::NoConcreteJumpDestination.locate(instruction_pointer));
         }
     };
 
     // We need to check that the jump target is valid.
     let thread = vm.execution_thread()?;
-    let target_instruction =
-        thread
-            .instruction(jump_target)
-            .ok_or(VMError::NonExistentJumpTarget {
-                offset: jump_target,
-            })?;
-
-    if !target_instruction.as_ref().as_any().is::<JumpDest>() {
-        return Err(VMError::InvalidJumpTarget {
+    let target_instruction = thread.instruction(jump_target).ok_or(
+        execution::Error::NonExistentJumpTarget {
             offset: jump_target,
         }
-        .into());
+        .locate(instruction_pointer),
+    )?;
+
+    if !target_instruction.as_ref().as_any().is::<JumpDest>() {
+        return Err(execution::Error::InvalidJumpTarget {
+            offset: jump_target,
+        }
+        .locate(instruction_pointer));
     }
 
     Ok(jump_target)
@@ -69,9 +72,9 @@ pub fn validate_jump_destination(counter: &BoxedVal, vm: &mut VM) -> anyhow::Res
 /// Returns [`Err`] if the provided `counter` is not a valid jump destination
 /// for some reason.
 #[allow(clippy::cast_possible_truncation)]
-pub fn parse_jump_destination(counter: &KnownData) -> anyhow::Result<u32> {
-    Ok(match &counter {
-        KnownData::UInt { value, .. } => match value.len() {
+pub fn parse_jump_destination(counter: &KnownData) -> Result<u32, execution::Error> {
+    Ok(match counter {
+        KnownData::Bytes { value, .. } => match value.len() {
             1 => value[0] as u32,
             2 => u16::from_bytes(value.as_slice()).unwrap() as u32,
             4 => u32::from_bytes(value.as_slice()).unwrap(),
@@ -79,17 +82,15 @@ pub fn parse_jump_destination(counter: &KnownData) -> anyhow::Result<u32> {
             16 => u128::from_bytes(value.as_slice()).unwrap() as u32,
             32 => U256::from_bytes(value.as_slice()).unwrap().as_u32(),
             _ => {
-                return Err(VMError::InvalidOffsetForJump {
+                return Err(execution::Error::InvalidOffsetForJump {
                     data: counter.clone(),
-                }
-                .into());
+                });
             }
         },
         _ => {
-            return Err(VMError::InvalidOffsetForJump {
+            return Err(execution::Error::InvalidOffsetForJump {
                 data: counter.clone(),
-            }
-            .into());
+            });
         }
     })
 }
@@ -165,40 +166,3 @@ impl IntegerFromBytes<{ mem::size_of::<U256>() }> for U256 {
         U256::from_le_bytes(bytes)
     }
 }
-
-/// Constructs a bytecode input from the input instructions as literal opcodes.
-///
-/// # Usage
-///
-/// ```
-/// use storage_layout_analyzer::{
-///     bytecode,
-///     opcode::{control, memory, Opcode},
-/// };
-///
-/// let bytes = bytecode![
-///     memory::PushN::new(1, vec![0x02]).unwrap(),
-///     control::Jump,
-///     control::JumpDest,
-///     control::Stop,
-/// ];
-///
-/// let mut expected: Vec<u8> = vec![];
-/// expected.extend(memory::PushN::new(1, vec![0x02]).unwrap().encode());
-/// expected.extend(control::Jump.encode());
-/// expected.extend(control::JumpDest.encode());
-/// expected.extend(control::Stop.encode());
-///
-/// assert_eq!(bytes, expected);
-/// ```
-#[macro_export]
-macro_rules! bytecode {
-    ($($path:expr),*$(,)?) => {{
-        let mut vec: Vec<u8> = vec![];
-        $(vec.extend($path.encode()));*;
-        vec
-    }};
-}
-
-// Export it scoped
-pub use bytecode;

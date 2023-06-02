@@ -10,3 +10,6 @@ pub mod types;
 pub struct Unifier;
 
 // TODO [Ara] Needs to de-duplicate trees as some will be the same.
+
+// TODO [Ara] Precomputed keccaks for the early storage slots to help with
+//   recognition of constants. With arrays.

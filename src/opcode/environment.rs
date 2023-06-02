@@ -1,11 +1,9 @@
 //! Opcodes that interact with the external environment on the EVM.
 
-#![allow(unused_variables)] // Temporary allow to suppress valid warnings for now.
-
 use crate::{
     constant::LOG_OPCODE_BASE_VALUE,
-    error::OpcodeError,
-    opcode::Opcode,
+    error::disassembly,
+    opcode::{ExecuteResult, Opcode},
     vm::{
         value::{BoxedVal, SymbolicValue, SymbolicValueData},
         VM,
@@ -37,10 +35,10 @@ use crate::{
 pub struct Sha3;
 
 impl Opcode for Sha3 {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let offset = stack.pop()?;
@@ -59,7 +57,7 @@ impl Opcode for Sha3 {
                 size,
             },
         );
-        vm.stack()?.push(result)?;
+        vm.stack_handle()?.push(result)?;
 
         // Done, so return ok
         Ok(())
@@ -98,10 +96,10 @@ impl Opcode for Sha3 {
 pub struct Address;
 
 impl Opcode for Address {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -151,10 +149,10 @@ impl Opcode for Address {
 pub struct Balance;
 
 impl Opcode for Balance {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the argument from the stack
         let address = stack.pop()?;
@@ -206,10 +204,10 @@ impl Opcode for Balance {
 pub struct Origin;
 
 impl Opcode for Origin {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -258,10 +256,10 @@ impl Opcode for Origin {
 pub struct Caller;
 
 impl Opcode for Caller {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -310,10 +308,10 @@ impl Opcode for Caller {
 pub struct CallValue;
 
 impl Opcode for CallValue {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -362,10 +360,10 @@ impl Opcode for CallValue {
 pub struct GasPrice;
 
 impl Opcode for GasPrice {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -418,10 +416,10 @@ impl Opcode for GasPrice {
 pub struct ExtCodeHash;
 
 impl Opcode for ExtCodeHash {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the argument from the stack
         let address = stack.pop()?;
@@ -477,10 +475,10 @@ impl Opcode for ExtCodeHash {
 pub struct BlockHash;
 
 impl Opcode for BlockHash {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the argument from the stack
         let block_number = stack.pop()?;
@@ -532,10 +530,10 @@ impl Opcode for BlockHash {
 pub struct CoinBase;
 
 impl Opcode for CoinBase {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -584,10 +582,10 @@ impl Opcode for CoinBase {
 pub struct Timestamp;
 
 impl Opcode for Timestamp {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -632,10 +630,10 @@ impl Opcode for Timestamp {
 pub struct Number;
 
 impl Opcode for Number {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -680,10 +678,10 @@ impl Opcode for Number {
 pub struct Prevrandao;
 
 impl Opcode for Prevrandao {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -728,10 +726,10 @@ impl Opcode for Prevrandao {
 pub struct GasLimit;
 
 impl Opcode for GasLimit {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -777,10 +775,10 @@ impl Opcode for GasLimit {
 pub struct ChainId;
 
 impl Opcode for ChainId {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -830,10 +828,10 @@ impl Opcode for ChainId {
 pub struct SelfBalance;
 
 impl Opcode for SelfBalance {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -882,10 +880,10 @@ impl Opcode for SelfBalance {
 pub struct BaseFee;
 
 impl Opcode for BaseFee {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -935,10 +933,10 @@ impl Opcode for BaseFee {
 pub struct Gas;
 
 impl Opcode for Gas {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
         stack.push(SymbolicValue::new_from_execution(
@@ -1003,12 +1001,11 @@ impl LogN {
     /// # Errors
     ///
     /// If the provided `n` is not in the specified range.
-    pub fn new(n: u8) -> anyhow::Result<Self> {
+    pub fn new(n: u8) -> Result<Self, disassembly::Error> {
         if n <= 4 {
             Ok(Self { topic_count: n })
         } else {
-            let err = OpcodeError::InvalidTopicCount(n);
-            Err(err.into())
+            Err(disassembly::Error::InvalidTopicCount(n))
         }
     }
 
@@ -1019,17 +1016,17 @@ impl LogN {
 }
 
 impl Opcode for LogN {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and instruction pointer
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the arguments
         let offset = stack.pop()?;
         let size = stack.pop()?;
         let mut topics: Vec<BoxedVal> = Vec::new();
         let upper_bound = self.n() as u32 + 2;
-        for frame in 2..upper_bound {
+        for _ in 2..upper_bound {
             topics.push(stack.pop()?);
         }
 
@@ -1109,10 +1106,10 @@ impl Opcode for LogN {
 pub struct Create;
 
 impl Opcode for Create {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let value = stack.pop()?;
@@ -1132,7 +1129,7 @@ impl Opcode for Create {
                 data,
             },
         );
-        vm.stack()?.push(address)?;
+        vm.stack_handle()?.push(address)?;
 
         // Done, so return ok
         Ok(())
@@ -1196,10 +1193,10 @@ impl Opcode for Create {
 pub struct Create2;
 
 impl Opcode for Create2 {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the operands from the stack
         let value = stack.pop()?;
@@ -1221,7 +1218,7 @@ impl Opcode for Create2 {
                 data,
             },
         );
-        vm.stack()?.push(address)?;
+        vm.stack_handle()?.push(address)?;
 
         // Done, so return ok
         Ok(())
@@ -1266,10 +1263,10 @@ impl Opcode for Create2 {
 pub struct SelfDestruct;
 
 impl Opcode for SelfDestruct {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the argument from the stack
         let target = stack.pop()?;
@@ -1327,7 +1324,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1357,7 +1354,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1377,7 +1374,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1401,7 +1398,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1420,7 +1417,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1439,7 +1436,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1458,7 +1455,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1478,7 +1475,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1503,7 +1500,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1527,7 +1524,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1546,7 +1543,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1565,7 +1562,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1584,7 +1581,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1603,7 +1600,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1622,7 +1619,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1641,7 +1638,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1660,7 +1657,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1679,7 +1676,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
@@ -1734,7 +1731,7 @@ mod test {
             }
 
             // Inspect the stack
-            let stack = vm.stack()?;
+            let stack = vm.state()?.stack();
             assert!(stack.is_empty());
         }
 
@@ -1760,7 +1757,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let address = stack.read(0)?;
         assert_eq!(address.provenance, Provenance::Execution);
@@ -1803,7 +1800,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let address = stack.read(0)?;
         assert_eq!(address.provenance, Provenance::Execution);
@@ -1838,7 +1835,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert!(stack.is_empty());
 
         // Inspect the state

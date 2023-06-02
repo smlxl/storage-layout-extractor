@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use crate::error::VMError;
+use crate::error::{container::Locatable, execution, execution::Error};
 
 /// A container that tracks whether an opcode has been visited by the virtual
 /// machine.
@@ -33,16 +33,16 @@ impl VisitedOpcodes {
     ///
     /// Returns [`Err`] if the provided `instruction_pointer` is out of bounds
     /// in the instruction stream.
-    pub fn mark_visited(&mut self, instruction_pointer: u32) -> anyhow::Result<()> {
+    pub fn mark_visited(&mut self, instruction_pointer: u32) -> execution::Result<()> {
         if instruction_pointer < self.instructions_len {
             self.data.insert(instruction_pointer);
             Ok(())
         } else {
-            Err(VMError::InstructionPointerOutOfBounds {
+            Err(Error::InstructionPointerOutOfBounds {
                 requested: instruction_pointer as usize,
                 available: self.instructions_len as usize,
             }
-            .into())
+            .locate(instruction_pointer))
         }
     }
 
@@ -57,16 +57,16 @@ impl VisitedOpcodes {
     ///
     /// Returns [`Err`] if the provided `instruction_pointer` is out of bounds
     /// in the instruction stream.
-    pub fn unmark_visited(&mut self, instruction_pointer: u32) -> anyhow::Result<()> {
+    pub fn unmark_visited(&mut self, instruction_pointer: u32) -> execution::Result<()> {
         if instruction_pointer < self.instructions_len {
             self.data.remove(&instruction_pointer);
             Ok(())
         } else {
-            Err(VMError::InstructionPointerOutOfBounds {
+            Err(Error::InstructionPointerOutOfBounds {
                 requested: instruction_pointer as usize,
                 available: self.instructions_len as usize,
             }
-            .into())
+            .locate(instruction_pointer))
         }
     }
 
@@ -76,15 +76,15 @@ impl VisitedOpcodes {
     ///
     /// Returns [`Err`] if the provided `instruction_pointer` is out of bounds
     /// in the instruction stream.
-    pub fn visited(&mut self, instruction_pointer: u32) -> anyhow::Result<bool> {
+    pub fn visited(&mut self, instruction_pointer: u32) -> execution::Result<bool> {
         if instruction_pointer < self.instructions_len {
             Ok(self.data.contains(&instruction_pointer))
         } else {
-            Err(VMError::InstructionPointerOutOfBounds {
+            Err(Error::InstructionPointerOutOfBounds {
                 requested: instruction_pointer as usize,
                 available: self.instructions_len as usize,
             }
-            .into())
+            .locate(instruction_pointer))
         }
     }
 }
@@ -92,7 +92,7 @@ impl VisitedOpcodes {
 #[cfg(test)]
 mod test {
     mod visited_opcodes {
-        use crate::{error::VMError, vm::data::VisitedOpcodes};
+        use crate::{error::execution, vm::data::VisitedOpcodes};
 
         #[test]
         fn can_mark_instructions_as_visited() -> anyhow::Result<()> {
@@ -122,12 +122,9 @@ mod test {
                 .mark_visited(1000)
                 .expect_err("Impossible instruction was marked as visited.");
 
-            let error_data = mark.downcast_ref::<VMError>();
-            assert!(error_data.is_some());
-
             assert_eq!(
-                error_data.unwrap(),
-                &VMError::InstructionPointerOutOfBounds {
+                mark.payload,
+                execution::Error::InstructionPointerOutOfBounds {
                     requested: 1000,
                     available: 20,
                 }
@@ -143,12 +140,9 @@ mod test {
                 .unmark_visited(1000)
                 .expect_err("Impossible instruction was marked as visited.");
 
-            let error_data = mark.downcast_ref::<VMError>();
-            assert!(error_data.is_some());
-
             assert_eq!(
-                error_data.unwrap(),
-                &VMError::InstructionPointerOutOfBounds {
+                mark.payload,
+                execution::Error::InstructionPointerOutOfBounds {
                     requested: 1000,
                     available: 20,
                 }

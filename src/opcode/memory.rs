@@ -7,8 +7,8 @@ use crate::{
         PUSH_OPCODE_MAX_BYTES,
         SWAP_OPCODE_BASE_VALUE,
     },
-    error::OpcodeError,
-    opcode::Opcode,
+    error::disassembly,
+    opcode::{ExecuteResult, Opcode},
     vm::{
         value::{known_data::KnownData, Provenance, SymbolicValue, SymbolicValueData},
         VM,
@@ -37,10 +37,10 @@ use crate::{
 pub struct CallDataLoad;
 
 impl Opcode for CallDataLoad {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the current thread's stack from the VM
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // The offset defines where in the call data is read from
         let offset = stack.pop()?;
@@ -101,10 +101,10 @@ impl Opcode for CallDataLoad {
 pub struct CallDataSize;
 
 impl Opcode for CallDataSize {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack so a value can be pushed onto it
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Construct the value and push it onto the stack.
         let length = SymbolicValue::new_value(instruction_pointer, Provenance::CallDataSize);
@@ -158,10 +158,10 @@ impl Opcode for CallDataSize {
 pub struct CallDataCopy;
 
 impl Opcode for CallDataCopy {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the current stack to pull the inputs from
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the inputs
         let dest_offset = stack.pop()?;
@@ -213,11 +213,11 @@ impl Opcode for CallDataCopy {
 pub struct CodeSize;
 
 impl Opcode for CodeSize {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the state
         let instruction_pointer = vm.instruction_pointer()?;
         let true_code_size = vm.instructions().len();
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Construct the value
         let code_size_constant = SymbolicValue::new_known_value(
@@ -277,10 +277,10 @@ impl Opcode for CodeSize {
 pub struct CodeCopy;
 
 impl Opcode for CodeCopy {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the current stack to pull the inputs from
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the inputs
         let dest_offset = stack.pop()?;
@@ -337,10 +337,10 @@ impl Opcode for CodeCopy {
 pub struct ExtCodeSize;
 
 impl Opcode for ExtCodeSize {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and other necessities
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the target value from the stack
         let address = stack.pop()?;
@@ -401,10 +401,10 @@ impl Opcode for ExtCodeSize {
 pub struct ExtCodeCopy;
 
 impl Opcode for ExtCodeCopy {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment prerequisites
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Pull the inputs off the stack
         let address = stack.pop()?;
@@ -466,10 +466,10 @@ impl Opcode for ExtCodeCopy {
 pub struct ReturnDataSize;
 
 impl Opcode for ReturnDataSize {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Construct the value and shove it onto the stack.
         let size = SymbolicValue::new_value(instruction_pointer, Provenance::ReturnDataSize);
@@ -523,10 +523,10 @@ impl Opcode for ReturnDataSize {
 pub struct ReturnDataCopy;
 
 impl Opcode for ReturnDataCopy {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the current stack to pull the inputs from
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the inputs
         let dest_offset = stack.pop()?;
@@ -582,9 +582,9 @@ impl Opcode for ReturnDataCopy {
 pub struct Pop;
 
 impl Opcode for Pop {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and context data
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Pop the value from the stack.
         stack.pop()?;
@@ -632,15 +632,15 @@ impl Opcode for Pop {
 pub struct MLoad;
 
 impl Opcode for MLoad {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Load the input from the stack
-        let offset = vm.stack()?.pop()?;
+        let offset = vm.stack_handle()?.pop()?;
 
         // Load the word at that offset from memory
         let result = vm.state()?.memory().load(&offset).clone();
 
         // Push it onto the stack
-        vm.stack()?.push(result)?;
+        vm.stack_handle()?.push(result)?;
 
         // Done, so return ok
         Ok(())
@@ -686,9 +686,9 @@ impl Opcode for MLoad {
 pub struct MStore;
 
 impl Opcode for MStore {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the inputs off the stack
         let offset = stack.pop()?;
@@ -742,9 +742,9 @@ impl Opcode for MStore {
 pub struct MStore8;
 
 impl Opcode for MStore8 {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the inputs off the stack
         let offset = stack.pop()?;
@@ -797,16 +797,16 @@ impl Opcode for MStore8 {
 pub struct SLoad;
 
 impl Opcode for SLoad {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the key from the stack
-        let key = vm.stack()?.pop()?;
+        let key = vm.stack_handle()?.pop()?;
 
         // Read from storage using that key
         let storage = vm.state()?.storage();
         let result = storage.load(&key).clone();
 
         // Write it into the stack
-        vm.stack()?.push(result)?;
+        vm.stack_handle()?.push(result)?;
 
         // Done, so return ok
         Ok(())
@@ -853,9 +853,8 @@ impl Opcode for SLoad {
 pub struct SStore;
 
 impl Opcode for SStore {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
-        // Get the stack
-        let stack = vm.stack()?;
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
+        let mut stack = vm.stack_handle()?;
 
         // Load the inputs from the stack
         let key = stack.pop()?;
@@ -903,10 +902,10 @@ impl Opcode for SStore {
 pub struct MSize;
 
 impl Opcode for MSize {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Prepare the value
         let size = SymbolicValue::new_value(instruction_pointer, Provenance::MSize);
@@ -951,10 +950,10 @@ impl Opcode for MSize {
 pub struct Push0;
 
 impl Opcode for Push0 {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Construct the value of zero
         let zero = SymbolicValue::new(
@@ -1020,7 +1019,7 @@ impl PushN {
     /// # Errors
     ///
     /// If `n` is not in the specified range.
-    pub fn new(n: u8, bytes: impl Into<Vec<u8>>) -> anyhow::Result<Self> {
+    pub fn new(n: u8, bytes: impl Into<Vec<u8>>) -> Result<Self, disassembly::Error> {
         let mut bytes: Vec<u8> = bytes.into();
         bytes = bytes.into_iter().rev().collect();
         if n > 0 && n <= PUSH_OPCODE_MAX_BYTES && bytes.len() == n as usize {
@@ -1029,8 +1028,7 @@ impl PushN {
                 bytes,
             })
         } else {
-            let err = OpcodeError::InvalidPushSize(n);
-            Err(err.into())
+            Err(disassembly::Error::InvalidPushSize(n))
         }
     }
 
@@ -1047,10 +1045,10 @@ impl PushN {
 }
 
 impl Opcode for PushN {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Pull the data out of the opcode; validation is done in parsing
         let item_data = self.bytes.clone();
@@ -1120,15 +1118,14 @@ impl DupN {
     /// # Errors
     ///
     /// If the provided `n` is not in the specified range.
-    pub fn new(n: u8) -> anyhow::Result<Self> {
+    pub fn new(n: u8) -> Result<Self, disassembly::Error> {
         if 0 < n && n <= 16 {
             Ok(Self { item: n })
         } else {
-            let err = OpcodeError::InvalidStackItem {
+            Err(disassembly::Error::InvalidStackItem {
                 item: n,
                 name: "DUP".into(),
-            };
-            Err(err.into())
+            })
         }
     }
 
@@ -1139,9 +1136,9 @@ impl DupN {
 }
 
 impl Opcode for DupN {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Get the dup frame, converting from EVM to internal semantics
         let frame = self.item as u32 - 1;
@@ -1196,15 +1193,14 @@ impl SwapN {
     /// # Errors
     ///
     /// If the provided `n` is not in the specified range.
-    pub fn new(n: u8) -> anyhow::Result<Self> {
+    pub fn new(n: u8) -> Result<Self, disassembly::Error> {
         if 0 < n && n <= 16 {
             Ok(Self { item: n })
         } else {
-            let err = OpcodeError::InvalidStackItem {
+            Err(disassembly::Error::InvalidStackItem {
                 item: n,
                 name: "SWAP".into(),
-            };
-            Err(err.into())
+            })
         }
     }
 
@@ -1215,9 +1211,9 @@ impl SwapN {
 }
 
 impl Opcode for SwapN {
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()> {
+    fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack
-        let stack = vm.stack()?;
+        let mut stack = vm.stack_handle()?;
 
         // Compute the internal item to swap with
         let frame = self.n() as u32;
@@ -1275,7 +1271,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // And then inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
 
         let item = stack.read(0)?;
@@ -1301,7 +1297,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::CallDataSize);
@@ -1326,7 +1322,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert!(stack.is_empty());
 
         // Inspect the memory
@@ -1355,7 +1351,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Check that the correct value is on the stack.
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
@@ -1391,7 +1387,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert!(stack.is_empty());
 
         // Inspect the memory
@@ -1420,7 +1416,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
@@ -1448,7 +1444,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert!(stack.is_empty());
 
         // Inspect the memory
@@ -1481,7 +1477,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::ReturnDataSize);
@@ -1506,7 +1502,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert!(stack.is_empty());
 
         // Inspect the memory
@@ -1537,7 +1533,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert!(stack.is_empty());
 
         Ok(())
@@ -1556,7 +1552,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         assert_eq!(stack.read(0)?, &data);
 
@@ -1579,7 +1575,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        assert!(vm.stack()?.is_empty());
+        assert!(vm.state()?.stack().is_empty());
 
         // Inspect the memory state
         let memory = vm.state()?.memory();
@@ -1601,7 +1597,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        assert!(vm.stack()?.is_empty());
+        assert!(vm.state()?.stack().is_empty());
 
         // Inspect the memory state
         let memory = vm.state()?.memory();
@@ -1624,7 +1620,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         assert_eq!(stack.read(0)?, &value);
 
@@ -1648,7 +1644,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack state
-        assert!(vm.stack()?.is_empty());
+        assert!(vm.state()?.stack().is_empty());
 
         // Inspect the storage state
         let storage = vm.state()?.storage();
@@ -1668,7 +1664,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::MSize);
@@ -1686,7 +1682,7 @@ mod test {
         opcode.execute(&mut vm)?;
 
         // Inspect the stack
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Bytecode);
@@ -1719,7 +1715,7 @@ mod test {
             opcode.execute(&mut vm)?;
 
             // Inspect the stack to check on things
-            let stack = vm.stack()?;
+            let stack = vm.state()?.stack();
             assert_eq!(stack.depth(), 1);
             let value = stack.read(0)?;
             assert_eq!(value.provenance, Provenance::Bytecode);
@@ -1758,7 +1754,7 @@ mod test {
             opcode.execute(&mut vm)?;
 
             // Inspect the stack
-            let stack = vm.stack()?;
+            let stack = vm.state()?.stack();
             assert_eq!(stack.depth(), item as usize + 1);
             assert_eq!(stack.read(0)?, &item_to_dup);
         }
@@ -1799,7 +1795,7 @@ mod test {
             opcode.execute(&mut vm)?;
 
             // Inspect the stack
-            let stack = vm.stack()?;
+            let stack = vm.state()?.stack();
             assert_eq!(stack.depth(), input_stack_size);
             let item_at_depth = stack.read(item as u32)?;
             let item_at_top = stack.read(0)?;

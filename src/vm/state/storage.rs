@@ -25,13 +25,19 @@ use crate::vm::value::{
 /// 2. Other writes to storage write to keys that are computed in the program
 ///    (e.g. for mappings and dynamic arrays), so we have to be able to work
 ///    with arbitrary symbolic values as well.
+///
+/// # Generational Storage
+///
+/// Each storage location stores the total history of writes made to it during
+/// the course of a given thread of execution. You can call the `generations`
+/// method to get at these for a given key.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Storage {
     /// Many storage writes are in the form of a known slot index.
-    known_slots: HashMap<BoxedVal, BoxedVal>,
+    known_slots: HashMap<BoxedVal, Vec<BoxedVal>>,
 
     /// Others use symbolic values as offsets.
-    symbolic_slots: HashMap<BoxedVal, BoxedVal>,
+    symbolic_slots: HashMap<BoxedVal, Vec<BoxedVal>>,
 }
 
 impl Storage {
@@ -54,11 +60,15 @@ impl Storage {
             SymbolicValueData::KnownData { .. } => &mut self.known_slots,
             _ => &mut self.symbolic_slots,
         };
-        target_map.insert(key, value);
+        let entry = target_map.entry(key).or_insert(vec![]);
+        entry.push(value);
     }
 
-    /// Loads any value found at the provided `key`, returning 0 if the slot has
+    /// Loads the value found at the provided `key`, returning 0 if the slot has
     /// never been written to.
+    ///
+    /// This always returns the _most-recently written_ value, and does not
+    /// account for the generations.
     ///
     /// # Note
     ///
@@ -73,11 +83,32 @@ impl Storage {
 
         // Once we have that we can pull the key out, or default in the map if it
         // doesn't exist
-        target_map.entry(key.clone()).or_insert_with(|| {
+        let entry = target_map.entry(key.clone()).or_insert_with(|| {
             // The instruction pointer is 0 here, as the uninitialized value was created
             // when the program started. It is _not_ synthetic.
-            SymbolicValue::new_known_value(0, KnownData::zero(), Provenance::UninitializedStorage)
-        })
+            vec![SymbolicValue::new_known_value(
+                0,
+                KnownData::zero(),
+                Provenance::UninitializedStorage,
+            )]
+        });
+
+        // Safe as we always guarantee that there is at least one item in the vector.
+        entry.last().unwrap()
+    }
+
+    /// Gets all of the stores that were made at the provided `key` during
+    /// the course of execution.
+    ///
+    /// Returns [`Some`] for keys that have seen at least one write, and
+    /// otherwise returns [`None`].
+    pub fn generations(&self, key: &BoxedVal) -> Option<Vec<&BoxedVal>> {
+        let target_map = match key.data {
+            SymbolicValueData::KnownData { .. } => &self.known_slots,
+            _ => &self.symbolic_slots,
+        };
+
+        target_map.get(key).map(|generations| generations.iter().collect())
     }
 
     /// Gets the number of entries in the storage.
@@ -202,5 +233,19 @@ mod test {
 
         let keys = storage.keys();
         assert_eq!(keys, vec![&key_1, &key_2]);
+    }
+
+    #[test]
+    fn can_query_generations() {
+        let mut storage = Storage::new();
+        let key = new_synthetic_value(0);
+        let value_1 = new_synthetic_value(1);
+        let value_2 = new_synthetic_value(2);
+
+        storage.store(key.clone(), value_1.clone());
+        storage.store(key.clone(), value_2.clone());
+
+        let generations = storage.generations(&key).unwrap();
+        assert_eq!(generations, vec![&value_1, &value_2]);
     }
 }

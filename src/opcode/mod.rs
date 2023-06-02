@@ -5,6 +5,7 @@ pub mod arithmetic;
 pub mod control;
 pub mod environment;
 pub mod logic;
+mod macros;
 pub mod memory;
 mod util;
 
@@ -12,7 +13,7 @@ use std::{any::Any, fmt::Debug, rc::Rc};
 
 use downcast_rs::Downcast;
 
-use crate::vm::VM;
+use crate::{error::execution::Result, vm::VM};
 
 /// This trait forms the core of the `Opcode` representation. It provides the
 /// basic set of operations that are required of all opcodes, and is implemented
@@ -61,7 +62,7 @@ where
     /// If the state of the virtual machine does not allow execution of the
     /// Opcode, or if execution would yield an invalid state in the virtual
     /// machine.
-    fn execute(&self, vm: &mut VM) -> anyhow::Result<()>;
+    fn execute(&self, vm: &mut VM) -> ExecuteResult;
 
     /// Gets the minimum cost of the opcode in gas.
     ///
@@ -95,6 +96,9 @@ where
 /// A type for an [`Opcode`] that is dynamically dispatched.
 pub type DynOpcode = Rc<dyn Opcode>;
 
+/// The result of the [`Opcode::execute`] methods.
+pub type ExecuteResult = Result<()>;
+
 #[cfg(test)]
 mod test_util {
     use crate::vm::{instructions::InstructionStream, value::BoxedVal, Config, VM};
@@ -127,7 +131,7 @@ mod test_util {
         let config = Config::default();
 
         let mut vm = VM::new(instructions, config)?;
-        let stack = vm.stack()?;
+        let stack = vm.state()?.stack();
 
         let values_len = values.len();
         values.into_iter().for_each(|val| {
