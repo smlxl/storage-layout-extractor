@@ -1,24 +1,24 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
 
-contract BytecodeExample {
-    error CannotDecrement();
 
-    uint256 public number;
+contract Thing {
+    address private _padding;
+    mapping(uint256 => address) private _addrs;
 
-    function setNumber(uint256 newNumber) public {
-        number = newNumber;
+    function setPadding(address padding) public {
+        _padding = padding;
     }
 
-    function increment() public {
-        number++;
+    function getPadding() public view returns (address) {
+        return _padding;
     }
 
-    function decrement() public {
-        if (number == 0) {
-            revert CannotDecrement();
-        } else {
-            number--;
-        }
+    function setAddr(uint256 key, address addr_) public {
+        _addrs[key] = addr_;
+    }
+
+    function getAddr(uint256 key) public view returns (address) {
+        return _addrs[key];
     }
 }

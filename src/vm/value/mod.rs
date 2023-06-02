@@ -26,6 +26,7 @@ pub struct SymbolicValue {
     pub instruction_pointer: u32,
 
     /// Where the data at this level came from.
+    #[derivative(PartialEq = "ignore", Hash = "ignore")]
     pub provenance: Provenance,
 
     /// The actual execution tree that forms this value.
