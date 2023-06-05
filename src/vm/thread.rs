@@ -83,10 +83,11 @@ impl VMThread {
     pub fn gas_usage(&self) -> usize {
         self.gas_usage
     }
+}
 
-    /// Consumes the thread to produce its state.
-    pub fn into_state(self) -> VMState {
-        self.state
+impl From<VMThread> for VMState {
+    fn from(value: VMThread) -> Self {
+        value.state
     }
 }
 
@@ -99,7 +100,7 @@ mod test {
         let instruction_stream = InstructionStream::try_from(
             vec![0x00u8, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06].as_slice(),
         )?;
-        let state = VMState::default();
+        let state = VMState::new_at_start(instruction_stream.len() as u32);
         let execution_thread = instruction_stream.new_thread(0)?;
         let mut vm_thread = VMThread::new(state, execution_thread);
 

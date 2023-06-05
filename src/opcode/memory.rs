@@ -748,7 +748,8 @@ impl Opcode for Pop {
         let mut stack = vm.stack_handle()?;
 
         // Pop the value from the stack.
-        stack.pop()?;
+        let value = stack.pop()?;
+        vm.state()?.record_value(value);
 
         // Done, so return ok
         Ok(())

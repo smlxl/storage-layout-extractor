@@ -108,7 +108,12 @@ impl<'a> TryFrom<&'a [u8]> for InstructionStream {
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         let instructions = Rc::new(parser::parse(value)?);
-        Ok(Self { instructions })
+        let result = Self { instructions };
+
+        // An assertion that will be disabled in production builds, but a good sanity
+        // check that disassembly didn't go wrong
+        assert_eq!(result.as_bytecode().as_slice(), value);
+        Ok(result)
     }
 }
 
@@ -139,6 +144,12 @@ impl TryFrom<&str> for InstructionStream {
 impl From<InstructionStream> for Vec<u8> {
     fn from(value: InstructionStream) -> Self {
         value.instructions.iter().flat_map(|opcode| opcode.encode()).collect()
+    }
+}
+
+impl From<InstructionStream> for Rc<Vec<DynOpcode>> {
+    fn from(value: InstructionStream) -> Self {
+        value.instructions
     }
 }
 

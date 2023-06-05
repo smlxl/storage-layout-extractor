@@ -16,7 +16,6 @@ use crate::{
     },
     opcode::DynOpcode,
     vm::{
-        data::VisitedOpcodes,
         instructions::{ExecutionThread, InstructionStream},
         state::{stack::LocatedStackHandle, VMState},
         thread::VMThread,
@@ -33,15 +32,6 @@ pub struct VM {
     /// The queue of execution threads that will be taken when executing the
     /// provided `instructions`.
     thread_queue: VecDeque<VMThread>,
-
-    /// The set of opcodes (by their index in `instructions`) that have been
-    /// executed by the virtual machine.
-    ///
-    /// This ensures that no opcode is symbolically executed more than once
-    /// while also ensuring that we explore all potential code paths during
-    /// execution. This is fine as executing a given code path more than once
-    /// provides no additional information as to the type of a value.
-    visited_opcodes: VisitedOpcodes,
 
     /// The stored states that are no longer associated with a thread of
     /// execution.
@@ -70,14 +60,13 @@ impl VM {
     pub fn new(instructions: InstructionStream, config: Config) -> Result<Self> {
         // Create the initial thread internally as we can't use the function for this
         // while `self` doesn't exist.
+        let initial_state = VMState::new_at_start(instructions.len() as u32);
         let initial_instruction_thread = instructions.new_thread(0)?;
-        let initial_state = VMState::new(0);
         let initial_thread = VMThread::new(initial_state, initial_instruction_thread);
 
         // Set up the data for the VM.
         let mut thread_queue = VecDeque::new();
         thread_queue.push_back(initial_thread);
-        let visited_opcodes = VisitedOpcodes::new(instructions.len() as u32);
         let stored_states = Vec::new();
         let current_thread_killed = false;
         let errors = Errors::default();
@@ -85,7 +74,6 @@ impl VM {
         Ok(Self {
             instructions,
             thread_queue,
-            visited_opcodes,
             stored_states,
             config,
             current_thread_killed,
@@ -171,26 +159,29 @@ impl VM {
         // Here we need to mark the current opcode as visited. It is a programmer bug if
         // a non-existent opcode is asked about here, so the error is immediately
         // forwarded.
-        self.visited_opcodes.mark_visited(instruction_pointer)?;
+        let current_thread = self.current_thread_mut()?;
+        current_thread
+            .state_mut()
+            .visited_instructions_mut()
+            .mark_visited(instruction_pointer)?;
 
-        let instructions_len =
-            self.thread_queue.front_mut().unwrap().instructions_mut().len() as u32;
+        let instructions_len = current_thread.instructions_mut().len() as u32;
         let next_offset = instruction_pointer + 1;
 
         // It is a programmer bug if a non-existent opcode is asked about here, so the
         // error is immediately forwarded.
-        let thread_can_continue =
-            next_offset < instructions_len && self.visited_opcodes.visited(next_offset)?;
+        let no_valid_next = next_offset >= instructions_len
+            || current_thread.state().visited_instructions().visited(next_offset)?;
         let is_out_of_gas =
             self.thread_queue.front_mut().unwrap().gas_usage() > self.config.gas_limit;
         let should_die = self.current_thread_killed;
 
-        if thread_can_continue || is_out_of_gas || should_die {
+        if no_valid_next || is_out_of_gas || should_die {
             // In this case we are at the end of this thread, so we need to collect it and
             // move on by removing it from the queue. We already know that the queue isn't
             // empty, so it's safe to `unwrap`.
             let thread = self.thread_queue.pop_front().unwrap();
-            self.stored_states.push(thread.into_state());
+            self.stored_states.push(thread.into());
 
             // The thread no longer is the current, so whether is was or wasn't killed the
             // next one certainly isn't.
