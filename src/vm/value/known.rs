@@ -9,7 +9,7 @@ use ethnum::U256;
 /// here there is no interaction with a real EVM.
 ///
 /// For more information on the concrete definition of these data types, please
-/// see [`crate::unifier::types::AbiType`].
+/// see [`crate::unifier::abi::AbiType`].
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct KnownWord {
     value: U256,
@@ -80,24 +80,28 @@ impl From<&KnownWord> for usize {
     }
 }
 
+/// Obtains a [`bool`] from a known word.
 impl From<KnownWord> for bool {
     fn from(value: KnownWord) -> Self {
         value.value != U256::from(0u8)
     }
 }
 
+/// Obtains a [`bool`] from a known word.
 impl From<&KnownWord> for bool {
     fn from(value: &KnownWord) -> Self {
         value.value != U256::from(0u8)
     }
 }
 
+/// Obtains a known word from a [`bool`].
 impl From<bool> for KnownWord {
     fn from(value: bool) -> Self {
         if value { Self::from(1) } else { Self::from(0) }
     }
 }
 
+/// Pretty-prints the known word as a hexadecimal-encoded number.
 impl Display for KnownWord {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = hex::encode(self.value.to_be_bytes());

@@ -11,8 +11,7 @@
 pub mod container;
 pub mod disassembly;
 pub mod execution;
-
-use std::rc::Rc;
+pub mod unification;
 
 use thiserror::Error;
 
@@ -39,17 +38,19 @@ pub enum Error {
     #[error(transparent)]
     Execution(#[from] execution::Error),
 
-    /// Unknown errors, usually from the dependencies of the library.
-    ///
-    /// It is wrapped in an [`Rc`] to ensure that it can be cloned like the
-    /// other error types in this interface error.
+    /// Errors from the unification subsystem of the library.
     #[error(transparent)]
-    Other(Rc<anyhow::Error>),
+    Unification(#[from] unification::Error),
+
+    /// An unknown error, represented as a string.
+    #[error("Unknown Error: {_0:?}")]
+    Other(String),
 }
 
-impl From<anyhow::Error> for Error {
-    fn from(value: anyhow::Error) -> Self {
-        Self::Other(Rc::new(value))
+impl Error {
+    /// Constructs an unknown error with the provided `message`.
+    pub fn other(message: impl Into<String>) -> Self {
+        Self::Other(message.into())
     }
 }
 

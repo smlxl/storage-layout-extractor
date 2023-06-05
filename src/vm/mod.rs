@@ -19,6 +19,7 @@ use crate::{
         instructions::{ExecutionThread, InstructionStream},
         state::{stack::LocatedStackHandle, VMState},
         thread::VMThread,
+        value::BoxedVal,
     },
 };
 
@@ -345,6 +346,16 @@ pub struct ExecutionResult {
     /// full coverage of the bytecode. It is recommended to inspect the errors
     /// themselves before continuing to determine if the data is useful.
     pub errors: Errors,
+}
+
+impl ExecutionResult {
+    /// Gathers all of the symbolic values known about by the execution result.
+    pub fn all_values(&self) -> Vec<BoxedVal> {
+        let mut values = Vec::new();
+        self.states.iter().for_each(|state| values.extend(state.all_values()));
+
+        values
+    }
 }
 
 /// The configuration for the virtual machine instance.

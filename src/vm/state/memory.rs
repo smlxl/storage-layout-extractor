@@ -2,7 +2,10 @@
 
 use std::{collections::HashMap, hash::Hash};
 
-use crate::vm::value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData};
+use crate::{
+    constant::WORD_SIZE,
+    vm::value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+};
 
 /// A representation of the transient memory of the symbolic virtual machine.
 ///
@@ -42,8 +45,8 @@ impl Memory {
         }
     }
 
-    /// Stores the provided `value` (of size 256-bits) at the provided `offset`
-    /// in the memory.
+    /// Stores the provided `value` (of size [`WORD_SIZE`]) at the provided
+    /// `offset` in the memory.
     ///
     /// This will overwrite any existing value at the provided `offset`.
     ///
@@ -244,6 +247,21 @@ impl Memory {
     pub fn offsets(&self) -> Vec<&BoxedVal> {
         self.symbolic_offsets.keys().collect()
     }
+
+    /// Gets all of the values that are registered in the virtual machine memory
+    /// at the time of calling.
+    pub fn all_values(&self) -> Vec<BoxedVal> {
+        let mut values = Vec::new();
+        self.constant_offsets
+            .values()
+            .for_each(|more| values.extend(more.iter().map(|s| s.data.clone())));
+        values.extend(self.symbolic_offsets.keys().cloned());
+        self.symbolic_offsets
+            .values()
+            .for_each(|more| values.extend(more.iter().map(|s| s.data.clone())));
+
+        values
+    }
 }
 
 impl Default for Memory {
@@ -272,7 +290,7 @@ impl MemStoreSize {
     pub fn bits_count(&self) -> usize {
         match self {
             MemStoreSize::Byte => 8,
-            MemStoreSize::Word => 256,
+            MemStoreSize::Word => WORD_SIZE,
         }
     }
 }

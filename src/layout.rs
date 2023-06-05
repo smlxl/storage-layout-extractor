@@ -3,4 +3,5 @@
 //! It currently only contains placeholder types.
 
 /// The most-concrete layout discovered for the input contract.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StorageLayout;

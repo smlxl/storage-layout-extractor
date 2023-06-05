@@ -7,6 +7,8 @@ use crate::{
     analyzer::state::State,
     contract::Contract,
     error,
+    unifier,
+    unifier::Unifier,
     vm,
     vm::{instructions::InstructionStream, VM},
 };
@@ -217,6 +219,22 @@ impl Analyzer<state::VMReady> {
     }
 }
 
+/// Operations available on an analyzer that has a unifier ready to perform
+/// inference and unification processes.
+impl Analyzer<state::ExecutionComplete> {
+    pub fn prepare_unifier(
+        self,
+        config: unifier::Config,
+    ) -> error::Result<Analyzer<state::UnifierReady>> {
+        unsafe {
+            self.transform_state(|old_state| {
+                let unifier = Unifier::new(config, old_state.execution_result);
+                Ok(state::UnifierReady { unifier })
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use project_root::get_project_root;
@@ -227,7 +245,8 @@ mod test {
             Chain,
         },
         contract::Contract,
-        vm::Config,
+        unifier,
+        vm,
     };
 
     #[test]
@@ -244,7 +263,7 @@ mod test {
         .unwrap();
 
         // Create the analyzer
-        let analyzer = crate::new(contract).analyze(Config::default()).unwrap();
+        let analyzer = crate::new(contract).analyze(vm::Config::default()).unwrap();
 
         // Grab the results of execution by ref
         let results = &analyzer.state().execution_result;
@@ -268,6 +287,9 @@ mod test {
 
             println!();
         }
+
+        // For manual poking
+        let _with_unifier = analyzer.prepare_unifier(unifier::Config::default());
 
         Ok(())
     }

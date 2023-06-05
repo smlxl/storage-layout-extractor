@@ -118,6 +118,22 @@ impl Storage {
 
         known_keys
     }
+
+    /// Gets all of the values that are registered in the virtual machine stack
+    /// at the time of calling.
+    pub fn all_values(&self) -> Vec<BoxedVal> {
+        let mut values = Vec::new();
+        values.extend(self.known_slots.keys().cloned());
+        self.known_slots
+            .values()
+            .for_each(|more| values.extend(more.iter().cloned()));
+        values.extend(self.symbolic_slots.keys().cloned());
+        self.symbolic_slots
+            .values()
+            .for_each(|more| values.extend(more.iter().cloned()));
+
+        values
+    }
 }
 
 impl Default for Storage {
