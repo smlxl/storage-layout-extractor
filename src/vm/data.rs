@@ -76,7 +76,7 @@ impl VisitedOpcodes {
     ///
     /// Returns [`Err`] if the provided `instruction_pointer` is out of bounds
     /// in the instruction stream.
-    pub fn visited(&mut self, instruction_pointer: u32) -> execution::Result<bool> {
+    pub fn visited(&self, instruction_pointer: u32) -> execution::Result<bool> {
         if instruction_pointer < self.instructions_len {
             Ok(self.data.contains(&instruction_pointer))
         } else {

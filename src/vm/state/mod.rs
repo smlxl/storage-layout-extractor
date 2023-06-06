@@ -6,6 +6,7 @@ pub mod stack;
 pub mod storage;
 
 use crate::vm::{
+    data::VisitedOpcodes,
     state::{memory::Memory, stack::Stack, storage::Storage},
     value::BoxedVal,
 };
@@ -18,23 +19,46 @@ use crate::vm::{
 /// flow of data (locations) and operations through the program.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VMState {
-    fork_point:      u32,
-    stack:           Stack,
-    memory:          Memory,
-    storage:         Storage,
+    /// The point during execution at which this state was forked.
+    fork_point: u32,
+
+    /// The virtual machine stack for this thread of execution.
+    stack: Stack,
+
+    /// The symbolic EVM memory for this thread of execution.
+    memory: Memory,
+
+    /// The symbolic EVM storage for this thread of execution.
+    storage: Storage,
+
+    /// A container for values that would otherwise be dropped but that might
+    /// still be useful when it comes to later analysis.
     recorded_values: Vec<BoxedVal>,
-    logged_values:   Vec<BoxedVal>,
+
+    /// Values that were logged to the EVM's logging subsystem.
+    logged_values: Vec<BoxedVal>,
+
+    /// The set of opcodes (by their index in `instructions`) that have been
+    /// executed by the virtual machine on this thread.
+    ///
+    /// This ensures that no opcode is symbolically executed more than once per
+    /// thread while also ensuring that we explore all potential code paths
+    /// during execution. This is fine as executing a given code path more
+    /// than once per thread provides no additional information as to the type
+    /// of a value.
+    visited_instructions: VisitedOpcodes,
 }
 
 impl VMState {
     /// Constructs a new virtual machine state originating at the provided
-    /// `fork_point`, with all memory locations set to their default values
-    pub fn new(fork_point: u32) -> Self {
+    /// `fork_point`, with all memory locations set to their default values.
+    pub fn new(fork_point: u32, instructions_len: u32) -> Self {
         let stack = Stack::new();
         let memory = Memory::new();
         let storage = Storage::new();
         let recorded_values = Vec::default();
         let logged_values = Vec::default();
+        let visited_instructions = VisitedOpcodes::new(instructions_len);
 
         Self {
             fork_point,
@@ -43,7 +67,14 @@ impl VMState {
             storage,
             recorded_values,
             logged_values,
+            visited_instructions,
         }
+    }
+
+    /// Creates a new virtual machine state originating at the start of
+    /// execution, with all memory locations set to their default values.
+    pub fn new_at_start(instructions_len: u32) -> Self {
+        Self::new(0, instructions_len)
     }
 
     /// Gets the stack associated with this virtual machine state.
@@ -74,6 +105,18 @@ impl VMState {
     /// Gets the storage associated with this virtual machine state.
     pub fn storage_mut(&mut self) -> &mut Storage {
         &mut self.storage
+    }
+
+    /// Gets the structure that tracks whether a given opcode has been visited
+    /// by the current thread of execution.
+    pub fn visited_instructions(&self) -> &VisitedOpcodes {
+        &self.visited_instructions
+    }
+
+    /// Gets the structure that tracks whether a given opcode has been visited
+    /// by the current thread of execution.
+    pub fn visited_instructions_mut(&mut self) -> &mut VisitedOpcodes {
+        &mut self.visited_instructions
     }
 
     /// Records the provided `value` so that it is available for later analysis
@@ -121,14 +164,6 @@ impl VMState {
     }
 }
 
-impl Default for VMState {
-    /// Creates a new virtual machine state with the fork point set to the
-    /// initial program counter value of zero.
-    fn default() -> Self {
-        VMState::new(0)
-    }
-}
-
 #[cfg(test)]
 mod test {
     use crate::vm::{
@@ -138,19 +173,13 @@ mod test {
 
     #[test]
     fn can_construct_vm_state() {
-        let state = VMState::new(10);
+        let state = VMState::new(10, 20);
         assert_eq!(state.fork_point(), 10);
     }
 
     #[test]
-    fn can_construct_default_vm_state() {
-        let state = VMState::default();
-        assert_eq!(state.fork_point(), 0);
-    }
-
-    #[test]
     fn can_record_symbolic_value() {
-        let mut state = VMState::default();
+        let mut state = VMState::new_at_start(20);
         let value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         state.record_value(value.clone());
 
@@ -162,7 +191,7 @@ mod test {
     #[test]
     fn can_fork_state() -> anyhow::Result<()> {
         let value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let state = VMState::default();
+        let state = VMState::new_at_start(200);
         let mut forked_state = state.fork(78);
 
         // The fork points should differ.
