@@ -132,7 +132,7 @@ mod test {
 
     use crate::vm::{
         state::storage::Storage,
-        value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+        value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
     };
 
     /// Creates a new synthetic value for testing purposes.
@@ -176,7 +176,7 @@ mod test {
     #[test]
     fn can_store_word_under_known_key() {
         let mut storage = Storage::new();
-        let key = SymbolicValue::new_known_value(0, KnownData::zero(), Provenance::Synthetic);
+        let key = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
         let value = new_synthetic_value(1);
 
         storage.store(key.clone(), value.clone());
@@ -187,7 +187,7 @@ mod test {
     #[test]
     fn can_get_zero_if_slot_never_written() {
         let mut storage = Storage::new();
-        let key_1 = SymbolicValue::new_known_value(0, KnownData::zero(), Provenance::Synthetic);
+        let key_1 = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
         let key_2 = new_synthetic_value(1);
 
         match storage.load(&key_1).deref() {
@@ -218,7 +218,7 @@ mod test {
     #[test]
     fn can_get_all_keys() {
         let mut storage = Storage::new();
-        let key_1 = SymbolicValue::new_known_value(0, KnownData::zero(), Provenance::Synthetic);
+        let key_1 = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
         let key_2 = new_synthetic_value(1);
         let value = new_synthetic_value(2);
         storage.store(key_1.clone(), value.clone());

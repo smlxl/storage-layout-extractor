@@ -46,16 +46,12 @@ impl Opcode for Sha3 {
 
         // Get the value at `offset` out of memory
         let memory = vm.state()?.memory_mut();
-        let value = memory.load(&offset).clone();
+        let data = memory.load_slice(&offset, &size, instruction_pointer);
 
         // Build the result and push it onto the stack
         let result = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Sha3 {
-                value,
-                offset,
-                size,
-            },
+            SymbolicValueData::Sha3 { data },
         );
         vm.stack_handle()?.push(result)?;
 
@@ -1031,16 +1027,15 @@ impl Opcode for LogN {
         }
 
         // Read the log value from memory
-        let value = vm.state()?.memory_mut().load(&offset).clone();
+        let data = vm
+            .state()?
+            .memory_mut()
+            .load_slice(&offset, &size, instruction_pointer);
 
         // Build the log call
         let log = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Log {
-                value,
-                size,
-                topics,
-            },
+            SymbolicValueData::Log { data, topics },
         );
 
         // Write it to the log buffer
@@ -1117,17 +1112,15 @@ impl Opcode for Create {
         let size = stack.pop()?;
 
         // Read the create payload from memory
-        let data = vm.state()?.memory_mut().load(&offset).clone();
+        let data = vm
+            .state()?
+            .memory_mut()
+            .load_slice(&offset, &size, instruction_pointer);
 
         // Construct the intermediate and push it onto the stack
         let address = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Create {
-                value,
-                offset,
-                size,
-                data,
-            },
+            SymbolicValueData::Create { value, data },
         );
         vm.stack_handle()?.push(address)?;
 
@@ -1205,18 +1198,15 @@ impl Opcode for Create2 {
         let salt = stack.pop()?;
 
         // Read the create payload from memory
-        let data = vm.state()?.memory_mut().load(&offset).clone();
+        let data = vm
+            .state()?
+            .memory_mut()
+            .load_slice(&offset, &size, instruction_pointer);
 
         // Construct the intermediate and push it onto the stack
         let address = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Create2 {
-                value,
-                offset,
-                size,
-                salt,
-                data,
-            },
+            SymbolicValueData::Create2 { value, salt, data },
         );
         vm.stack_handle()?.push(address)?;
 
@@ -1315,11 +1305,8 @@ mod test {
         let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
         let stored_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
         let input_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let mut vm =
-            util::new_vm_with_values_on_stack(vec![input_size.clone(), input_offset.clone()])?;
-        vm.state()?
-            .memory_mut()
-            .store(input_offset.clone(), stored_value.clone());
+        let mut vm = util::new_vm_with_values_on_stack(vec![input_size, input_offset.clone()])?;
+        vm.state()?.memory_mut().store(input_offset, stored_value.clone());
 
         // Prepare and run the opcode
         let opcode = environment::Sha3;
@@ -1331,14 +1318,8 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Sha3 {
-                value,
-                offset,
-                size,
-            } => {
-                assert_eq!(value, &stored_value);
-                assert_eq!(offset, &input_offset);
-                assert_eq!(size, &input_size);
+            SymbolicValueData::Sha3 { data } => {
+                assert_eq!(data, &stored_value);
             }
             _ => panic!("Invalid payload"),
         }
@@ -1722,13 +1703,8 @@ mod test {
             let log_message = &state.logged_values()[0];
             assert_eq!(log_message.provenance, Provenance::Execution);
             match &log_message.data {
-                SymbolicValueData::Log {
-                    value,
-                    size,
-                    topics,
-                } => {
-                    assert_eq!(value, &stored_data);
-                    assert_eq!(size, &input_size);
+                SymbolicValueData::Log { data, topics } => {
+                    assert_eq!(data, &stored_data);
                     assert_eq!(topics, topics);
                 }
                 _ => panic!("Invalid payload"),
@@ -1750,13 +1726,11 @@ mod test {
         let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
         let input_data = SymbolicValue::new_synthetic(3, SymbolicValueData::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
-            input_size.clone(),
+            input_size,
             input_offset.clone(),
             input_value.clone(),
         ])?;
-        vm.state()?
-            .memory_mut()
-            .store(input_offset.clone(), input_data.clone());
+        vm.state()?.memory_mut().store(input_offset, input_data.clone());
 
         // Prepare and run the opcode
         let opcode = environment::Create;
@@ -1768,15 +1742,8 @@ mod test {
         let address = stack.read(0)?;
         assert_eq!(address.provenance, Provenance::Execution);
         match &address.data {
-            SymbolicValueData::Create {
-                value,
-                offset,
-                size,
-                data,
-            } => {
+            SymbolicValueData::Create { value, data } => {
                 assert_eq!(value, &input_value);
-                assert_eq!(offset, &input_offset);
-                assert_eq!(size, &input_size);
                 assert_eq!(data, &input_data);
             }
             _ => panic!("Incorrect payload"),
@@ -1795,13 +1762,11 @@ mod test {
         let input_data = SymbolicValue::new_synthetic(3, SymbolicValueData::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_salt.clone(),
-            input_size.clone(),
+            input_size,
             input_offset.clone(),
             input_value.clone(),
         ])?;
-        vm.state()?
-            .memory_mut()
-            .store(input_offset.clone(), input_data.clone());
+        vm.state()?.memory_mut().store(input_offset, input_data.clone());
 
         // Prepare and run the opcode
         let opcode = environment::Create2;
@@ -1813,16 +1778,8 @@ mod test {
         let address = stack.read(0)?;
         assert_eq!(address.provenance, Provenance::Execution);
         match &address.data {
-            SymbolicValueData::Create2 {
-                value,
-                offset,
-                size,
-                salt,
-                data,
-            } => {
+            SymbolicValueData::Create2 { value, salt, data } => {
                 assert_eq!(value, &input_value);
-                assert_eq!(offset, &input_offset);
-                assert_eq!(size, &input_size);
                 assert_eq!(salt, &input_salt);
                 assert_eq!(data, &input_data);
             }

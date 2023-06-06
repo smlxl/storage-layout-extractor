@@ -9,7 +9,7 @@ use crate::{
     error::{container::Locatable, execution},
     opcode::control::JumpDest,
     vm::{
-        value::{known_data::KnownData, BoxedVal, SymbolicValueData},
+        value::{BoxedVal, SymbolicValueData},
         VM,
     },
 };
@@ -34,10 +34,8 @@ use crate::{
 #[allow(clippy::boxed_local)]
 pub fn validate_jump_destination(counter: &BoxedVal, vm: &mut VM) -> execution::Result<u32> {
     let instruction_pointer = vm.instruction_pointer()?;
-    let jump_target = match &counter.data {
-        SymbolicValueData::KnownData { value, .. } => {
-            parse_jump_destination(value).locate(instruction_pointer)?
-        }
+    let jump_target = match &counter.clone().constant_fold().data {
+        SymbolicValueData::KnownData { value, .. } => value.into(),
         _ => {
             return Err(execution::Error::NoConcreteJumpDestination.locate(instruction_pointer));
         }
@@ -60,39 +58,6 @@ pub fn validate_jump_destination(counter: &BoxedVal, vm: &mut VM) -> execution::
     }
 
     Ok(jump_target)
-}
-
-/// Parses the provided `counter` into a jump destination if possible.
-///
-/// It assumes that any [`KnownData::UInt`] is properly encoded using
-/// little-endian encoding.
-///
-/// # Errors
-///
-/// Returns [`Err`] if the provided `counter` is not a valid jump destination
-/// for some reason.
-#[allow(clippy::cast_possible_truncation)]
-pub fn parse_jump_destination(counter: &KnownData) -> Result<u32, execution::Error> {
-    Ok(match counter {
-        KnownData::Bytes { value, .. } => match value.len() {
-            1 => value[0] as u32,
-            2 => u16::from_bytes(value.as_slice()).unwrap() as u32,
-            4 => u32::from_bytes(value.as_slice()).unwrap(),
-            8 => u64::from_bytes(value.as_slice()).unwrap() as u32,
-            16 => u128::from_bytes(value.as_slice()).unwrap() as u32,
-            32 => U256::from_bytes(value.as_slice()).unwrap().as_u32(),
-            _ => {
-                return Err(execution::Error::InvalidOffsetForJump {
-                    data: counter.clone(),
-                });
-            }
-        },
-        _ => {
-            return Err(execution::Error::InvalidOffsetForJump {
-                data: counter.clone(),
-            });
-        }
-    })
 }
 
 /// Provides a generic way to convert to an integral type from data contained in

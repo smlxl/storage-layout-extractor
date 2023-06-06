@@ -1,8 +1,8 @@
 //! This module contains the definition of the virtual machine's memory.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
-use crate::vm::value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValue};
+use crate::vm::value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData};
 
 /// A representation of the transient memory of the symbolic virtual machine.
 ///
@@ -22,14 +22,24 @@ use crate::vm::value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValu
 /// method to get at these for a given key.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Memory {
-    mem: HashMap<BoxedVal, Vec<MemStore>>,
+    /// Stores at locations that are described by a constant offset from the
+    /// start of memory.
+    constant_offsets: HashMap<usize, Vec<MemStore>>,
+
+    /// Stores at locations that are described by a symbolic value that cannot
+    /// be treated specially.
+    symbolic_offsets: HashMap<BoxedVal, Vec<MemStore>>,
 }
 
 impl Memory {
     /// Constructs a new memory container that currently stores no data.
     pub fn new() -> Self {
-        let mem = HashMap::default();
-        Self { mem }
+        let constant_offsets = HashMap::default();
+        let symbolic_offsets = HashMap::default();
+        Self {
+            constant_offsets,
+            symbolic_offsets,
+        }
     }
 
     /// Stores the provided `value` (of size 256-bits) at the provided `offset`
@@ -63,16 +73,25 @@ impl Memory {
     }
 
     /// Performs an internal store of `value` at `offset` using the specified
-    /// `size.
+    /// `size`.
+    ///
     /// # Note
     ///
     /// Be careful with overlapping stores, as the storage is not able to track
     /// these. Implementation of the `MLOAD` and MSTORE*` opcodes may want to
     /// account for sub-word writes by dissecting the arguments to this
     /// function.
+    #[allow(clippy::boxed_local)] // We use boxes everywhere for API simplicity.
     fn store_with_size(&mut self, offset: BoxedVal, value: BoxedVal, size: MemStoreSize) {
+        let offset = offset.constant_fold();
         let store_value = MemStore { data: value, size };
-        let entry = self.mem.entry(offset).or_insert(vec![]);
+        let entry = match &offset.data {
+            SymbolicValueData::KnownData { value } => {
+                self.constant_offsets.entry(value.into()).or_insert(vec![])
+            }
+            _ => self.symbolic_offsets.entry(offset).or_insert(vec![]),
+        };
+
         entry.push(store_value);
     }
 
@@ -86,13 +105,92 @@ impl Memory {
     ///
     /// This is a best-effort analysis as we cannot guarantee knowing if there
     /// have been overwrites between adjacent slots.
-    pub fn load(&mut self, offset: &BoxedVal) -> &BoxedVal {
-        let entry = self.mem.entry(offset.clone()).or_insert_with(|| {
+    pub fn load(&mut self, offset: &BoxedVal) -> BoxedVal {
+        let offset = offset.clone().constant_fold();
+        match offset.data {
+            SymbolicValueData::KnownData { value } => {
+                Self::get_or_initialize(&mut self.constant_offsets, &value.into()).clone()
+            }
+            _ => Self::get_or_initialize(&mut self.symbolic_offsets, &offset).clone(),
+        }
+    }
+
+    /// Loads from the memory at `offset` for a `size` in bytes.
+    ///
+    /// The exact behaviour of this function occurs on a best-effort basis, and
+    /// is determined by the kinds of input it is given:
+    ///
+    /// - Where both the `offset` and `size` are immediates, this will load
+    ///   adjacent words from memory and provide them to the caller as a
+    ///   [`SymbolicValueData::Concat`].
+    /// - Where `offset` is an immediate, but `size` is not, it will return only
+    ///   the word at `offset`.
+    /// - Where `offset` is symbolic, it will return only the word at `offset`.
+    ///
+    /// Note that we hope to improve this behaviour in the future.
+    pub fn load_slice(
+        &mut self,
+        offset: &BoxedVal,
+        size: &BoxedVal,
+        instruction_pointer: u32,
+    ) -> BoxedVal {
+        let offset = offset.clone().constant_fold();
+        match &offset.data {
+            SymbolicValueData::KnownData { value } => match self.decompose_size(size) {
+                Some(size) => {
+                    let offset: usize = value.into();
+                    let mut values = vec![];
+
+                    // Step by 32 bytes at once as each "write" happens at 32-byte alignment
+                    for word_offset in (offset..offset + size).step_by(32) {
+                        values.push(
+                            Self::get_or_initialize(&mut self.constant_offsets, &word_offset)
+                                .clone(),
+                        );
+                    }
+
+                    SymbolicValue::new(
+                        instruction_pointer,
+                        SymbolicValueData::Concat { values },
+                        Provenance::Synthetic,
+                    )
+                }
+                None => {
+                    // If there is no concrete size, we do our best and just return the direct value
+                    // at `offset`.
+                    Self::get_or_initialize(&mut self.constant_offsets, &value.into()).clone()
+                }
+            },
+            _ => {
+                // Here we just do our best and return the single value as we don't track
+                // adjacency between symbolic values yet.
+                Self::get_or_initialize(&mut self.symbolic_offsets, &offset).clone()
+            }
+        }
+    }
+
+    /// Determines whether the size is concrete, returning the concrete read
+    /// size if so, and [`None`] otherwise.
+    fn decompose_size(&self, size: &BoxedVal) -> Option<usize> {
+        match &size.data {
+            SymbolicValueData::KnownData { value } => Some(value.into()),
+            _ => None,
+        }
+    }
+
+    /// Gets the item at the provided `key` from the provided `map`,
+    /// initializing the read memory to all zeroes if it has not previously been
+    /// written.
+    fn get_or_initialize<'a, K>(map: &'a mut HashMap<K, Vec<MemStore>>, key: &'a K) -> &'a BoxedVal
+    where
+        K: Clone + Eq + Hash + PartialEq,
+    {
+        let entry = map.entry(key.clone()).or_insert_with(|| {
             // The instruction pointer is 0 here, as the uninitialized value was created
             // when the program started.
             let data = SymbolicValue::new_known_value(
                 0,
-                KnownData::zero(),
+                KnownWord::zero(),
                 Provenance::UninitializedMemory,
             );
 
@@ -113,7 +211,7 @@ impl Memory {
     /// Returns [`Some`] for offsets that have seen at least one write, and
     /// otherwise returns [`None`].
     pub fn generations(&self, offset: &BoxedVal) -> Option<Vec<&BoxedVal>> {
-        self.mem
+        self.symbolic_offsets
             .get(offset)
             .map(|stores| stores.iter().map(|store| &store.data).collect())
     }
@@ -123,7 +221,7 @@ impl Memory {
     ///
     /// This functionality exists primarily for introspection.
     pub fn query_store_size(&self, offset: &BoxedVal) -> Option<MemStoreSize> {
-        self.mem
+        self.symbolic_offsets
             .get(offset)
             .and_then(|generations| generations.first())
             .map(|result| result.size)
@@ -134,7 +232,7 @@ impl Memory {
     /// This has no equivalent operation on the EVM and is primarily useful for
     /// introspection.
     pub fn entry_count(&self) -> usize {
-        self.mem.len()
+        self.symbolic_offsets.len() + self.constant_offsets.len()
     }
 
     /// Checks if the memory has ever been written to.
@@ -144,7 +242,7 @@ impl Memory {
 
     /// Gets the offsets in memory that have been written to.
     pub fn offsets(&self) -> Vec<&BoxedVal> {
-        self.mem.keys().collect()
+        self.symbolic_offsets.keys().collect()
     }
 }
 
@@ -181,11 +279,9 @@ impl MemStoreSize {
 
 #[cfg(test)]
 mod test {
-    use std::ops::Deref;
-
     use crate::vm::{
         state::memory::{MemStoreSize, Memory},
-        value::{known_data::KnownData, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+        value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
     };
 
     /// Creates a new synthetic value for testing purposes.
@@ -207,7 +303,7 @@ mod test {
         memory.store(offset.clone(), value.clone());
 
         assert_eq!(memory.entry_count(), 1);
-        assert_eq!(memory.load(&offset), &value);
+        assert_eq!(memory.load(&offset), value);
         assert_eq!(
             memory.query_store_size(&offset).unwrap(),
             MemStoreSize::Word
@@ -223,11 +319,11 @@ mod test {
 
         memory.store(offset.clone(), value_1.clone());
         let load = memory.load(&offset);
-        assert_eq!(load, &value_1);
+        assert_eq!(load, value_1);
 
         memory.store(offset.clone(), value_2.clone());
         let load = memory.load(&offset);
-        assert_eq!(load, &value_2);
+        assert_eq!(load, value_2);
     }
 
     #[test]
@@ -238,7 +334,7 @@ mod test {
         memory.store_8(offset.clone(), value.clone());
 
         assert_eq!(memory.entry_count(), 1);
-        assert_eq!(memory.load(&offset), &value);
+        assert_eq!(memory.load(&offset), value);
         assert_eq!(
             memory.query_store_size(&offset).unwrap(),
             MemStoreSize::Byte
@@ -254,11 +350,11 @@ mod test {
 
         memory.store_8(offset.clone(), value_1.clone());
         let load = memory.load(&offset);
-        assert_eq!(load, &value_1);
+        assert_eq!(load, value_1);
 
         memory.store_8(offset.clone(), value_2.clone());
         let load = memory.load(&offset);
-        assert_eq!(load, &value_2);
+        assert_eq!(load, value_2);
     }
 
     #[test]
@@ -270,7 +366,7 @@ mod test {
         memory.store(offset.clone(), value.clone());
 
         let loaded = memory.load(&offset);
-        assert_eq!(loaded, &value);
+        assert_eq!(loaded, value);
     }
 
     #[test]
@@ -278,20 +374,62 @@ mod test {
         let mut memory = Memory::new();
         let offset = new_synthetic_value(0);
 
-        let loaded = memory.load(&offset).deref();
+        let loaded = memory.load(&offset);
         assert_eq!(loaded.instruction_pointer, 0);
 
-        match loaded {
+        match *loaded {
             SymbolicValue {
                 data: SymbolicValueData::KnownData { value, .. },
                 provenance,
                 ..
             } => {
-                assert_eq!(value, &KnownData::zero());
-                assert_eq!(provenance, &Provenance::UninitializedMemory,);
+                assert_eq!(value, KnownWord::zero());
+                assert_eq!(provenance, Provenance::UninitializedMemory,);
             }
             _ => panic!("Test failure"),
         }
+    }
+
+    #[test]
+    fn can_load_multiple_words_if_known_size() {
+        let mut memory = Memory::new();
+        let zero = KnownWord::zero();
+        let thirty_two = KnownWord::from(32);
+        let offset_1 = SymbolicValue::new_known_value(0, zero, Provenance::Synthetic);
+        let value_1 = new_synthetic_value(1);
+        let offset_2 = SymbolicValue::new_known_value(1, thirty_two, Provenance::Synthetic);
+        let value_2 = new_synthetic_value(3);
+        let sixty_four = KnownWord::from(64);
+        let bytes_64 = SymbolicValue::new_known_value(4, sixty_four, Provenance::Synthetic);
+
+        // Store under known offsets
+        memory.store(offset_1.clone(), value_1.clone());
+        memory.store(offset_2, value_2.clone());
+
+        // Read it back
+        let result = memory.load_slice(&offset_1, &bytes_64, 5);
+        match &result.data {
+            SymbolicValueData::Concat { values } => {
+                assert_eq!(values, &vec![value_1, value_2])
+            }
+            _ => panic!("Invalid payload"),
+        }
+    }
+
+    #[test]
+    fn can_load_word_at_known_offset_with_symbolic_size() {
+        let mut memory = Memory::new();
+        let zero = KnownWord::zero();
+        let offset = SymbolicValue::new_known_value(0, zero, Provenance::Synthetic);
+        let value = new_synthetic_value(1);
+        let size = new_synthetic_value(2);
+
+        // Store under known offsets
+        memory.store(offset.clone(), value.clone());
+
+        // Read it back
+        let result = memory.load_slice(&offset, &size, 5);
+        assert_eq!(result, value);
     }
 
     #[test]
@@ -347,11 +485,11 @@ mod test {
 
         memory.store(sum.clone(), prod.clone());
         assert_eq!(memory.entry_count(), 1);
-        assert_eq!(memory.load(&sum), &prod);
+        assert_eq!(memory.load(&sum), prod);
 
         memory.store(sub.clone(), div.clone());
         assert_eq!(memory.entry_count(), 2);
-        assert_eq!(memory.load(&sub), &div);
+        assert_eq!(memory.load(&sub), div);
     }
 
     #[test]

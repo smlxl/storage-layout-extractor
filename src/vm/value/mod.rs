@@ -1,14 +1,15 @@
 //! This module contains the definition of the [`SymbolicValue`] and its
 //! supporting types.
 
-pub mod known_data;
+pub mod known;
 
 use std::fmt::{Display, Formatter};
 
 use derivative::Derivative;
+use ethnum::{I256, U256};
 use uuid::Uuid;
 
-use crate::vm::value::known_data::KnownData;
+use crate::vm::value::known::KnownWord;
 
 /// A symbolic value is an "execution tree" that records the informative
 /// operations that are made to a piece of data. Note that the
@@ -97,7 +98,7 @@ impl SymbolicValue {
     /// used in a recursive data type and hence indirection is needed.
     pub fn new_known_value(
         instruction_pointer: u32,
-        value_data: KnownData,
+        value_data: KnownWord,
         provenance: Provenance,
     ) -> Box<Self> {
         Self::new(
@@ -111,6 +112,41 @@ impl SymbolicValue {
     /// of the `instruction_pointer`.
     pub fn strict_eq(&self, other: &Self) -> bool {
         self.instruction_pointer == other.instruction_pointer && self == other
+    }
+
+    /// Performs constant folding on immediates wherever possible.
+    ///
+    /// This means that it will go through the entire value to find any
+    /// opportunities where all the operands to a node are
+    /// [`SymbolicValueData::KnownData`]s that can be combined statically.
+    ///
+    /// # Note
+    ///
+    /// This algorithm is recursive. If it turns out to be a problem in practice
+    /// it can be re-written.
+    pub fn constant_fold(self) -> BoxedVal {
+        let data = self.data.constant_fold();
+        let instruction_pointer = self.instruction_pointer;
+        let provenance = self.provenance;
+
+        Box::new(Self {
+            instruction_pointer,
+            provenance,
+            data,
+        })
+    }
+
+    /// Checks if the payload is known data.
+    pub fn is_known_data(&self) -> bool {
+        matches!(self.data, SymbolicValueData::KnownData { .. })
+    }
+
+    /// Converts the payload into a VM word if possible.
+    pub fn as_word(&self) -> Option<U256> {
+        match &self.data {
+            SymbolicValueData::KnownData { value } => Some(value.value()),
+            _ => None,
+        }
     }
 }
 
@@ -141,7 +177,7 @@ pub enum SymbolicValueData {
     Value { id: Uuid },
 
     /// A value that has is made up of a known sequence of bytes.
-    KnownData { value: KnownData },
+    KnownData { value: KnownWord },
 
     /// Addition of symbolic values.
     Add { left: BoxedVal, right: BoxedVal },
@@ -170,24 +206,21 @@ pub enum SymbolicValueData {
     /// Sign extension of a symbolic value to a symbolic length.
     SignExtend { size: BoxedVal, value: BoxedVal },
 
-    /// Program counter.
-    ProgramCounter,
-
     /// A message call that passes a value.
     ///
     /// We explicitly _do not care_ about the specific kind of call here, as it
     /// makes no difference to the kind of information we get.
     ///
-    /// We also do not store the argument data or return data in the opcode, as
-    /// we know nothing about what the call will do with the argument. Internal
-    /// execution will read from memory directly, so we pick up the returned
-    /// value there.
+    /// We also do not store the return data in the opcode, as we know nothing
+    /// about what the call will do with the argument. Internal execution will
+    /// read from memory directly, so we pick up the returned value there.
     CallWithValue {
-        gas:      BoxedVal,
-        address:  BoxedVal,
-        value:    BoxedVal,
-        arg_size: BoxedVal,
-        ret_size: BoxedVal,
+        gas:           BoxedVal,
+        address:       BoxedVal,
+        value:         BoxedVal,
+        argument_data: BoxedVal,
+        ret_offset:    BoxedVal,
+        ret_size:      BoxedVal,
     },
 
     /// A message call that passes a value.
@@ -195,19 +228,19 @@ pub enum SymbolicValueData {
     /// We explicitly _do not care_ about the specific kind of call here, as it
     /// makes no difference to the kind of information we get.
     ///
-    /// We also do not store the argument data or return data in the opcode, as
-    /// we know nothing about what the call will do with the argument. Internal
-    /// execution will read from memory directly, so we pick up the returned
-    /// value there.
+    /// We also do not store the return data in the opcode, as we know nothing
+    /// about what the call will do with the argument. Internal execution will
+    /// read from memory directly, so we pick up the returned value there.
     CallWithoutValue {
-        gas:      BoxedVal,
-        address:  BoxedVal,
-        arg_size: BoxedVal,
-        ret_size: BoxedVal,
+        gas:           BoxedVal,
+        address:       BoxedVal,
+        argument_data: BoxedVal,
+        ret_offset:    BoxedVal,
+        ret_size:      BoxedVal,
     },
 
     /// A keccak256 hash on symbolic values.
-    Sha3 { value: BoxedVal, offset: BoxedVal, size: BoxedVal },
+    Sha3 { data: BoxedVal },
 
     /// The address of the currently-executing contract.
     Address,
@@ -262,24 +295,13 @@ pub enum SymbolicValueData {
     Gas,
 
     /// Logs the `value` from memory of `size` with the provided `topics`.
-    Log { value: BoxedVal, size: BoxedVal, topics: Vec<BoxedVal> },
+    Log { data: BoxedVal, topics: Vec<BoxedVal> },
 
     /// Creates a new contract.
-    Create {
-        value:  BoxedVal,
-        offset: BoxedVal,
-        size:   BoxedVal,
-        data:   BoxedVal,
-    },
+    Create { value: BoxedVal, data: BoxedVal },
 
     /// Creates a new contract at a predictable address.
-    Create2 {
-        value:  BoxedVal,
-        offset: BoxedVal,
-        size:   BoxedVal,
-        salt:   BoxedVal,
-        data:   BoxedVal,
-    },
+    Create2 { value: BoxedVal, salt: BoxedVal, data: BoxedVal },
 
     /// Registers the account for deletion.
     SelfDestruct { target: BoxedVal },
@@ -342,25 +364,35 @@ pub enum SymbolicValueData {
 
     /// Data copied from the return data from the previous call at `offset` for
     /// `size`.
-    ReturnDataCopy { offset: BoxedVal, size: BoxedVal },
+    ReturnData { offset: BoxedVal, size: BoxedVal },
 
     /// The return. Does not stay on the stack but is stored nevertheless.
-    Return { offset: BoxedVal, size: BoxedVal },
+    Return { data: BoxedVal },
 
     /// The revert. Does not stay on the stack but is stored nevertheless.
-    Revert { offset: BoxedVal, size: BoxedVal },
+    Revert { data: BoxedVal },
 
     /// A value that was used as the input to a conditional.
     Condition { value: BoxedVal },
 
     /// A value representing the return from a storage load at `key`.
     SLoad { key: BoxedVal },
+
+    /// The concatenation of multiple values.
+    Concat { values: Vec<BoxedVal> },
 }
 
 impl SymbolicValueData {
     /// Constructs a new [`Self::KnownData`] containing the data `value`.
-    pub fn new_known(value: KnownData) -> Self {
+    pub fn new_known(value: KnownWord) -> Self {
         SymbolicValueData::KnownData { value }
+    }
+
+    /// Constructs a new [`Self::KnownData`] wrapping `value`.
+    fn known_from(value: U256) -> Self {
+        Self::KnownData {
+            value: value.into(),
+        }
     }
 
     /// Constructs a new [`Self::Value`] about which only its existence and
@@ -368,6 +400,317 @@ impl SymbolicValueData {
     pub fn new_value() -> Self {
         let id = Uuid::new_v4();
         SymbolicValueData::Value { id }
+    }
+
+    /// Performs constant folding on immediates wherever possible.
+    ///
+    /// This means that it will go through the entire value to find any
+    /// opportunities where all the operands to a node are [`Self::KnownData`]s
+    /// that can be combined statically.
+    ///
+    /// # Note
+    ///
+    /// This algorithm is recursive. If it turns out to be a problem in practice
+    /// it can be re-written.
+    pub fn constant_fold(self) -> Self {
+        match self {
+            Self::Value { .. } => self,
+            Self::KnownData { .. } => self,
+            Self::Add { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a + b),
+                    _ => Self::Add { left, right },
+                }
+            }
+            Self::Multiply { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a * b),
+                    _ => Self::Add { left, right },
+                }
+            }
+            Self::Subtract { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a - b),
+                    _ => Self::Subtract { left, right },
+                }
+            }
+            Self::Divide { divisor, dividend } => {
+                let divisor = divisor.constant_fold();
+                let dividend = dividend.constant_fold();
+                match (dividend.as_word(), divisor.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a / b),
+                    _ => Self::Divide { dividend, divisor },
+                }
+            }
+            Self::SignedDivide { dividend, divisor } => {
+                let divisor = divisor.constant_fold();
+                let dividend = dividend.constant_fold();
+                match (dividend.as_word(), divisor.as_word()) {
+                    (Some(a), Some(b)) => {
+                        let a_signed = I256::from_le_bytes(a.to_le_bytes());
+                        let b_signed = I256::from_le_bytes(b.to_le_bytes());
+                        let result = a_signed / b_signed;
+                        Self::known_from(U256::from_le_bytes(result.to_le_bytes()))
+                    }
+                    _ => Self::SignedDivide { dividend, divisor },
+                }
+            }
+            Self::Modulo { divisor, dividend } => {
+                let divisor = divisor.constant_fold();
+                let dividend = dividend.constant_fold();
+                match (dividend.as_word(), divisor.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a % b),
+                    _ => Self::Modulo { dividend, divisor },
+                }
+            }
+            Self::SignedModulo { dividend, divisor } => {
+                let divisor = divisor.constant_fold();
+                let dividend = dividend.constant_fold();
+                match (dividend.as_word(), divisor.as_word()) {
+                    (Some(a), Some(b)) => {
+                        let a_signed = I256::from_le_bytes(a.to_le_bytes());
+                        let b_signed = I256::from_le_bytes(b.to_le_bytes());
+                        let result = a_signed % b_signed;
+                        Self::known_from(U256::from_le_bytes(result.to_le_bytes()))
+                    }
+                    _ => Self::SignedModulo { dividend, divisor },
+                }
+            }
+            Self::Exp { value, exponent } => {
+                let value = value.constant_fold();
+                let exponent = exponent.constant_fold();
+                match (value.as_word(), exponent.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a.pow(b.as_u32())),
+                    _ => Self::Exp { value, exponent },
+                }
+            }
+            Self::SignExtend { size, value } => Self::SignExtend {
+                size:  size.constant_fold(),
+                value: value.constant_fold(),
+            },
+            Self::CallWithValue {
+                gas,
+                address,
+                value,
+                argument_data,
+                ret_offset,
+                ret_size,
+            } => Self::CallWithValue {
+                gas:           gas.constant_fold(),
+                address:       address.constant_fold(),
+                value:         value.constant_fold(),
+                argument_data: argument_data.constant_fold(),
+                ret_offset:    ret_offset.constant_fold(),
+                ret_size:      ret_size.constant_fold(),
+            },
+            Self::CallWithoutValue {
+                gas,
+                address,
+                argument_data,
+                ret_offset,
+                ret_size,
+            } => Self::CallWithoutValue {
+                gas:           gas.constant_fold(),
+                address:       address.constant_fold(),
+                argument_data: argument_data.constant_fold(),
+                ret_offset:    ret_offset.constant_fold(),
+                ret_size:      ret_size.constant_fold(),
+            },
+            Self::Sha3 { data } => Self::Sha3 {
+                data: data.constant_fold(),
+            },
+            Self::Address => self,
+            Self::Balance { address } => Self::Balance {
+                address: address.constant_fold(),
+            },
+            Self::Origin => self,
+            Self::Caller => self,
+            Self::CallValue => self,
+            Self::GasPrice => self,
+            Self::ExtCodeHash { address } => Self::ExtCodeHash {
+                address: address.constant_fold(),
+            },
+            Self::BlockHash { block_number } => Self::BlockHash {
+                block_number: block_number.constant_fold(),
+            },
+            Self::CoinBase => self,
+            Self::BlockTimestamp => self,
+            Self::BlockNumber => self,
+            Self::Prevrandao => self,
+            Self::GasLimit => self,
+            Self::ChainId => self,
+            Self::SelfBalance => self,
+            Self::BaseFee => self,
+            Self::Gas => self,
+            Self::Log { data, topics } => Self::Log {
+                data:   data.constant_fold(),
+                topics: topics.into_iter().map(|t| t.constant_fold()).collect(),
+            },
+            Self::Create { value, data } => Self::Create {
+                value: value.constant_fold(),
+                data:  data.constant_fold(),
+            },
+            Self::Create2 { value, data, salt } => Self::Create2 {
+                value: value.constant_fold(),
+                data:  data.constant_fold(),
+                salt:  salt.constant_fold(),
+            },
+            Self::SelfDestruct { target } => Self::SelfDestruct {
+                target: target.constant_fold(),
+            },
+            Self::LessThan { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::new_known(KnownWord::from(a < b)),
+                    _ => Self::LessThan { left, right },
+                }
+            }
+            Self::GreaterThan { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::new_known(KnownWord::from(a > b)),
+                    _ => Self::LessThan { left, right },
+                }
+            }
+            Self::SignedLessThan { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::new_known(KnownWord::from(
+                        I256::from_le_bytes(a.to_le_bytes()) < I256::from_le_bytes(b.to_le_bytes()),
+                    )),
+                    _ => Self::LessThan { left, right },
+                }
+            }
+            Self::SignedGreaterThan { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::new_known(KnownWord::from(
+                        I256::from_le_bytes(a.to_le_bytes()) > I256::from_le_bytes(b.to_le_bytes()),
+                    )),
+                    _ => Self::LessThan { left, right },
+                }
+            }
+            Self::Equals { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::new_known(KnownWord::from(a == b)),
+                    _ => Self::LessThan { left, right },
+                }
+            }
+            Self::IsZero { number } => {
+                let number = number.constant_fold();
+                match number.as_word() {
+                    Some(a) => Self::new_known(KnownWord::from(a == U256::from(0u8))),
+                    _ => Self::IsZero { number },
+                }
+            }
+            Self::And { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a & b),
+                    _ => Self::And { left, right },
+                }
+            }
+            Self::Or { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a | b),
+                    _ => Self::Or { left, right },
+                }
+            }
+            Self::Xor { left, right } => {
+                let left = left.constant_fold();
+                let right = right.constant_fold();
+                match (left.as_word(), right.as_word()) {
+                    (Some(a), Some(b)) => Self::known_from(a ^ b),
+                    _ => Self::Xor { left, right },
+                }
+            }
+            Self::Not { bool } => {
+                let bool = bool.constant_fold();
+                match bool.as_word() {
+                    Some(a) => Self::known_from(!a),
+                    _ => Self::Not { bool },
+                }
+            }
+            Self::LeftShift { shift, value } => {
+                let shift = shift.constant_fold();
+                let value = value.constant_fold();
+                match (shift.as_word(), value.as_word()) {
+                    (Some(s), Some(v)) => Self::known_from(v << s),
+                    _ => Self::LeftShift { shift, value },
+                }
+            }
+            Self::RightShift { shift, value } => {
+                let shift = shift.constant_fold();
+                let value = value.constant_fold();
+                match (shift.as_word(), value.as_word()) {
+                    (Some(s), Some(v)) => Self::known_from(v >> s),
+                    _ => Self::RightShift { shift, value },
+                }
+            }
+            Self::ArithmeticRightShift { shift, value } => {
+                let shift = shift.constant_fold();
+                let value = value.constant_fold();
+                match (shift.as_word(), value.as_word()) {
+                    (Some(s), Some(v)) => Self::known_from(v >> s),
+                    _ => Self::RightShift { shift, value },
+                }
+            }
+            Self::CallData { offset, size } => Self::CallData {
+                offset: offset.constant_fold(),
+                size:   size.constant_fold(),
+            },
+            Self::CallDataSize => self,
+            Self::CodeCopy { offset, size } => Self::CodeCopy {
+                offset: offset.constant_fold(),
+                size:   size.constant_fold(),
+            },
+            Self::ExtCodeSize { address } => Self::ExtCodeSize {
+                address: address.constant_fold(),
+            },
+            Self::ExtCodeCopy {
+                address,
+                offset,
+                size,
+            } => Self::ExtCodeCopy {
+                address: address.constant_fold(),
+                offset:  offset.constant_fold(),
+                size:    size.constant_fold(),
+            },
+            Self::ReturnData { offset, size } => Self::ReturnData {
+                offset: offset.constant_fold(),
+                size:   size.constant_fold(),
+            },
+            Self::Return { data } => Self::Return {
+                data: data.constant_fold(),
+            },
+            Self::Revert { data } => Self::Revert {
+                data: data.constant_fold(),
+            },
+            Self::Condition { value } => Self::Condition {
+                value: value.constant_fold(),
+            },
+            Self::SLoad { key } => Self::SLoad {
+                key: key.constant_fold(),
+            },
+            Self::Concat { values } => Self::Concat {
+                values: values.into_iter().map(|v| v.constant_fold()).collect(),
+            },
+        }
     }
 }
 
@@ -385,24 +728,28 @@ impl Display for SymbolicValueData {
             Self::SignedModulo { dividend, divisor } => write!(f, "({dividend} s% {divisor})"),
             Self::Exp { value, exponent } => write!(f, "({value} ** {exponent})"),
             Self::SignExtend { size, value } => write!(f, "sign_ext({size}, {value})"),
-            Self::ProgramCounter => write!(f, "pc"),
             Self::CallWithValue {
                 gas,
                 address,
                 value,
-                arg_size,
+                argument_data,
+                ret_offset,
                 ret_size,
             } => write!(
                 f,
-                "call_val({gas}, {address}, {value}, {arg_size}, {ret_size})"
+                "call_val({gas}, {address}, {value}, {argument_data}, {ret_offset}, {ret_size})"
             ),
             Self::CallWithoutValue {
                 gas,
                 address,
-                arg_size,
+                argument_data,
+                ret_offset,
                 ret_size,
-            } => write!(f, "call_val({gas}, {address}, {arg_size}, {ret_size})"),
-            Self::Sha3 { offset, size, .. } => write!(f, "sha3({offset}, {size}"),
+            } => write!(
+                f,
+                "call_val({gas}, {address}, {argument_data}, {ret_offset}, {ret_size})"
+            ),
+            Self::Sha3 { data } => write!(f, "sha3({data})"),
             Self::Address => write!(f, "address(this)"),
             Self::Balance { address } => write!(f, "balance({address})"),
             Self::Origin => write!(f, "tx.origin"),
@@ -420,24 +767,9 @@ impl Display for SymbolicValueData {
             Self::SelfBalance => write!(f, "address(this).balance"),
             Self::BaseFee => write!(f, "block.basefee"),
             Self::Gas => write!(f, "gasRemaining"),
-            Self::Log {
-                value,
-                size,
-                topics,
-            } => write!(f, "log({value}, {size}, {topics:?})"),
-            Self::Create {
-                value,
-                offset,
-                size,
-                data,
-            } => write!(f, "create({value}, {offset}, {size}, {data})"),
-            Self::Create2 {
-                value,
-                offset,
-                size,
-                data,
-                salt,
-            } => write!(f, "create({value}, {offset}, {size}, {salt}, {data})"),
+            Self::Log { data, topics } => write!(f, "log({data}, {topics:?})"),
+            Self::Create { value, data } => write!(f, "create({value}, {data})"),
+            Self::Create2 { value, data, salt } => write!(f, "create({value}, {data}, {salt})"),
             Self::SelfDestruct { target } => write!(f, "self_destruct({target})"),
             Self::LessThan { left, right } => write!(f, "({left} < {right})"),
             Self::GreaterThan { left, right } => write!(f, "({left} > {right})"),
@@ -461,13 +793,23 @@ impl Display for SymbolicValueData {
                 offset,
                 size,
             } => write!(f, "ext_code_copy({address}, {offset}, {size})"),
-            Self::ReturnDataCopy { offset, size } => {
+            Self::ReturnData { offset, size } => {
                 write!(f, "return_data_copy({offset}, {size})")
             }
-            Self::Return { offset, size } => write!(f, "return({offset}, {size})"),
-            Self::Revert { offset, size } => write!(f, "revert({offset}, {size})"),
+            Self::Return { data } => write!(f, "return({data})"),
+            Self::Revert { data } => write!(f, "revert({data})"),
             Self::Condition { value } => write!(f, "bool({value})"),
             Self::SLoad { key } => write!(f, "s_load({key})"),
+            Self::Concat { values } => {
+                write!(f, "concat(")?;
+                for (i, value) in values.iter().enumerate() {
+                    write!(f, "{value}")?;
+                    if i + 1 < values.len() {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -524,9 +866,10 @@ pub enum Provenance {
 
 #[cfg(test)]
 mod test {
+    use ethnum::U256;
     use uuid::Uuid;
 
-    use crate::vm::value::{SymbolicValue, SymbolicValueData};
+    use crate::vm::value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData};
 
     #[test]
     fn equality_ignores_instruction_pointer() {
@@ -566,5 +909,423 @@ mod test {
         let value_2 = SymbolicValue::new_synthetic(1, data);
 
         assert!(!value_1.strict_eq(&value_2));
+    }
+
+    #[test]
+    fn constant_folds_add() {
+        let left = SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let right = SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Add { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(8), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_mul() {
+        let left = SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let right = SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Multiply { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_sub() {
+        let left = SymbolicValue::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
+        let right = SymbolicValue::new_known_value(1, KnownWord::from(1), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Subtract { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(6), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_div() {
+        let dividend = SymbolicValue::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
+        let divisor = SymbolicValue::new_known_value(1, KnownWord::from(1), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Divide { dividend, divisor },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_signed_div() {
+        let dividend = SymbolicValue::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
+        let divisor = SymbolicValue::new_known_value(1, KnownWord::from(1), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::SignedDivide { dividend, divisor },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_mod() {
+        let dividend = SymbolicValue::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
+        let divisor = SymbolicValue::new_known_value(1, KnownWord::from(2), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Modulo { dividend, divisor },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(1), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_signed_mod() {
+        let dividend = SymbolicValue::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
+        let divisor = SymbolicValue::new_known_value(1, KnownWord::from(2), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::SignedModulo { dividend, divisor },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(1), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_exp() {
+        let value = SymbolicValue::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
+        let exponent = SymbolicValue::new_known_value(1, KnownWord::from(2), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Exp { value, exponent },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(49), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_less_than() {
+        let left = SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let right = SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::LessThan { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(true), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_greater_than() {
+        let left = SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let right = SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::GreaterThan { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_signed_less_than() {
+        let left = SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let right = SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::SignedLessThan { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(true), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_signed_greater_than() {
+        let left = SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let right = SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::SignedGreaterThan { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_equals() {
+        let left = SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let right = SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Equals { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_is_zero() {
+        let number = SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::IsZero { number },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_and() {
+        let left =
+            SymbolicValue::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic);
+        let right =
+            SymbolicValue::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::And { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(0b0100), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_or() {
+        let left =
+            SymbolicValue::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic);
+        let right =
+            SymbolicValue::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Or { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(0b1111), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_xor() {
+        let left =
+            SymbolicValue::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic);
+        let right =
+            SymbolicValue::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Xor { left, right },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(0b1011), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_not() {
+        let bool = SymbolicValue::new_known_value(1, KnownWord::from(1), Provenance::Synthetic);
+        let add = SymbolicValue::new(2, SymbolicValueData::Not { bool }, Provenance::Synthetic);
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(
+                2,
+                KnownWord::from(!U256::from(1u8)),
+                Provenance::Synthetic
+            )
+        )
+    }
+
+    #[test]
+    fn constant_folds_left_shift() {
+        let shift = SymbolicValue::new_known_value(0, KnownWord::from(2), Provenance::Synthetic);
+        let value =
+            SymbolicValue::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::LeftShift { shift, value },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(0b111000), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_right_shift() {
+        let shift = SymbolicValue::new_known_value(0, KnownWord::from(2), Provenance::Synthetic);
+        let value =
+            SymbolicValue::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::RightShift { shift, value },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(0b11), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_arithmetic_right_shift() {
+        let shift = SymbolicValue::new_known_value(0, KnownWord::from(2), Provenance::Synthetic);
+        let value =
+            SymbolicValue::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
+        let add = SymbolicValue::new(
+            2,
+            SymbolicValueData::ArithmeticRightShift { shift, value },
+            Provenance::Synthetic,
+        );
+
+        let folded = add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(0b11), Provenance::Synthetic)
+        )
+    }
+
+    #[test]
+    fn constant_folds_deeply() {
+        let inner_add_left =
+            SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let inner_add_right =
+            SymbolicValue::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let inner_add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Add {
+                left:  inner_add_left,
+                right: inner_add_right,
+            },
+            Provenance::Synthetic,
+        );
+        let outer_add_left =
+            SymbolicValue::new_known_value(3, KnownWord::from(8), Provenance::Synthetic);
+        let outer_add = SymbolicValue::new(
+            2,
+            SymbolicValueData::Add {
+                left:  outer_add_left,
+                right: inner_add,
+            },
+            Provenance::Synthetic,
+        );
+
+        let folded = outer_add.constant_fold();
+
+        assert_eq!(
+            folded,
+            SymbolicValue::new_known_value(2, KnownWord::from(16), Provenance::Synthetic)
+        )
     }
 }

@@ -25,6 +25,47 @@ pub fn new(contract: Contract) -> Analyzer<state::HasContract> {
 /// For the most basic usage of the library, it is sufficient to construct an
 /// `Analyzer` and call the `.analyze` method, passing your contract.
 ///
+/// ```
+/// use storage_layout_analyzer::{
+///     analyzer::chain::{version::EthereumVersion, Chain},
+///     bytecode,
+///     contract::Contract,
+///     new,
+///     opcode::{control::*, logic::*, memory::*, Opcode},
+///     vm::Config,
+/// };
+///
+/// let bytes = bytecode![
+///     CallDataSize,                       // Get a symbolic value
+///     IsZero,                             // Check if the size is zero
+///     PushN::new(1, vec![0x0b]).unwrap(), // Push the jump destination offset onto the stack
+///     JumpI,                              // Jump if the condition is true
+///     PushN::new(1, vec![0x00]).unwrap(), // Value to store
+///     PushN::new(1, vec![0x00]).unwrap(), // Key under which to store it
+///     SStore,                             // Storage
+///     Invalid,                            // Return from this thread with invalid instruction
+///     JumpDest,                           // The destination for the jump
+///     PushN::new(1, vec![0xff]).unwrap(), // The value to store into memory
+///     PushN::new(1, vec![0x00]).unwrap(), // The offset in memory to store it at
+///     MStore,                             // Store to memory
+///     PushN::new(1, vec![0x01]).unwrap(), // The size of the data to return
+///     PushN::new(1, vec![0x00]).unwrap(), // The location in memory to return
+///     Return                              // Return from this thread
+/// ];
+///
+/// let contract = Contract::new(
+///     bytes,
+///     Chain::Ethereum {
+///         version: EthereumVersion::Shanghai,
+///     },
+/// );
+///
+/// let analyzer = new(contract).analyze(Config::default()).unwrap();
+/// let result = &analyzer.state().execution_result;
+///
+/// assert_eq!(result.states.len(), 2);
+/// ```
+///
 /// # Enforcing Valid State Transitions
 ///
 /// The analyzer enforces that only correct state transitions can occur through

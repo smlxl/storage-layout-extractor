@@ -3,7 +3,7 @@
 
 use thiserror::Error;
 
-use crate::{error::container, vm::value::known_data::KnownData};
+use crate::{error::container, vm::value::known::KnownWord};
 
 /// Errors that occur during the execution of the bytecode by the
 /// [`crate::vm::VM`].
@@ -27,7 +27,7 @@ pub enum Error {
     InvalidStep,
 
     #[error("{data:?} cannot be used as an immediate for a jump")]
-    InvalidOffsetForJump { data: KnownData },
+    InvalidOffsetForJump { data: KnownWord },
 
     #[error("The opcode at {offset:?} is not a valid jump destination")]
     InvalidJumpTarget { offset: u32 },
