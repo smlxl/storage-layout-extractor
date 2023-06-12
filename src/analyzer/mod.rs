@@ -11,6 +11,7 @@ use crate::{
     unifier::Unifier,
     vm,
     vm::{instructions::InstructionStream, VM},
+    StorageLayout,
 };
 
 /// Creates a new analyzer wrapping the provided `contract`.
@@ -219,9 +220,10 @@ impl Analyzer<state::VMReady> {
     }
 }
 
-/// Operations available on an analyzer that has a unifier ready to perform
-/// inference and unification processes.
+/// Operations available on an analyzer that has a VM which has completed
+/// execution of the bytecode.
 impl Analyzer<state::ExecutionComplete> {
+    /// Takes thew results of execution and uses them to prepare a new unifier.
     pub fn prepare_unifier(
         self,
         config: unifier::Config,
@@ -232,6 +234,35 @@ impl Analyzer<state::ExecutionComplete> {
                 Ok(state::UnifierReady { unifier })
             })
         }
+    }
+}
+
+/// Operations available on an analyzer that has a unifier ready to perform
+/// inference and unification processes.
+impl Analyzer<state::UnifierReady> {
+    /// Takes the prepared unifier and runs the unification process on the
+    /// execution results.
+    pub fn unify(self) -> error::Result<Analyzer<state::UnificationComplete>> {
+        unsafe {
+            self.transform_state(|mut old_state| {
+                let layout = old_state.unifier.run()?;
+                let unifier = old_state.unifier;
+                Ok(state::UnificationComplete { layout, unifier })
+            })
+        }
+    }
+}
+
+/// Operations available on an analyzer that has completed unification.
+impl Analyzer<state::UnificationComplete> {
+    /// Gets the final unifier state that computed the storage layout.
+    pub fn unifier(&self) -> &Unifier {
+        &self.state.unifier
+    }
+
+    /// Gets the computed storage layout for the contract.
+    pub fn layout(&self) -> &StorageLayout {
+        &self.state.layout
     }
 }
 

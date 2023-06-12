@@ -1,12 +1,5 @@
 //! This module contains the primary error type for the analyzer's interface. It
 //! also re-exports the more specific error types that are subsystem-specific.
-//!
-//! # Anyhow
-//!
-//! All of the errors implement [`std::error::Error`], and hence can be used
-//! with [`anyhow::Error`] internally. It is _not_ recommended to use that error
-//! type in the interface of the library, as this forces clients to also use
-//! `anyhow`.
 
 pub mod container;
 pub mod disassembly;
@@ -113,11 +106,44 @@ impl From<execution::LocatedError> for Errors {
     }
 }
 
+/// Allow simple conversions from located unification errors by re-wrapping the
+/// located error around the more general payload.
+impl From<unification::LocatedError> for LocatedError {
+    fn from(value: unification::LocatedError) -> Self {
+        let instruction_pointer = value.location;
+        let payload = Error::from(value.payload);
+        Self {
+            location: instruction_pointer,
+            payload,
+        }
+    }
+}
+
+/// Allow simple conversions from located unification errors by re-wrapping the
+/// located error around the more general payload in the Errors container.
+impl From<unification::LocatedError> for Errors {
+    fn from(value: unification::LocatedError) -> Self {
+        let re_wrapped: LocatedError = value.into();
+        re_wrapped.into()
+    }
+}
+
 /// Allow conversion from the execution errors container to the general errors
 /// container.
 impl From<execution::Errors> for Errors {
     fn from(value: execution::Errors) -> Self {
         let errs: Vec<execution::LocatedError> = value.into();
+        let new_errs: Vec<LocatedError> = errs.into_iter().map(|e| e.into()).collect();
+
+        new_errs.into()
+    }
+}
+
+/// Allow conversion from the unification errors container to the general errors
+/// container.
+impl From<unification::Errors> for Errors {
+    fn from(value: unification::Errors) -> Self {
+        let errs: Vec<unification::LocatedError> = value.into();
         let new_errs: Vec<LocatedError> = errs.into_iter().map(|e| e.into()).collect();
 
         new_errs.into()

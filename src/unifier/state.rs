@@ -102,6 +102,11 @@ impl UnifierState {
     pub fn variables(&self) -> Vec<TypeVariable> {
         self.expressions_and_vars.right_values().copied().collect()
     }
+
+    /// Gets the pairs of `(value, type_var)` from the state of the unifier.
+    pub fn pairs(&self) -> Vec<(&BoxedVal, TypeVariable)> {
+        self.expressions_and_vars.iter().map(|(v, t)| (v, *t)).collect()
+    }
 }
 
 impl Default for UnifierState {

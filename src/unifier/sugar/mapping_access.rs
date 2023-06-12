@@ -1,5 +1,5 @@
 //! This module provides a re-sugaring pass that recognises accesses to
-//! individual storing slots as part of a mapping.
+//! individual storage slots as part of a mapping.
 
 use crate::{
     unifier::{state::UnifierState, sugar::ReSugar},
