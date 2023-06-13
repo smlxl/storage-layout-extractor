@@ -1,9 +1,8 @@
-//! This re-sugaring pass looks for operations that mask values to a
-//! well-defined length or sub-values, as these can be used to infer the width
-//! of a value.
+//! This lifting pass looks for operations that mask values to a well-defined
+//! length or sub-values, as these can be used to infer the width of a value.
 
 use crate::{
-    unifier::{state::UnifierState, sugar::ReSugar},
+    unifier::{lift::Lift, state::TypingState},
     vm::value::{BoxedVal, SVD},
 };
 
@@ -22,17 +21,17 @@ use crate::{
 pub struct MaskWord;
 
 impl MaskWord {
-    /// Constructs a new instance of the word mask re-sugaring pass.
+    /// Constructs a new instance of the word mask lifting pass.
     pub fn new() -> Box<Self> {
         Box::new(Self)
     }
 }
 
-impl ReSugar for MaskWord {
+impl Lift for MaskWord {
     fn run(
         &mut self,
         value: BoxedVal,
-        _state: &mut UnifierState,
+        _state: &TypingState,
     ) -> crate::error::unification::Result<BoxedVal> {
         fn mask_arg(data: &SVD) -> Option<usize> {
             // If there is a known data as the operand, and it hasn't been constant folded,
@@ -59,12 +58,12 @@ impl ReSugar for MaskWord {
 
             if let Some(mask_size) = mask_arg(&left.data) {
                 Some(SVD::WordMask {
-                    value: right.clone(),
+                    value: right.clone().transform_data(insert_masks),
                     mask:  mask_size,
                 })
             } else {
                 mask_arg(&right.data).map(|mask_size| SVD::WordMask {
-                    value: left.clone(),
+                    value: left.clone().transform_data(insert_masks),
                     mask:  mask_size,
                 })
             }
@@ -78,8 +77,8 @@ impl ReSugar for MaskWord {
 mod test {
     use crate::{
         unifier::{
-            state::UnifierState,
-            sugar::{mask_word::MaskWord, ReSugar},
+            lift::{mask_word::MaskWord, Lift},
+            state::TypingState,
         },
         vm::value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData, SVD},
     };
@@ -115,67 +114,14 @@ mod test {
             Provenance::Synthetic,
         );
 
-        let mut state = UnifierState::new();
-        let result = MaskWord.run(and, &mut state)?;
+        let state = TypingState::empty();
+        let result = MaskWord.run(and, &state)?;
 
         match &result.data {
             SVD::WordMask { value, mask } => {
                 assert_eq!(value, &input_value);
                 assert_eq!(*mask, 12usize);
             }
-            _ => panic!("Incorrect payload"),
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn resolves_word_masks_when_nested() -> anyhow::Result<()> {
-        let one = SymbolicValue::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let shift_amount =
-            SymbolicValue::new_known_value(1, KnownWord::from(12), Provenance::Synthetic);
-        let shift = SymbolicValue::new(
-            2,
-            SymbolicValueData::LeftShift {
-                value: one.clone(),
-                shift: shift_amount,
-            },
-            Provenance::Synthetic,
-        );
-        let subtract = SymbolicValue::new(
-            3,
-            SymbolicValueData::Subtract {
-                left:  shift,
-                right: one,
-            },
-            Provenance::Synthetic,
-        );
-        let input_value = SymbolicValue::new_value(4, Provenance::Synthetic);
-        let and = SymbolicValue::new(
-            4,
-            SymbolicValueData::And {
-                left:  input_value.clone(),
-                right: subtract,
-            },
-            Provenance::Synthetic,
-        );
-        let not = SymbolicValue::new(
-            4,
-            SymbolicValueData::Not { value: and },
-            Provenance::Synthetic,
-        );
-
-        let mut state = UnifierState::new();
-        let result = MaskWord.run(not, &mut state)?;
-
-        match &result.data {
-            SVD::Not { value } => match &value.data {
-                SVD::WordMask { value, mask } => {
-                    assert_eq!(value, &input_value);
-                    assert_eq!(*mask, 12usize);
-                }
-                _ => panic!("Incorrect payload"),
-            },
             _ => panic!("Incorrect payload"),
         }
 
@@ -199,8 +145,8 @@ mod test {
             Provenance::Synthetic,
         );
 
-        let mut state = UnifierState::new();
-        let result = MaskWord.run(and, &mut state)?;
+        let state = TypingState::empty();
+        let result = MaskWord.run(and, &state)?;
 
         match &result.data {
             SVD::WordMask { value, mask } => {

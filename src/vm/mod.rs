@@ -351,10 +351,7 @@ pub struct ExecutionResult {
 impl ExecutionResult {
     /// Gathers all of the symbolic values known about by the execution result.
     pub fn all_values(&self) -> Vec<BoxedVal> {
-        let mut values = Vec::new();
-        self.states.iter().for_each(|state| values.extend(state.all_values()));
-
-        values
+        self.states.iter().flat_map(|state| state.all_values()).collect()
     }
 }
 

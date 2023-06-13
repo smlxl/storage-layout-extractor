@@ -280,6 +280,8 @@ mod test {
         vm,
     };
 
+    // TODO [Ara] Turn into a real test but keep the debugging one too
+    // TODO [Ara] Split out the loading as a test utility and remove deps from main
     #[test]
     pub fn analyze_bytecode_from_file() -> anyhow::Result<()> {
         // Get the contract to be analyzed
@@ -320,7 +322,10 @@ mod test {
         }
 
         // For manual poking
-        let _with_unifier = analyzer.prepare_unifier(unifier::Config::default());
+        let with_unifier = analyzer.prepare_unifier(unifier::Config::default())?;
+        let unified = with_unifier.unify()?;
+        let layout = unified.layout();
+        dbg!(layout);
 
         Ok(())
     }

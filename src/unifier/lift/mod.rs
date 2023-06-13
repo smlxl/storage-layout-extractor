@@ -1,9 +1,11 @@
-//! This module contains the definition of the `ReSugar` trait that provides the
+//! This module contains the definition of the `Lift` trait that provides the
 //! unifier with the ability to add higher-level value constructors based on
 //! lower-level patterns.
 
+pub mod dynamic_array_access;
 pub mod mapping_access;
 pub mod mask_word;
+pub mod recognise_hashed_slots;
 pub mod storage_slots;
 
 use std::{
@@ -16,15 +18,20 @@ use downcast_rs::Downcast;
 use crate::{
     error::unification::Result,
     unifier::{
-        state::UnifierState,
-        sugar::{mapping_access::MappingAccess, mask_word::MaskWord, storage_slots::StorageSlots},
+        lift::{
+            dynamic_array_access::DynamicArrayAccess,
+            mapping_access::MappingAccess,
+            mask_word::MaskWord,
+            storage_slots::StorageSlots,
+        },
+        state::TypingState,
     },
     vm::value::BoxedVal,
 };
 
 /// A trait representing processes for _introducing_ higher-level constructs
 /// into the symbolic value representation.
-pub trait ReSugar
+pub trait Lift
 where
     Self: Any + Debug + Downcast,
 {
@@ -37,24 +44,24 @@ where
     ///
     /// # Errors
     ///
-    /// Returns [`Err`] if something goes wrong with the re-sugaring process.
-    fn run(&mut self, value: BoxedVal, state: &mut UnifierState) -> Result<BoxedVal>;
+    /// Returns [`Err`] if something goes wrong with the lifting process.
+    fn run(&mut self, value: BoxedVal, state: &TypingState) -> Result<BoxedVal>;
 }
 
-/// A container for an ordered set of re-sugaring passes that will be run in
+/// A container for an ordered set of lifting passes that will be run in
 /// order.
 #[derive(Debug)]
-pub struct ReSugarPasses {
+pub struct LiftingPasses {
     /// The ordered list of passes that will be executed in order.
-    passes: Vec<Box<dyn ReSugar>>,
+    passes: Vec<Box<dyn Lift>>,
 }
 
-impl ReSugarPasses {
+impl LiftingPasses {
     /// Adds the `pass` to the end of the pass ordering.
     ///
     /// If a pass of the given type already exists in the ordering, it will not
     /// be added.
-    pub fn add<P: ReSugar>(&mut self, pass: P) {
+    pub fn add<P: Lift>(&mut self, pass: P) {
         let ids: Vec<TypeId> = self.passes.iter().map(|p| p.as_ref().type_id()).collect();
         let pass_id = pass.type_id();
 
@@ -68,7 +75,7 @@ impl ReSugarPasses {
 
     /// Gets a reference to the pass of the given type, if it exists in the
     /// passes container.
-    pub fn get<P: ReSugar>(&self) -> Option<&P> {
+    pub fn get<P: Lift>(&self) -> Option<&P> {
         self.passes
             .iter()
             .find(|p| p.as_ref().as_any().is::<P>())
@@ -77,7 +84,7 @@ impl ReSugarPasses {
 
     /// Gets a reference to the pass of the given type, if it exists in the
     /// passes container.
-    pub fn get_mut<P: ReSugar>(&mut self) -> Option<&mut P> {
+    pub fn get_mut<P: Lift>(&mut self) -> Option<&mut P> {
         self.passes
             .iter_mut()
             .find(|p| p.as_ref().as_any().is::<P>())
@@ -91,7 +98,7 @@ impl ReSugarPasses {
     /// # Errors
     ///
     /// Returns [`Err`] if any of the passes error.
-    pub fn run(&mut self, mut value: BoxedVal, state: &mut UnifierState) -> Result<BoxedVal> {
+    pub fn run(&mut self, mut value: BoxedVal, state: &TypingState) -> Result<BoxedVal> {
         for pass in self.passes.iter_mut() {
             value = pass.run(value, state)?;
         }
@@ -100,10 +107,15 @@ impl ReSugarPasses {
     }
 }
 
-impl Default for ReSugarPasses {
+impl Default for LiftingPasses {
     fn default() -> Self {
         Self {
-            passes: vec![MaskWord::new(), MappingAccess::new(), StorageSlots::new()],
+            passes: vec![
+                MaskWord::new(),
+                MappingAccess::new(),
+                DynamicArrayAccess::new(),
+                StorageSlots::new(),
+            ],
         }
     }
 }

@@ -3,14 +3,17 @@
 
 use thiserror::Error;
 
-use crate::{error::container, vm::value::SymbolicValue};
+use crate::{error::container, unifier::expression::TypeExpression, vm::value::BoxedVal};
 
 /// Errors that occur during unification and type inference process in the
 /// [`crate::unifier::Unifier`].
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
-    #[error("Invalid tree encountered during unification: {value:?}")]
-    InvalidTree { value: SymbolicValue },
+    #[error("Invalid tree {value:?} encountered during unification: {reason}")]
+    InvalidTree { value: BoxedVal, reason: String },
+
+    #[error("Invalid typing expression {value:?} encountered during unification: {reason}")]
+    InvalidInference { value: TypeExpression, reason: String },
 }
 
 /// Make it possible to attach locations to these errors.
