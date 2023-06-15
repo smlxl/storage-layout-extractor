@@ -4,6 +4,7 @@
 
 pub mod mapping_access;
 pub mod mask_word;
+pub mod storage_slots;
 
 use std::{
     any::{Any, TypeId},
@@ -16,7 +17,7 @@ use crate::{
     error::unification::Result,
     unifier::{
         state::UnifierState,
-        sugar::{mapping_access::MappingAccess, mask_word::MaskWord},
+        sugar::{mapping_access::MappingAccess, mask_word::MaskWord, storage_slots::StorageSlots},
     },
     vm::value::BoxedVal,
 };
@@ -102,7 +103,7 @@ impl ReSugarPasses {
 impl Default for ReSugarPasses {
     fn default() -> Self {
         Self {
-            passes: vec![MaskWord::new(), MappingAccess::new()],
+            passes: vec![MaskWord::new(), MappingAccess::new(), StorageSlots::new()],
         }
     }
 }

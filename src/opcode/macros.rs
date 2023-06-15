@@ -28,6 +28,7 @@
 #[macro_export]
 macro_rules! bytecode {
     ($($path:expr),*$(,)?) => {{
+        use $crate::opcode::Opcode;
         let mut vec: Vec<u8> = vec![];
         $(vec.extend($path.encode()));*;
         vec

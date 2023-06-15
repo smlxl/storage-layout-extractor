@@ -385,7 +385,6 @@ mod test {
             control::{Invalid, JumpDest, JumpI, Return},
             logic::IsZero,
             memory::{CallDataSize, MStore, PushN, SStore},
-            Opcode,
         },
         vm::{instructions::InstructionStream, Config, VM},
     };

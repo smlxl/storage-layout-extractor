@@ -161,6 +161,11 @@ impl SymbolicValue {
             self.provenance,
         )
     }
+
+    /// Gets all of the child nodes of this node.
+    pub fn children(&self) -> Vec<&BoxedVal> {
+        self.data.children()
+    }
 }
 
 impl Display for SymbolicValue {
@@ -855,6 +860,95 @@ impl SymbolicValueData {
 
         self.transform(constant_folder)
     }
+
+    /// Gets the children of the provided node.
+    pub fn children(&self) -> Vec<&BoxedVal> {
+        match self {
+            Self::Value { .. } => vec![],
+            Self::KnownData { .. } => vec![],
+            Self::StorageSlot { .. } => vec![],
+            Self::Add { left, right } => vec![left, right],
+            Self::Multiply { left, right } => vec![left, right],
+            Self::Subtract { left, right } => vec![left, right],
+            Self::Divide { dividend, divisor } => vec![dividend, divisor],
+            Self::SignedDivide { dividend, divisor } => vec![dividend, divisor],
+            Self::Modulo { dividend, divisor } => vec![dividend, divisor],
+            Self::SignedModulo { dividend, divisor } => vec![dividend, divisor],
+            Self::Exp { value, exponent } => vec![value, exponent],
+            Self::SignExtend { size, value } => vec![size, value],
+            Self::CallWithValue {
+                gas,
+                address,
+                value,
+                argument_data,
+                ret_offset,
+                ret_size,
+            } => vec![gas, address, value, argument_data, ret_offset, ret_size],
+            Self::CallWithoutValue {
+                gas,
+                address,
+                argument_data,
+                ret_offset,
+                ret_size,
+            } => vec![gas, address, argument_data, ret_offset, ret_size],
+            Self::Sha3 { data } => vec![data],
+            Self::Address => vec![],
+            Self::Balance { address } => vec![address],
+            Self::Origin => vec![],
+            Self::Caller => vec![],
+            Self::CallValue => vec![],
+            Self::GasPrice => vec![],
+            Self::ExtCodeHash { address } => vec![address],
+            Self::BlockHash { block_number } => vec![block_number],
+            Self::CoinBase => vec![],
+            Self::BlockTimestamp => vec![],
+            Self::BlockNumber => vec![],
+            Self::Prevrandao => vec![],
+            Self::GasLimit => vec![],
+            Self::ChainId => vec![],
+            Self::SelfBalance => vec![],
+            Self::BaseFee => vec![],
+            Self::Gas => vec![],
+            Self::Log { data, topics } => {
+                let mut vec = vec![data];
+                vec.extend(topics);
+                vec
+            }
+            Self::Create { value, data } => vec![value, data],
+            Self::Create2 { value, data, salt } => vec![value, data, salt],
+            Self::SelfDestruct { target } => vec![target],
+            Self::LessThan { left, right } => vec![left, right],
+            Self::GreaterThan { left, right } => vec![left, right],
+            Self::SignedLessThan { left, right } => vec![left, right],
+            Self::SignedGreaterThan { left, right } => vec![left, right],
+            Self::Equals { left, right } => vec![left, right],
+            Self::IsZero { number } => vec![number],
+            Self::And { left, right } => vec![left, right],
+            Self::Or { left, right } => vec![left, right],
+            Self::Xor { left, right } => vec![left, right],
+            Self::Not { value } => vec![value],
+            Self::LeftShift { shift, value } => vec![shift, value],
+            Self::RightShift { shift, value } => vec![shift, value],
+            Self::ArithmeticRightShift { shift, value } => vec![shift, value],
+            Self::CallData { offset, size } => vec![offset, size],
+            Self::CallDataSize => vec![],
+            Self::CodeCopy { offset, size } => vec![offset, size],
+            Self::ExtCodeSize { address } => vec![address],
+            Self::ExtCodeCopy {
+                address,
+                offset,
+                size,
+            } => vec![address, offset, size],
+            Self::ReturnData { offset, size } => vec![offset, size],
+            Self::Return { data } => vec![data],
+            Self::Revert { data } => vec![data],
+            Self::Condition { value } => vec![value],
+            Self::SLoad { key } => vec![key],
+            Self::Concat { values } => values.iter().collect(),
+            Self::MappingAddress { slot, key } => vec![slot, key],
+            Self::WordMask { value, .. } => vec![value],
+        }
+    }
 }
 
 impl Display for SymbolicValueData {
@@ -964,7 +1058,7 @@ impl Display for SymbolicValueData {
 ///
 /// In essence, these can be thought of as tags that provide more information
 /// about the given value when the value is newly and dynamically created.
-#[derive(Clone, Debug, Eq, Hash, Derivative, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Derivative, PartialEq)]
 pub enum Provenance {
     /// The value originated from the result of the `CALLDATASIZE` opcode.
     CallDataSize,

@@ -54,6 +54,7 @@ impl State for UnifierReady {}
 /// ready to provide the concrete storage layout.
 #[derive(Debug)]
 pub struct UnificationComplete {
-    pub layout: StorageLayout,
+    pub unifier: Unifier,
+    pub layout:  StorageLayout,
 }
 impl State for UnificationComplete {}
