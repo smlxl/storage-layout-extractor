@@ -39,3 +39,6 @@ pub const PUSH_OPCODE_MAX_BYTES: u8 = 32;
 
 /// The maximum stack depth for the EVM.
 pub const MAXIMUM_STACK_DEPTH: usize = 1024;
+
+/// The width of word on the EVM in bits.
+pub const WORD_SIZE: usize = 256;

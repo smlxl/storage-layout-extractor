@@ -162,6 +162,19 @@ impl VMState {
 
         fork
     }
+
+    /// Gets all of the values that are registered in the virtual machine state
+    /// at the time of calling.
+    pub fn all_values(&self) -> Vec<BoxedVal> {
+        let mut values = Vec::new();
+        values.extend(self.stack.all_values());
+        values.extend(self.memory.all_values());
+        values.extend(self.storage.all_values());
+        values.extend(self.recorded_values.iter().cloned());
+        values.extend(self.logged_values.iter().cloned());
+
+        values
+    }
 }
 
 #[cfg(test)]

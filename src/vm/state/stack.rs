@@ -20,9 +20,9 @@ use crate::{
 /// # Depth
 ///
 /// In a true EVM, it is a depth [`MAXIMUM_STACK_DEPTH`] stack, where each item
-/// is word (256-bit) sized. Here, the symbolic virtual machine maintains the
-/// same maximum depth, but instead stores [`crate::vm::value::SymbolicValue`]s
-/// instead of words.
+/// is of size [`crate::constant::WORD_SIZE`]. Here, the symbolic virtual
+/// machine maintains the same maximum depth, but instead stores
+/// [`crate::vm::value::SymbolicValue`]s instead of words.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Stack {
     data: Vec<BoxedVal>,
@@ -161,6 +161,12 @@ impl Stack {
             instruction_pointer,
             stack: self,
         }
+    }
+
+    /// Gets all of the values that are registered in the virtual machine stack
+    /// at the time of calling.
+    pub fn all_values(&self) -> Vec<BoxedVal> {
+        self.data.to_vec()
     }
 }
 

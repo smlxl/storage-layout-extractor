@@ -1,58 +1,23 @@
-//! This file contains information about the ABI types of the EVM.
+//! This module contains the definition of the solidity ABI types that the
+//! analyzer is currently capable of dealing with.
 
 use ethnum::U256;
 
-// TODO [Ara] Heuristic as a function from `SymbolicValue` to `Type`, and they
-//   get fed every terminal symbolic value.
-
-// TODO [Ara] Run it on each terminal value and combine their results via the
-//   algebra.
-
-// TODO [Ara] How do we abstract the traversal patterns?
-
-// TODO [Ara] Fuzzy logic.
-
-// TODO [Ara] Negation in the algebra. Make the algebra constructed lazily and
-//   then evaluated.
-
-/// The type representations that this analysis can figure out.
-///
-/// These types span the gamut from types that are concretely resolved to EVM
-/// types, to those that very little (or nothing) is known about.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Type {
-    /// A type that has been concretely resolved to an EVM type.
-    ConcreteType { ty: AbiType },
-
-    /// A type that is used as a numeric.
-    Numeric,
-
-    /// A type that is known to have a fixed width and be unsigned.
-    UnsignedFixedWidth { width: u16 },
-
-    /// A type that is known to have a fixed width and be signed.
-    SignedFixedWidth { width: u16 },
-
-    /// A type known to be a fixed-length array but not with a known element
-    /// type.
-    UnknownFixedArray { length: U256 },
-
-    /// A dynamic array with unknown element type.
-    UnknownDynamicArray,
-
-    /// The type of a value where nothing is known about the type other than its
-    /// existence.
-    Any,
-}
-
 /// Concretely known Solidity ABI types.
+///
+/// # Invariants
+///
+/// Each individual variant in the enum describes the invariants placed upon it.
+/// It is the responsibility of the code constructing these values to ensure
+/// that the invariants are satisfied. Code utilising them will assume that the
+/// data has been correctly constructed.
 ///
 /// # Note
 ///
 /// Solidity supports a `fixed` and `ufixed` type in the ABI, but the language
 /// support for them is lacking. For that reason we do not include them here for
 /// now.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum AbiType {
     /// Unsigned integers of a given `size` in bits, where `8 < size <= 256 &&
     /// size % 8 == 0`.

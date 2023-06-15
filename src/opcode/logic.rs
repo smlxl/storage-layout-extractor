@@ -521,7 +521,7 @@ impl Opcode for Not {
         // Construct the result and push it to the stack
         let result = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Not { bool: value },
+            SymbolicValueData::Not { value },
         );
         stack.push(result)?;
 
@@ -1105,8 +1105,8 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Not { bool } => {
-                assert_eq!(bool, &operand);
+            SymbolicValueData::Not { value } => {
+                assert_eq!(value, &operand);
             }
             _ => panic!("Incorrect payload"),
         }

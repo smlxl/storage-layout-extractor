@@ -3,10 +3,9 @@
 
 use std::{fs::File, io::Read};
 
-use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
-use crate::analyzer::chain::Chain;
+use crate::{analyzer::chain::Chain, error::Error};
 
 /// A representation of a contract that is passed to the library.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -33,21 +32,22 @@ impl Contract {
     /// cbor_metadata = false
     /// bytecode_hash = "none"
     /// ```
-    pub fn new_from_file(path: impl Into<String>, chain: Chain) -> anyhow::Result<Self> {
+    pub fn new_from_file(path: impl Into<String>, chain: Chain) -> Result<Self, Error> {
         let path = path.into();
-        let mut file = File::open(path).map_err(|_| anyhow!("File not available"))?;
+        let mut file = File::open(path).map_err(|_| Error::other("File not available"))?;
         let mut contents = vec![];
         file.read_to_end(&mut contents)
-            .map_err(|_| anyhow!("File could not be read"))?;
+            .map_err(|_| Error::other("File could not be read"))?;
 
         let contract_rep: CompiledContract = serde_json::from_slice(contents.as_slice())
-            .map_err(|_| anyhow!("Could not parse compiled contract."))?;
+            .map_err(|_| Error::other("Could not parse compiled contract."))?;
 
         // Generally unsafe but fine for ASCII.
         let bytecode_string = contract_rep.deployed_bytecode.object;
         let no_0x_prefix = &bytecode_string[2..];
 
-        let bytecode = hex::decode(no_0x_prefix).map_err(|_| anyhow!("Could not decode hex"))?;
+        let bytecode =
+            hex::decode(no_0x_prefix).map_err(|_| Error::other("Could not decode hex"))?;
 
         Ok(Self { bytecode, chain })
     }
