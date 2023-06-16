@@ -4,10 +4,17 @@
 //! It is intentionally kept separate from the [`crate::unifier::state`] to
 //! ensure that you cannot create new type variables for it.
 
+use std::collections::HashSet;
+
+use ethnum::U256;
+
 use crate::{
     constant::WORD_SIZE,
     unifier::{abi::AbiType, state::TypeVariable},
 };
+
+/// An alias recommended for use when you have to write it out often.
+pub type TE = TypeExpression;
 
 /// The pieces of evidence that can be established through use of heuristics.
 ///
@@ -21,7 +28,7 @@ pub enum TypeExpression {
     ConcreteType { ty: AbiType },
 
     /// A representation of the possibly-unbound type of an expression.
-    Variable { id: TypeVariable },
+    Equal { id: TypeVariable },
 
     /// A word, with `width` and potential `signed`ness.
     Word {
@@ -38,13 +45,13 @@ pub enum TypeExpression {
     },
 
     /// A mapping composite type with `key` type and `value` type.
-    Mapping { key: BoxedTypeExpr, value: BoxedTypeExpr },
+    Mapping { key: TypeVariable, value: TypeVariable },
 
     /// A dynamic array containing items with the type of `element`.
-    DynamicArray { element: BoxedTypeExpr },
+    DynamicArray { element: TypeVariable },
 
     /// A static array containing items of type `element` and with `length`.
-    FixedArray { element: BoxedTypeExpr, length: usize },
+    FixedArray { element: TypeVariable, length: U256 },
 }
 
 impl TypeExpression {
@@ -55,13 +62,20 @@ impl TypeExpression {
         let signed = None;
         Self::Word { width, signed }
     }
+
+    /// Constructs an equality wrapping the provided type variable `id`.
+    pub fn eq(id: TypeVariable) -> Self {
+        Self::Equal { id }
+    }
+
+    /// Constructs a new mapping wrapping the `key` and `value` types.
+    pub fn mapping(key: TypeVariable, value: TypeVariable) -> Self {
+        Self::Mapping { key, value }
+    }
 }
 
-/// Evidence, but indirect.
-pub type BoxedTypeExpr = Box<TypeExpression>;
-
-/// A vector of typing judgements.
-pub type TypeExprVec = Vec<TypeExpression>;
+/// A set of typing judgements.
+pub type InferenceSet = HashSet<TypeExpression>;
 
 #[cfg(test)]
 mod test {

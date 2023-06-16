@@ -1,8 +1,8 @@
-//! This module provides a re-sugaring pass that recognises accesses to
+//! This module provides a lifting pass that recognises accesses to
 //! individual storage slots as part of a mapping.
 
 use crate::{
-    unifier::{state::UnifierState, sugar::ReSugar},
+    unifier::{lift::Lift, state::TypingState},
     vm::value::{BoxedVal, SVD},
 };
 
@@ -17,26 +17,26 @@ use crate::{
 pub struct MappingAccess;
 
 impl MappingAccess {
-    /// Constructs a new instance of the mapping access re-sugaring pass.
+    /// Constructs a new instance of the mapping access lifting pass.
     pub fn new() -> Box<Self> {
         Box::new(Self)
     }
 }
 
-impl ReSugar for MappingAccess {
+impl Lift for MappingAccess {
     fn run(
         &mut self,
         value: BoxedVal,
-        _state: &mut UnifierState,
+        _state: &TypingState,
     ) -> crate::error::unification::Result<BoxedVal> {
         fn insert_mapping_accesses(data: &SVD) -> Option<SVD> {
             let SVD::Sha3 {data} = data else { return None };
             let SVD::Concat {values} = &data.data else { return None };
             let [key, slot] = &values[..] else { return None };
 
-            Some(SVD::MappingAddress {
-                key:  key.clone(),
-                slot: slot.clone(),
+            Some(SVD::MappingAccess {
+                key:  key.clone().transform_data(insert_mapping_accesses),
+                slot: slot.clone().transform_data(insert_mapping_accesses),
             })
         }
 
@@ -48,8 +48,8 @@ impl ReSugar for MappingAccess {
 mod test {
     use crate::{
         unifier::{
-            state::UnifierState,
-            sugar::{mapping_access::MappingAccess, ReSugar},
+            lift::{mapping_access::MappingAccess, Lift},
+            state::TypingState,
         },
         vm::value::{known::KnownWord, Provenance, SymbolicValue, SVD},
     };
@@ -68,11 +68,11 @@ mod test {
         );
         let hash = SymbolicValue::new(3, SVD::Sha3 { data: concat }, Provenance::Synthetic);
 
-        let mut state = UnifierState::new();
-        let result = MappingAccess.run(hash, &mut state)?;
+        let state = TypingState::empty();
+        let result = MappingAccess.run(hash, &state)?;
 
         match result.data {
-            SVD::MappingAddress { key, slot } => {
+            SVD::MappingAccess { key, slot } => {
                 assert_eq!(key, input_key);
                 assert_eq!(slot, input_slot);
             }
@@ -94,20 +94,32 @@ mod test {
             },
             Provenance::Synthetic,
         );
-        let hash = SymbolicValue::new(3, SVD::Sha3 { data: concat }, Provenance::Synthetic);
-        let not = SymbolicValue::new(4, SVD::Not { value: hash }, Provenance::Synthetic);
+        let inner_hash = SymbolicValue::new(3, SVD::Sha3 { data: concat }, Provenance::Synthetic);
+        let outer_concat = SymbolicValue::new(
+            2,
+            SVD::Concat {
+                values: vec![input_key.clone(), inner_hash],
+            },
+            Provenance::Synthetic,
+        );
+        let outer_hash =
+            SymbolicValue::new(3, SVD::Sha3 { data: outer_concat }, Provenance::Synthetic);
 
-        let mut state = UnifierState::new();
-        let result = MappingAccess.run(not, &mut state)?;
+        let state = TypingState::empty();
+        let result = MappingAccess.run(outer_hash, &state)?;
 
         match result.data {
-            SVD::Not { value: bool } => match bool.data {
-                SVD::MappingAddress { key, slot } => {
-                    assert_eq!(key, input_key);
-                    assert_eq!(slot, input_slot);
+            SVD::MappingAccess { key, slot } => {
+                assert_eq!(key, input_key);
+
+                match slot.data {
+                    SVD::MappingAccess { key, slot } => {
+                        assert_eq!(key, input_key);
+                        assert_eq!(slot, input_slot);
+                    }
+                    _ => panic!("Invalid payload"),
                 }
-                _ => panic!("Invalid payload"),
-            },
+            }
             _ => panic!("Invalid payload"),
         }
 

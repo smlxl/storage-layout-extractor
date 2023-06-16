@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData};
+use crate::vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData, SVD};
 
 /// A representation of the persistent storage of the symbolic virtual machine.
 ///
@@ -133,6 +133,55 @@ impl Storage {
             .for_each(|more| values.extend(more.iter().cloned()));
 
         values
+    }
+
+    /// Gets all of the values in storage as symbolic `SSTORE`s.
+    ///
+    /// Here, each `key -> value` pair, accounting for generations, is wrapped
+    /// into [`SVD::StorageWrite`] of `(key, value)`, allowing for easier
+    /// analysis later.
+    pub fn stores_as_values(&self) -> Vec<BoxedVal> {
+        let mut known_writes: Vec<BoxedVal> = self
+            .known_slots
+            .iter()
+            .flat_map(|(k, vs)| {
+                vs.iter()
+                    .map(|v| {
+                        SymbolicValue::new(
+                            v.instruction_pointer,
+                            SVD::StorageWrite {
+                                key:   k.clone(),
+                                value: v.clone(),
+                            },
+                            v.provenance,
+                        )
+                    })
+                    .collect::<Vec<BoxedVal>>()
+            })
+            .collect();
+
+        let symbolic_writes: Vec<BoxedVal> = self
+            .symbolic_slots
+            .iter()
+            .flat_map(|(k, vs)| {
+                vs.iter()
+                    .map(|v| {
+                        SymbolicValue::new(
+                            v.instruction_pointer,
+                            SVD::StorageWrite {
+                                key:   k.clone(),
+                                value: v.clone(),
+                            },
+                            v.provenance,
+                        )
+                    })
+                    .collect::<Vec<BoxedVal>>()
+            })
+            .collect();
+
+        known_writes.extend(symbolic_writes);
+
+        known_writes
     }
 }
 

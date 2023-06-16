@@ -169,7 +169,7 @@ impl VMState {
         let mut values = Vec::new();
         values.extend(self.stack.all_values());
         values.extend(self.memory.all_values());
-        values.extend(self.storage.all_values());
+        values.extend(self.storage.stores_as_values());
         values.extend(self.recorded_values.iter().cloned());
         values.extend(self.logged_values.iter().cloned());
 

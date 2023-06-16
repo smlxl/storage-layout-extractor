@@ -11,6 +11,9 @@ use uuid::Uuid;
 
 use crate::vm::value::known::KnownWord;
 
+/// An alias recommended for use when you have to write it out often.
+pub type SV = SymbolicValue;
+
 /// A symbolic value is an "execution tree" that records the informative
 /// operations that are made to a piece of data. Note that the
 /// `instruction_pointer` and `synthetic` flag is ignored for the purposes of
@@ -199,9 +202,6 @@ pub enum SymbolicValueData {
 
     /// A value that has is made up of a known sequence of bytes.
     KnownData { value: KnownWord },
-
-    /// A storage slot at `index`.
-    StorageSlot { index: KnownWord },
 
     /// Addition of symbolic values.
     Add { left: BoxedVal, right: BoxedVal },
@@ -399,14 +399,24 @@ pub enum SymbolicValueData {
     /// A value that was used as the input to a conditional.
     Condition { value: BoxedVal },
 
-    /// A value representing the return from a storage load at `key`.
+    /// A value representing the return from a storage load at `key` where the
+    /// VM is unaware of any value at that key.
     SLoad { key: BoxedVal },
+
+    /// A storage slot at `index`.
+    StorageSlot { key: BoxedVal },
+
+    /// A representation of the storing of `value` at `key` in storage
+    StorageWrite { key: BoxedVal, value: BoxedVal },
 
     /// The concatenation of multiple values.
     Concat { values: Vec<BoxedVal> },
 
     /// The value is a mapping address for storage `slot` with `key`.
-    MappingAddress { slot: BoxedVal, key: BoxedVal },
+    MappingAccess { slot: BoxedVal, key: BoxedVal },
+
+    /// The value is an access to a dynamic array in `slot` at `index`.
+    DynamicArrayAccess { slot: BoxedVal, index: BoxedVal },
 
     /// An operation that masks `value` to by `mask`.
     WordMask { value: BoxedVal, mask: usize },
@@ -449,7 +459,6 @@ impl SymbolicValueData {
             None => match self {
                 Self::Value { .. } => self,
                 Self::KnownData { .. } => self,
-                Self::StorageSlot { .. } => self,
                 Self::Add { left, right } => Self::Add {
                     left:  left.transform_data(transform),
                     right: right.transform_data(transform),
@@ -643,12 +652,23 @@ impl SymbolicValueData {
                 Self::SLoad { key } => Self::SLoad {
                     key: key.transform_data(transform),
                 },
+                Self::StorageSlot { key } => Self::StorageSlot {
+                    key: key.transform_data(transform),
+                },
+                Self::StorageWrite { key, value } => Self::StorageWrite {
+                    key:   key.transform_data(transform),
+                    value: value.transform_data(transform),
+                },
                 Self::Concat { values } => Self::Concat {
                     values: values.into_iter().map(|v| v.transform_data(transform)).collect(),
                 },
-                Self::MappingAddress { slot, key } => Self::MappingAddress {
+                Self::MappingAccess { slot, key } => Self::MappingAccess {
                     slot: slot.transform_data(transform),
                     key:  key.transform_data(transform),
+                },
+                Self::DynamicArrayAccess { slot, index } => Self::DynamicArrayAccess {
+                    slot:  slot.transform_data(transform),
+                    index: index.transform_data(transform),
                 },
                 Self::WordMask { value, mask } => Self::WordMask {
                     value: value.transform_data(transform),
@@ -866,7 +886,6 @@ impl SymbolicValueData {
         match self {
             Self::Value { .. } => vec![],
             Self::KnownData { .. } => vec![],
-            Self::StorageSlot { .. } => vec![],
             Self::Add { left, right } => vec![left, right],
             Self::Multiply { left, right } => vec![left, right],
             Self::Subtract { left, right } => vec![left, right],
@@ -944,8 +963,11 @@ impl SymbolicValueData {
             Self::Revert { data } => vec![data],
             Self::Condition { value } => vec![value],
             Self::SLoad { key } => vec![key],
+            Self::StorageSlot { key } => vec![key],
+            Self::StorageWrite { key, value } => vec![key, value],
             Self::Concat { values } => values.iter().collect(),
-            Self::MappingAddress { slot, key } => vec![slot, key],
+            Self::MappingAccess { slot, key } => vec![slot, key],
+            Self::DynamicArrayAccess { slot, index } => vec![slot, index],
             Self::WordMask { value, .. } => vec![value],
         }
     }
@@ -956,7 +978,6 @@ impl Display for SymbolicValueData {
         match self {
             Self::Value { id } => write!(f, "{id}"),
             Self::KnownData { value } => write!(f, "{value}"),
-            Self::StorageSlot { index } => write!(f, "slot<{index}>"),
             Self::Add { left, right } => write!(f, "({left} + {right})"),
             Self::Multiply { left, right } => write!(f, "({left} * {right})"),
             Self::Subtract { left, right } => write!(f, "({left} - {right})"),
@@ -1038,6 +1059,8 @@ impl Display for SymbolicValueData {
             Self::Revert { data } => write!(f, "revert({data})"),
             Self::Condition { value } => write!(f, "bool({value})"),
             Self::SLoad { key } => write!(f, "s_load({key})"),
+            Self::StorageSlot { key } => write!(f, "slot<{key}>"),
+            Self::StorageWrite { key, value } => write!(f, "s_store({key}, {value})"),
             Self::Concat { values } => {
                 write!(f, "concat(")?;
                 for (i, value) in values.iter().enumerate() {
@@ -1048,7 +1071,8 @@ impl Display for SymbolicValueData {
                 }
                 write!(f, ")")
             }
-            Self::MappingAddress { slot, key } => write!(f, "mapping_ix<{slot}>[{key}]"),
+            Self::MappingAccess { slot, key } => write!(f, "mapping_ix<{slot}>[{key}]"),
+            Self::DynamicArrayAccess { slot, index } => write!(f, "dynamic_array<{slot}>[{index}]"),
             Self::WordMask { value, mask } => write!(f, "mask({value}, {mask})"),
         }
     }

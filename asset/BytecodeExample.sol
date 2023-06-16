@@ -1,24 +1,15 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
 
+contract BytecodeExample {
+    mapping(uint256 => mapping(uint256 => uint256)) internal number;
+    uint256[] internal numbers;
 
-contract Thing {
-    address private _padding;
-    mapping(uint256 => address) private _addrs;
-
-    function setPadding(address padding) public {
-        _padding = padding;
+    function add(uint256 key, uint256 value) public {
+        number[key][key] = value;
     }
 
-    function getPadding() public view returns (address) {
-        return _padding;
-    }
-
-    function setAddr(uint256 key, address addr_) public {
-        _addrs[key] = addr_;
-    }
-
-    function getAddr(uint256 key) public view returns (address) {
-        return _addrs[key];
+    function append(uint256 number) public {
+        numbers.push(number);
     }
 }

@@ -20,7 +20,7 @@
 //! 3. For each [`vm::value::SymbolicValue`], the [`vm::VM`] collects an
 //!    execution tree that provides evidence as to the type of that variable.
 //! 4. The [`unifier::Unifier`] takes those execution trees as evidence, and
-//!    performs a process of re-sugaring, heuristic evidence discovery, and
+//!    performs a process of lifting, heuristic evidence discovery, and
 //!    subsequent unification to discover the types in the program.
 //! 5. The types that are associated with storage slots are taken and written to
 //!    a [`StorageLayout`] that can then be output.

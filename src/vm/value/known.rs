@@ -52,6 +52,13 @@ impl From<U256> for KnownWord {
     }
 }
 
+/// Obtains a [`U256`] from a known word.
+impl From<KnownWord> for U256 {
+    fn from(value: KnownWord) -> Self {
+        value.value
+    }
+}
+
 /// Obtains a [`u32`] from a known word.
 impl From<KnownWord> for u32 {
     fn from(value: KnownWord) -> Self {

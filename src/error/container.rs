@@ -101,6 +101,11 @@ where
     pub fn add(&mut self, error: E) {
         self.payloads.push(error)
     }
+
+    /// Adds the multiple provided errors to the container.
+    pub fn add_many(&mut self, errors: impl Into<Vec<E>>) {
+        self.payloads.extend(errors.into())
+    }
 }
 
 /// Where the locations are a known type, the container ensures that the errors
