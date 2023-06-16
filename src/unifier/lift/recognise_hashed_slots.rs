@@ -15,7 +15,7 @@ use crate::{
 pub const SLOT_COUNT: usize = 1000;
 
 /// This pass detects and lifts expressions that appear to be the hashes of the
-/// first [`SLOT_COUNT`] storage slots.
+/// first [`SLOT_COUNT`] storage slot indices.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct StorageSlotHashes;
 
@@ -53,16 +53,16 @@ impl Lift for StorageSlotHashes {
         let lift_hashes = |input_value: &SVD| {
             let SVD::KnownData { value: known_value } = input_value else { return None };
 
-            // Now we can look up the hash we found, and convert it to a known slot if we
-            // get a result
+            // Now we can look up the hash we found, and convert it to the `Sha3` of a known
+            // value if it is one.
             if let Some(slot_index) = hashes.get_by_left(&known_value.value()) {
-                let key = SV::new_known_value(
+                let data = SV::new_known_value(
                     value_clone.instruction_pointer,
                     KnownWord::from(*slot_index),
                     value_clone.provenance,
                 );
 
-                Some(SVD::StorageSlot { key })
+                Some(SVD::Sha3 { data })
             } else {
                 None
             }
@@ -118,7 +118,7 @@ mod test {
 
         // Check the structure
         match result.data {
-            SVD::StorageSlot { key } => match key.data {
+            SVD::Sha3 { data } => match data.data {
                 SVD::KnownData { value } => {
                     assert_eq!(value, KnownWord::from(3))
                 }

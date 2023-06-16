@@ -42,3 +42,6 @@ pub const MAXIMUM_STACK_DEPTH: usize = 1024;
 
 /// The width of word on the EVM in bits.
 pub const WORD_SIZE: usize = 256;
+
+/// The default number of times that the virtual machine will visit each opcode.
+pub const DEFAULT_ITERATIONS_PER_OPCODE: usize = 10;

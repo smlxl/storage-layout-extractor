@@ -22,6 +22,7 @@ use crate::{
             dynamic_array_access::DynamicArrayAccess,
             mapping_access::MappingAccess,
             mask_word::MaskWord,
+            recognise_hashed_slots::StorageSlotHashes,
             storage_slots::StorageSlots,
         },
         state::TypingState,
@@ -111,6 +112,7 @@ impl Default for LiftingPasses {
     fn default() -> Self {
         Self {
             passes: vec![
+                StorageSlotHashes::new(),
                 MaskWord::new(),
                 MappingAccess::new(),
                 DynamicArrayAccess::new(),

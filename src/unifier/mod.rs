@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 
 use crate::{
+    constant::WORD_SIZE,
     error::{
         container::Locatable,
         unification::{Error, Errors, Result},
@@ -89,7 +90,7 @@ impl Unifier {
         let mut new_values = Vec::new();
         let mut errors = Errors::new();
         for value in self.values_under_analysis_cloned() {
-            match self.config.sugar_passes.run(value.constant_fold(), &self.state) {
+            match self.config.sugar_passes.run(value, &self.state) {
                 Ok(v) => new_values.push(v),
                 Err(e) => errors.add_many_located(e),
             }
@@ -233,6 +234,7 @@ impl Unifier {
     /// # Errors
     ///
     /// If something goes wrong in the computation of the AbiType.
+    #[allow(clippy::len_zero)]
     fn resolve_type_for(&self, var: TypeVariable) -> Result<AbiType> {
         let inferences = self.state.transitive_inferences(var);
 
@@ -241,48 +243,49 @@ impl Unifier {
             return Ok(AbiType::Any);
         }
 
-        // Here we do not have to unify as there is only one piece of evidence
-        if inferences.len() == 1 {
-            let inference = inferences.into_iter().collect::<Vec<_>>().first().unwrap().clone();
+        // For now we just grab the first so we don't crash (temporary)
+        let inference = inferences.into_iter().collect::<Vec<_>>().first().unwrap().clone();
 
-            let result = match inference {
-                TE::ConcreteType { ty } => ty,
-                TE::Equal { .. } => {
-                    let location = self.state.value_unchecked(var).instruction_pointer;
-                    Err(Error::InvalidInference {
-                        value:  inference.clone(),
-                        reason: "Equalities should not exist in the output of \
-                                 `transitive_inferences`"
-                            .into(),
-                    }
-                    .locate(location))?
+        // TODO [Ara] Rules for combining multiple inferences
+
+        let result = match inference {
+            TE::ConcreteType { ty } => ty,
+            TE::Equal { .. } => {
+                let location = self.state.value_unchecked(var).instruction_pointer;
+                Err(Error::InvalidInference {
+                    value:  inference.clone(),
+                    reason: "Equalities should not exist in the output of `transitive_inferences`"
+                        .into(),
                 }
-                TE::Word { width, signed } => match signed {
-                    Some(s) if !s => AbiType::Int { size: width as u16 },
-                    _ => AbiType::UInt { size: width as u16 },
+                .locate(location))?
+            }
+            TE::Word { width, signed } => match signed {
+                Some(s) if s => AbiType::Int {
+                    size: width.unwrap_or(WORD_SIZE) as u16,
                 },
-                TE::Mapping { key, value } => {
-                    let key_tp = Box::new(self.resolve_type_for(key)?);
-                    let val_tp = Box::new(self.resolve_type_for(value)?);
-                    AbiType::Mapping { key_tp, val_tp }
-                }
-                TE::DynamicArray { element } => {
-                    let tp = Box::new(self.resolve_type_for(element)?);
-                    AbiType::DynArray { tp }
-                }
-                TE::FixedArray {
-                    element,
-                    length: size,
-                } => {
-                    let tp = Box::new(self.resolve_type_for(element)?);
-                    AbiType::Array { size, tp }
-                }
-            };
+                _ => AbiType::UInt {
+                    size: width.unwrap_or(WORD_SIZE) as u16,
+                },
+            },
+            TE::Mapping { key, value } => {
+                let key_tp = Box::new(self.resolve_type_for(key)?);
+                let val_tp = Box::new(self.resolve_type_for(value)?);
+                AbiType::Mapping { key_tp, val_tp }
+            }
+            TE::DynamicArray { element } => {
+                let tp = Box::new(self.resolve_type_for(element)?);
+                AbiType::DynArray { tp }
+            }
+            TE::FixedArray {
+                element,
+                length: size,
+            } => {
+                let tp = Box::new(self.resolve_type_for(element)?);
+                AbiType::Array { size, tp }
+            }
+        };
 
-            return Ok(result);
-        }
-
-        todo!("Rules for combining multiple inferences");
+        Ok(result)
     }
 
     /// Gets the unifier's configuration to allow inspection.

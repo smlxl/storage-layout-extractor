@@ -19,6 +19,10 @@ use ethnum::U256;
 /// now.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum AbiType {
+    /// An unknown type, useful for the container types where we know something
+    /// is a concrete container but not of what type(s).
+    Any,
+
     /// Unsigned integers of a given `size` in bits, where `8 < size <= 256 &&
     /// size % 8 == 0`.
     UInt { size: u16 },
@@ -31,13 +35,6 @@ pub enum AbiType {
     /// interpretation.
     Address,
 
-    /// Booleans, assumed equivalent to `UInt { size: 8 }` except for
-    /// interpretation.
-    Bool,
-
-    /// Byte arrays of a fixed `length`, where `0 < length <= 32`.
-    Bytes { length: u8 },
-
     /// A selector, assumed equivalent to `Bytes { length: 4 }` except for
     /// interpretation.
     Selector,
@@ -47,19 +44,22 @@ pub enum AbiType {
     /// 24 }`.
     Function,
 
+    /// Booleans, assumed equivalent to `UInt { size: 8 }` except for
+    /// interpretation.
+    Bool,
+
     /// A fixed-`size` array containing elements of an element type `tp`.
     Array { size: U256, tp: Box<AbiType> },
 
-    /// A dynamically-sized byte array, with each element packed.
-    DynBytes,
+    /// Byte arrays of a fixed `length`, where `0 < length <= 32`.
+    Bytes { length: u8 },
 
     /// A dynamically-sized array containing elements of a type `tp`.
     DynArray { tp: Box<AbiType> },
 
+    /// A dynamically-sized byte array, with each element packed.
+    DynBytes,
+
     /// A mapping from `key_tp` to `val_tp`.
     Mapping { key_tp: Box<AbiType>, val_tp: Box<AbiType> },
-
-    /// An unknown type, useful for the container types where we know something
-    /// is a concrete container but not of what type(s).
-    Any,
 }
