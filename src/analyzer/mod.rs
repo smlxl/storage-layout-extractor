@@ -14,60 +14,22 @@ use crate::{
     StorageLayout,
 };
 
-/// Creates a new analyzer wrapping the provided `contract`.
-pub fn new(contract: Contract) -> Analyzer<state::HasContract> {
-    let state = state::HasContract;
+/// Creates a new analyzer wrapping the provided `contract`, and with the
+/// provided `vm_config` and `unifier_config`.
+pub fn new(
+    contract: Contract,
+    vm_config: vm::Config,
+    unifier_config: unifier::Config,
+) -> Analyzer<state::HasContract> {
+    let state = state::HasContract {
+        vm_config,
+        unifier_config,
+    };
     Analyzer { contract, state }
 }
 
 /// The core of the storage layout analysis, the `Analyzer` is responsible for
 /// ingesting user data and outputting a storage layout.
-///
-/// # Basic Usage
-///
-/// For the most basic usage of the library, it is sufficient to construct an
-/// `Analyzer` and call the `.analyze` method, passing your contract.
-///
-/// ```
-/// use storage_layout_analyzer::{
-///     analyzer::chain::{version::EthereumVersion, Chain},
-///     bytecode,
-///     contract::Contract,
-///     new,
-///     opcode::{control::*, logic::*, memory::*, Opcode},
-///     vm::Config,
-/// };
-///
-/// let bytes = bytecode![
-///     CallDataSize,                       // Get a symbolic value
-///     IsZero,                             // Check if the size is zero
-///     PushN::new(1, vec![0x0b]).unwrap(), // Push the jump destination offset onto the stack
-///     JumpI,                              // Jump if the condition is true
-///     PushN::new(1, vec![0x00]).unwrap(), // Value to store
-///     PushN::new(1, vec![0x00]).unwrap(), // Key under which to store it
-///     SStore,                             // Storage
-///     Invalid,                            // Return from this thread with invalid instruction
-///     JumpDest,                           // The destination for the jump
-///     PushN::new(1, vec![0xff]).unwrap(), // The value to store into memory
-///     PushN::new(1, vec![0x00]).unwrap(), // The offset in memory to store it at
-///     MStore,                             // Store to memory
-///     PushN::new(1, vec![0x01]).unwrap(), // The size of the data to return
-///     PushN::new(1, vec![0x00]).unwrap(), // The location in memory to return
-///     Return                              // Return from this thread
-/// ];
-///
-/// let contract = Contract::new(
-///     bytes,
-///     Chain::Ethereum {
-///         version: EthereumVersion::Shanghai,
-///     },
-/// );
-///
-/// let analyzer = new(contract).analyze(Config::default()).unwrap();
-/// let result = &analyzer.state().execution_result;
-///
-/// assert_eq!(result.states.len(), 2);
-/// ```
 ///
 /// # Enforcing Valid State Transitions
 ///
@@ -169,24 +131,40 @@ impl<S: State> Analyzer<S> {
     }
 }
 
+/// A type that allows the user to easily name the initial state of the
+/// analyzer.
+pub type InitialAnalyzer = Analyzer<state::HasContract>;
+
 /// Operations available on a newly-created analyzer.
 impl Analyzer<state::HasContract> {
     /// Executes the analysis process for beginning to end, performing all the
-    /// intermediate steps automatically.
-    pub fn analyze(self, config: vm::Config) -> error::Result<Analyzer<state::ExecutionComplete>> {
+    /// intermediate steps automatically and returning the storage layout.
+    pub fn analyze(self) -> error::Result<StorageLayout> {
         let analyzer = self.disassemble()?;
-        let analyzer = analyzer.prepare_vm(config)?;
+        let analyzer = analyzer.prepare_vm()?;
         let analyzer = analyzer.execute()?;
+        let analyzer = analyzer.prepare_unifier()?;
+        let analyzer = analyzer.unify()?;
+        let layout = analyzer.layout();
 
-        Ok(analyzer)
+        Ok(layout.clone())
     }
 
     /// Performs the disassembly process to turn the input contract code into
-    /// bytecode, using the provided `config` to control the VM's behaviour.
+    /// bytecode.
     pub fn disassemble(self) -> error::Result<Analyzer<state::DisassemblyComplete>> {
         let bytecode = InstructionStream::try_from(self.contract.bytecode().as_slice())?;
-        let state = state::DisassemblyComplete { bytecode };
-        Ok(unsafe { self.set_state(state) })
+        unsafe {
+            self.transform_state(|old_state| {
+                let vm_config = old_state.vm_config;
+                let unifier_config = old_state.unifier_config;
+                Ok(state::DisassemblyComplete {
+                    bytecode,
+                    vm_config,
+                    unifier_config,
+                })
+            })
+        }
     }
 }
 
@@ -194,11 +172,12 @@ impl Analyzer<state::HasContract> {
 /// the bytecode.
 impl Analyzer<state::DisassemblyComplete> {
     /// Prepares the virtual machine for symbolic execution of the bytecode.
-    pub fn prepare_vm(self, config: vm::Config) -> error::Result<Analyzer<state::VMReady>> {
+    pub fn prepare_vm(self) -> error::Result<Analyzer<state::VMReady>> {
         unsafe {
             self.transform_state(|old_state| {
-                let vm = VM::new(old_state.bytecode, config)?;
-                Ok(state::VMReady { vm })
+                let unifier_config = old_state.unifier_config;
+                let vm = VM::new(old_state.bytecode, old_state.vm_config)?;
+                Ok(state::VMReady { vm, unifier_config })
             })
         }
     }
@@ -214,7 +193,11 @@ impl Analyzer<state::VMReady> {
             self.transform_state(|mut old_state| {
                 old_state.vm.execute()?;
                 let execution_result = old_state.vm.consume();
-                Ok(state::ExecutionComplete { execution_result })
+                let unifier_config = old_state.unifier_config;
+                Ok(state::ExecutionComplete {
+                    execution_result,
+                    unifier_config,
+                })
             })
         }
     }
@@ -224,13 +207,10 @@ impl Analyzer<state::VMReady> {
 /// execution of the bytecode.
 impl Analyzer<state::ExecutionComplete> {
     /// Takes thew results of execution and uses them to prepare a new unifier.
-    pub fn prepare_unifier(
-        self,
-        config: unifier::Config,
-    ) -> error::Result<Analyzer<state::UnifierReady>> {
+    pub fn prepare_unifier(self) -> error::Result<Analyzer<state::UnifierReady>> {
         unsafe {
             self.transform_state(|old_state| {
-                let unifier = Unifier::new(config, old_state.execution_result);
+                let unifier = Unifier::new(old_state.unifier_config, old_state.execution_result);
                 Ok(state::UnifierReady { unifier })
             })
         }
@@ -263,70 +243,5 @@ impl Analyzer<state::UnificationComplete> {
     /// Gets the computed storage layout for the contract.
     pub fn layout(&self) -> &StorageLayout {
         &self.state.layout
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use project_root::get_project_root;
-
-    use crate::{
-        analyzer::chain::{
-            version::{ChainVersion, EthereumVersion},
-            Chain,
-        },
-        contract::Contract,
-        unifier,
-        vm,
-    };
-
-    // TODO [Ara] Turn into a real test but keep the debugging one too
-    // TODO [Ara] Split out the loading as a test utility and remove deps from main
-    #[test]
-    pub fn analyze_bytecode_from_file() -> anyhow::Result<()> {
-        // Get the contract to be analyzed
-        let root = get_project_root().unwrap();
-        let contract_path = format!("{}/asset/BytecodeExample.json", root.display());
-        let contract = Contract::new_from_file(
-            contract_path,
-            Chain::Ethereum {
-                version: EthereumVersion::latest(),
-            },
-        )
-        .unwrap();
-
-        // Create the analyzer
-        let analyzer = crate::new(contract).analyze(vm::Config::default()).unwrap();
-
-        // Grab the results of execution by ref
-        let results = &analyzer.state().execution_result;
-
-        // Print out all of the various stored values
-        for (i, state) in results.states.iter().enumerate() {
-            println!("=== State Number {i} ===");
-
-            let storage_keys = state.storage().keys();
-
-            for key in storage_keys {
-                println!("  ===== Slot =====");
-                println!("  KEY: {key}");
-
-                let generations = state.storage().generations(key).unwrap();
-
-                for gen in generations {
-                    println!("  VALUE: {gen}");
-                }
-            }
-
-            println!();
-        }
-
-        // For manual poking
-        let with_unifier = analyzer.prepare_unifier(unifier::Config::default())?;
-        let unified = with_unifier.unify()?;
-        let layout = unified.layout();
-        dbg!(layout);
-
-        Ok(())
     }
 }

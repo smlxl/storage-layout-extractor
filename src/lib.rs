@@ -24,6 +24,54 @@
 //!    subsequent unification to discover the types in the program.
 //! 5. The types that are associated with storage slots are taken and written to
 //!    a [`StorageLayout`] that can then be output.
+//!
+//! # Basic Usage
+//!
+//! For the most basic usage of the library, it is sufficient to construct an
+//! `Analyzer` and call the `.analyze` method, passing your contract.
+//!
+//! ```
+//! use storage_layout_analyzer as sla;
+//! use storage_layout_analyzer::{
+//!     analyzer::chain::{version::EthereumVersion, Chain},
+//!     bytecode,
+//!     contract::Contract,
+//!     opcode::{control::*, logic::*, memory::*, Opcode},
+//!     unifier,
+//!     vm,
+//! };
+//!
+//! let bytes = bytecode![
+//!     CallDataSize,                       // Get a symbolic value
+//!     IsZero,                             // Check if the size is zero
+//!     PushN::new(1, vec![0x0b]).unwrap(), // Push the jump destination offset onto the stack
+//!     JumpI,                              // Jump if the condition is true
+//!     PushN::new(1, vec![0x00]).unwrap(), // Value to store
+//!     PushN::new(1, vec![0x00]).unwrap(), // Key under which to store it
+//!     SStore,                             // Storage
+//!     Invalid,                            // Return from this thread with invalid instruction
+//!     JumpDest,                           // The destination for the jump
+//!     PushN::new(1, vec![0xff]).unwrap(), // The value to store into memory
+//!     PushN::new(1, vec![0x00]).unwrap(), // The offset in memory to store it at
+//!     MStore,                             // Store to memory
+//!     PushN::new(1, vec![0x01]).unwrap(), // The size of the data to return
+//!     PushN::new(1, vec![0x00]).unwrap(), // The location in memory to return
+//!     Return                              // Return from this thread
+//! ];
+//!
+//! let contract = Contract::new(
+//!     bytes,
+//!     Chain::Ethereum {
+//!         version: EthereumVersion::Shanghai,
+//!     },
+//! );
+//!
+//! let layout = sla::new(contract, vm::Config::default(), unifier::Config::default())
+//!     .analyze()
+//!     .unwrap();
+//!
+//! assert_eq!(layout.slots().len(), 1);
+//! ```
 
 #![warn(clippy::all, clippy::cargo)]
 

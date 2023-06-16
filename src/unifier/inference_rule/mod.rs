@@ -3,7 +3,7 @@
 //! structure of the symbolic values.
 
 mod dynamic_array_write;
-pub mod mapping_write;
+pub mod mapping_access;
 pub mod storage_write;
 
 use std::{
@@ -21,7 +21,7 @@ use crate::{
     unifier::{
         inference_rule::{
             dynamic_array_write::DynamicArrayWriteRule,
-            mapping_write::MappingWriteRule,
+            mapping_access::MappingAccessRule,
             storage_write::StorageWriteRule,
         },
         state::{TypeVariable, TypingState},
@@ -111,7 +111,7 @@ impl Default for InferenceRules {
     fn default() -> Self {
         let mut rules = Self::new();
         rules.add(StorageWriteRule);
-        rules.add(MappingWriteRule);
+        rules.add(MappingAccessRule);
         rules.add(DynamicArrayWriteRule);
 
         rules
