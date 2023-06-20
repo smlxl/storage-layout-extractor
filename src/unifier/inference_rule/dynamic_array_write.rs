@@ -26,6 +26,7 @@ use crate::{
 pub struct DynamicArrayWriteRule;
 
 impl InferenceRule for DynamicArrayWriteRule {
+    #[allow(clippy::many_single_char_names)] // They correspond to the above spec
     fn infer(
         &self,
         value: &BoxedVal,
@@ -116,7 +117,8 @@ mod test {
         DynamicArrayWriteRule.infer(&store, a_tv, &mut state)?;
 
         // Check that we end up with expected results in the state
-        assert!(state.inferences(g_tv).is_empty());
+        assert_eq!(state.inferences(g_tv).len(), 1);
+        assert!(state.inferences(g_tv).contains(&TE::eq(b_tv)));
 
         assert_eq!(state.inferences(f_tv).len(), 1);
         assert!(state.inferences(f_tv).contains(&TE::unsigned_word(None)));

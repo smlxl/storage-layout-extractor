@@ -49,7 +49,7 @@
 //!     PushN::new(1, vec![0x00]).unwrap(), // Value to store
 //!     PushN::new(1, vec![0x00]).unwrap(), // Key under which to store it
 //!     SStore,                             // Storage
-//!     Invalid,                            // Return from this thread with invalid instruction
+//!     Invalid::default(),                 // Return from this thread with invalid instruction
 //!     JumpDest,                           // The destination for the jump
 //!     PushN::new(1, vec![0xff]).unwrap(), // The value to store into memory
 //!     PushN::new(1, vec![0x00]).unwrap(), // The offset in memory to store it at
@@ -73,7 +73,8 @@
 //! assert_eq!(layout.slots().len(), 1);
 //! ```
 
-#![warn(clippy::all, clippy::cargo)]
+#![warn(clippy::all, clippy::cargo, clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)] // Allows for better API naming
 
 pub mod analyzer;
 pub mod constant;

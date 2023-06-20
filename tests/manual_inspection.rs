@@ -50,7 +50,7 @@ fn inspect_contract_data() -> anyhow::Result<()> {
     }
 
     // Prepare the unifier
-    let unifier_read = executed.prepare_unifier()?;
+    let unifier_read = executed.prepare_unifier();
 
     // Perform unification
     let unification_complete = unifier_read.unify()?;

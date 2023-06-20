@@ -18,6 +18,7 @@ pub struct MappingAccess;
 
 impl MappingAccess {
     /// Constructs a new instance of the mapping access lifting pass.
+    #[must_use]
     pub fn new() -> Box<Self> {
         Box::new(Self)
     }

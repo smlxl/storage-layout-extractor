@@ -1,6 +1,6 @@
 //! This module contains the [`Unifier`] and related utilities.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use crate::{
     constant::WORD_SIZE,
@@ -10,7 +10,7 @@ use crate::{
     },
     unifier::{
         abi::AbiType,
-        expression::TE,
+        expression::{TypeExpression, WordUse, TE},
         inference_rule::InferenceRules,
         lift::LiftingPasses,
         state::{TypeVariable, TypingState},
@@ -27,6 +27,7 @@ pub mod expression;
 pub mod inference_rule;
 pub mod lift;
 pub mod state;
+pub mod unification;
 
 /// The `Unifier` is responsible for combining the evidence as to the type of a
 /// storage variable.
@@ -46,6 +47,7 @@ pub struct Unifier {
 impl Unifier {
     /// Constructs a new unifier configured by the provided `config` and working
     /// on the data in the provided `execution_result`.
+    #[must_use]
     pub fn new(config: Config, execution_result: ExecutionResult) -> Self {
         // Create the state and register all initial values into it.
         let mut state = TypingState::empty();
@@ -72,7 +74,6 @@ impl Unifier {
         self.lift()?;
         self.assign_vars();
         self.infer()?;
-        self.cohere_equalities();
         self.unify()
     }
 
@@ -96,11 +97,11 @@ impl Unifier {
             }
         }
 
-        if !errors.is_empty() {
-            Err(errors)
-        } else {
+        if errors.is_empty() {
             unsafe { self.set_values_under_analysis(new_values) };
             Ok(())
+        } else {
+            Err(errors)
         }
     }
 
@@ -124,7 +125,7 @@ impl Unifier {
 
         // Store the values in the unifier.
         unsafe {
-            self.set_values_under_analysis(self.state.values().into_iter().cloned().collect())
+            self.set_values_under_analysis(self.state.values().into_iter().cloned().collect());
         }
     }
 
@@ -147,65 +148,38 @@ impl Unifier {
         Ok(())
     }
 
-    /// This function ensures that all [`expression::TypeExpression::Equal`]
-    /// judgements are represented symmetrically in the judgement sets.
-    pub fn cohere_equalities(&mut self) {
-        let variables = self.state.variables();
-
-        variables.iter().for_each(|tv| {
-            // Get the inferences associated with the current variable
-            let inferences = self.state.inferences_cloned(*tv);
-
-            // Pull out any of those inferences that assert equality with another type
-            // variable
-            let equalities: Vec<TypeVariable> = inferences
-                .iter()
-                .flat_map(|i| {
-                    if let TE::Equal { id } = i {
-                        vec![*id]
-                    } else {
-                        vec![]
-                    }
-                })
-                .collect();
-
-            // Construct an equality for the current variable
-            let this_equality = TE::Equal { id: *tv };
-
-            // And add it to the inferences for the type variables that were equal to the
-            // current variable
-            equalities
-                .into_iter()
-                .for_each(|tv| self.state.infer(tv, this_equality.clone()))
-        })
-    }
-
     /// Runs unification on all of the type variables registered in the unifier
     /// to discover the most concrete types for the storage slots in the
     /// contract.
     ///
     /// Analysis will produce no results if [`Self::assign_vars`] has not yet
     /// been run. It will also produce degraded results if [`Self::infer`]
-    /// has not been run or if [`Self::cohere_equalities`] has not been run.
+    /// has not been run.
     ///
     /// # Errors
     ///
     /// Returns [`Err`] if the unification process fails.
     pub fn unify(&mut self) -> Result<StorageLayout> {
+        // Actually run unification
+        unification::unify(&mut self.state);
+
+        // Create an empty layout
         let mut layout = StorageLayout::default();
         let all_values = self.state.values();
 
-        let constant_storage_slots: Vec<&BoxedVal> = all_values
+        // Start building the layout
+        let constant_storage_slots: Vec<BoxedVal> = all_values
             .into_iter()
             .filter(|v| {
                 matches!(
                     &v.data,
                     SVD::StorageSlot { key } if matches!(&key.data, SVD::KnownData {..}))
             })
+            .cloned()
             .collect();
 
         for slot in constant_storage_slots {
-            let ty_var = self.state.var_unchecked(slot);
+            let ty_var = self.state.var_unchecked(&slot);
             let SVD::StorageSlot { key } = &slot.data else {
                 Err(Error::InvalidTree {
                     value: slot.clone(),
@@ -220,9 +194,9 @@ impl Unifier {
             };
 
             let index: usize = value.into();
-            let abi_type = self.resolve_type_for(ty_var)?;
+            let (abi_type, defaulted) = self.abi_type_for(ty_var)?;
 
-            layout.add(index, abi_type);
+            layout.add(index, abi_type, defaulted);
         }
 
         Ok(layout)
@@ -231,74 +205,179 @@ impl Unifier {
     /// Converts the inferences made about `var` into the best possible
     /// [`AbiType`].
     ///
+    /// It also returns a boolean, saying whether any defaulting took place
+    /// during type conversion.
+    ///
     /// # Errors
     ///
-    /// If something goes wrong in the computation of the AbiType.
-    #[allow(clippy::len_zero)]
-    fn resolve_type_for(&self, var: TypeVariable) -> Result<AbiType> {
-        let inferences = self.state.transitive_inferences(var);
+    /// If something goes wrong in the computation of the [`AbiType`].
+    fn abi_type_for(&mut self, var: TypeVariable) -> Result<(AbiType, bool)> {
+        let mut seen_vars = HashSet::new();
+        self.abi_type_for_impl(var, &mut seen_vars)
+    }
 
-        // In this case we know nothing about it
-        if inferences.is_empty() {
-            return Ok(AbiType::Any);
+    /// The internal implementation of [`Self::abi_type_for`], allowing the
+    /// unifier to present a better interface.
+    ///
+    /// # Errors
+    ///
+    /// If something goes wrong in the computation of the [`AbiType`].
+    fn abi_type_for_impl(
+        &mut self,
+        var: TypeVariable,
+        seen_exprs: &mut HashSet<TypeExpression>,
+    ) -> Result<(AbiType, bool)> {
+        let type_expr = self.type_of(var)?;
+
+        // If we see the same tycon again when iterating, the type is infinite
+        if seen_exprs.contains(&type_expr) && type_expr.is_type_constructor() {
+            return Ok((AbiType::InfiniteType, false));
         }
+        seen_exprs.insert(type_expr.clone());
 
-        // For now we just grab the first so we don't crash (temporary)
-        let inference = inferences.into_iter().collect::<Vec<_>>().first().unwrap().clone();
+        let mut defaulted = false;
+        let abi_type: AbiType = match type_expr {
+            TE::Any => AbiType::Any,
+            TE::Word {
+                width,
+                signed,
+                usage,
+            } => {
+                let signed = signed.unwrap_or_else(|| {
+                    defaulted = true;
+                    false
+                });
 
-        // TODO [Ara] Rules for combining multiple inferences
+                // And we default to the EVM's word size otherwise
+                let width = width.unwrap_or_else(|| {
+                    defaulted = true;
+                    WORD_SIZE
+                });
 
-        let result = match inference {
-            TE::ConcreteType { ty } => ty,
-            TE::Equal { .. } => {
-                let location = self.state.value_unchecked(var).instruction_pointer;
-                Err(Error::InvalidInference {
-                    value:  inference.clone(),
-                    reason: "Equalities should not exist in the output of `transitive_inferences`"
-                        .into(),
+                let size = if let Ok(v) = u16::try_from(width) {
+                    v
+                } else {
+                    let location = self.state.value(var).unwrap().instruction_pointer;
+                    Err(Error::OverSizedNumber {
+                        value: width as i128,
+                        width: 16,
+                    }
+                    .locate(location))?
+                };
+
+                let from_signed = |signed| {
+                    if signed {
+                        AbiType::Int { size }
+                    } else {
+                        AbiType::UInt { size }
+                    }
+                };
+
+                match usage {
+                    WordUse::Bool => AbiType::Bool,
+                    WordUse::Address => AbiType::Address,
+                    WordUse::Selector => AbiType::Selector,
+                    WordUse::Function => AbiType::Function,
+                    WordUse::None => from_signed(signed),
+                    WordUse::Conflict { .. } => {
+                        defaulted = true;
+                        from_signed(signed)
+                    }
                 }
-                .locate(location))?
             }
-            TE::Word { width, signed } => match signed {
-                Some(s) if s => AbiType::Int {
-                    size: width.unwrap_or(WORD_SIZE) as u16,
-                },
-                _ => AbiType::UInt {
-                    size: width.unwrap_or(WORD_SIZE) as u16,
-                },
-            },
+            TE::FixedArray { element, length } => {
+                let (tp, inner_defaulted) = self.abi_type_for_impl(element, seen_exprs)?;
+                defaulted = inner_defaulted;
+                AbiType::Array {
+                    size: length,
+                    tp:   Box::new(tp),
+                }
+            }
             TE::Mapping { key, value } => {
-                let key_tp = Box::new(self.resolve_type_for(key)?);
-                let val_tp = Box::new(self.resolve_type_for(value)?);
-                AbiType::Mapping { key_tp, val_tp }
+                let (key_tp, key_defaulted) = self.abi_type_for_impl(key, seen_exprs)?;
+                let (val_tp, val_defaulted) = self.abi_type_for_impl(value, seen_exprs)?;
+                defaulted = key_defaulted || val_defaulted;
+                AbiType::Mapping {
+                    key_tp: Box::new(key_tp),
+                    val_tp: Box::new(val_tp),
+                }
             }
             TE::DynamicArray { element } => {
-                let tp = Box::new(self.resolve_type_for(element)?);
-                AbiType::DynArray { tp }
+                let (tp, inner_defaulted) = self.abi_type_for_impl(element, seen_exprs)?;
+                defaulted = inner_defaulted;
+                AbiType::DynArray { tp: Box::new(tp) }
             }
-            TE::FixedArray {
-                element,
-                length: size,
-            } => {
-                let tp = Box::new(self.resolve_type_for(element)?);
-                AbiType::Array { size, tp }
+            TE::Equal { id } => {
+                let location = self.state.value(var).unwrap().instruction_pointer;
+                return Err(Error::InvalidInference {
+                    value:  TE::Equal { id },
+                    reason: "Equalities cannot be converted into ABI types".into(),
+                }
+                .locate(location)
+                .into());
             }
+            TE::Conflict {
+                left,
+                right,
+                reason,
+            } => AbiType::ConflictedType {
+                left: left.as_ref().clone(),
+                right: right.as_ref().clone(),
+                reason,
+            },
         };
 
-        Ok(result)
+        Ok((abi_type, defaulted))
+    }
+
+    /// Gets the unified type for
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no resolved type for `tv`.
+    pub fn type_of(&mut self, tv: TypeVariable) -> Result<TypeExpression> {
+        let forest = self.state.result();
+        match forest.get_data(&tv).cloned() {
+            None => {
+                let location = self.state.value_unchecked(tv).instruction_pointer;
+                Err(Error::UnificationFailure { var: tv }.locate(location))?
+            }
+            Some(inferences) => {
+                let vec = inferences.iter().cloned().collect::<Vec<_>>();
+
+                match vec.len() {
+                    0 => Ok(TE::Any),
+                    1 => Ok(vec
+                        .first()
+                        .unwrap_or_else(|| unreachable!("We know the vec has at least one item"))
+                        .clone()),
+                    _ => {
+                        let location = self.state.value_unchecked(tv).instruction_pointer;
+                        Err(Error::UnificationIncomplete {
+                            var:        tv,
+                            inferences: inferences.iter().cloned().collect(),
+                        }
+                        .locate(location))?
+                    }
+                }
+            }
+        }
     }
 
     /// Gets the unifier's configuration to allow inspection.
+    #[must_use]
     pub fn config(&self) -> &Config {
         &self.config
     }
 
     /// Gets the execution result over which the unifier is operating.
+    #[must_use]
     pub fn execution_result(&self) -> &ExecutionResult {
         &self.execution_result
     }
 
     /// Gets the state of the unifier.
+    #[must_use]
     pub fn state(&self) -> &TypingState {
         &self.state
     }
@@ -310,6 +389,7 @@ impl Unifier {
     /// This function should only be used to alter the unifier state if you
     /// clearly understand the operations this entails, and the invariants that
     /// might be violated.
+    #[must_use]
     pub unsafe fn state_mut(&mut self) -> &mut TypingState {
         &mut self.state
     }
@@ -318,6 +398,7 @@ impl Unifier {
     ///
     /// Exactly what these are depends heavily on the current state of the
     /// unifier at the time this method is called.
+    #[must_use]
     pub fn values_under_analysis(&self) -> Vec<&BoxedVal> {
         self.state.values()
     }
@@ -326,6 +407,7 @@ impl Unifier {
     ///
     /// Exactly what these are depends heavily on the current state of the
     /// unifier at the time this method is called.
+    #[must_use]
     pub fn values_under_analysis_cloned(&self) -> Vec<BoxedVal> {
         self.state.values().into_iter().cloned().collect()
     }
@@ -342,7 +424,9 @@ impl Unifier {
     /// type variables and typing judgements.
     pub unsafe fn set_values_under_analysis(&mut self, values: Vec<BoxedVal>) {
         self.state.clear();
-        values.into_iter().for_each(|v| _ = self.state.register(v));
+        for v in values {
+            self.state.register(v);
+        }
     }
 }
 
@@ -376,7 +460,7 @@ impl Default for Config {
 #[cfg(test)]
 pub mod test {
     use crate::{
-        unifier::{abi::AbiType, expression::TE, Config, Unifier},
+        unifier::{abi::AbiType, Config, Unifier},
         vm::value::{known::KnownWord, Provenance, SymbolicValue, SVD},
     };
 
@@ -490,7 +574,6 @@ pub mod test {
 
         // Next we can actually run the inference process and unify
         unifier.infer()?;
-        unifier.cohere_equalities();
 
         // We can check on the layout to make sure things are correct
         let layout = unifier.unify()?;
@@ -561,32 +644,6 @@ pub mod test {
         assert!(state.var(&var_3).is_some());
     }
 
-    #[test]
-    fn makes_equalities_symmetric() {
-        // Create some values
-        let var_1 = SymbolicValue::new_value(0, Provenance::Synthetic);
-        let var_2 = SymbolicValue::new_value(1, Provenance::Synthetic);
-
-        // Create the unifier
-        let config = Config::default();
-        let mut unifier = Unifier::new(config, util::default_execution_result());
-        let state = unsafe {
-            unifier.set_values_under_analysis(vec![var_1.clone(), var_2.clone()]);
-            unifier.state_mut()
-        };
-
-        let var_1_ty = state.register(var_1);
-        let var_2_ty = state.register(var_2);
-        state.infer(var_1_ty, TE::eq(var_2_ty));
-
-        // Cohere equalities and check the result
-        unifier.cohere_equalities();
-        let state = unifier.state();
-        let inferences_var_2 = state.inferences(var_2_ty);
-        assert_eq!(inferences_var_2.len(), 1);
-        assert!(inferences_var_2.contains(&TE::eq(var_1_ty)));
-    }
-
     /// Utilities for these tests
     pub mod util {
         use crate::{
@@ -596,9 +653,12 @@ pub mod test {
             vm::{instructions::InstructionStream, ExecutionResult},
         };
 
+        /// Creates a default execution result.
+        #[must_use]
         pub fn default_execution_result() -> ExecutionResult {
             ExecutionResult {
-                instructions: InstructionStream::try_from(bytecode![Invalid].as_slice()).unwrap(),
+                instructions: InstructionStream::try_from(bytecode![Invalid::default()].as_slice())
+                    .unwrap_or_else(|_| unreachable!("Cannot actually panic")),
                 states:       Vec::new(),
                 errors:       execution::Errors::new(),
             }

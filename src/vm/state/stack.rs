@@ -30,6 +30,7 @@ pub struct Stack {
 
 impl Stack {
     /// Creates a new stack without any items on it.
+    #[must_use]
     pub fn new() -> Self {
         let data = Vec::with_capacity(MAXIMUM_STACK_DEPTH);
         Self { data }
@@ -115,11 +116,13 @@ impl Stack {
     }
 
     /// Gets the current depth of the stack.
+    #[must_use]
     pub fn depth(&self) -> usize {
         self.data.len()
     }
 
     /// Checks if the stack is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.depth() == 0
     }
@@ -134,7 +137,7 @@ impl Stack {
 
         if depth as usize >= current_depth {
             return Err(Error::NoSuchStackFrame {
-                depth: depth as i64,
+                depth: i64::from(depth),
             });
         }
 
@@ -156,6 +159,7 @@ impl Stack {
 
     /// Creates a new wrapper of the stack that knows about the instruction
     /// pointer location where its operations are taking place.
+    #[must_use]
     pub fn new_located(&mut self, instruction_pointer: u32) -> LocatedStackHandle<'_> {
         LocatedStackHandle {
             instruction_pointer,
@@ -165,8 +169,9 @@ impl Stack {
 
     /// Gets all of the values that are registered in the virtual machine stack
     /// at the time of calling.
+    #[must_use]
     pub fn all_values(&self) -> Vec<BoxedVal> {
-        self.data.to_vec()
+        self.data.clone()
     }
 }
 
@@ -256,6 +261,7 @@ mod test {
     };
 
     /// Creates a new synthetic value for testing purposes.
+    #[allow(clippy::unnecessary_box_returns)] // We use boxes everywhere during execution
     fn new_synthetic_value(instruction_pointer: u32) -> BoxedVal {
         SymbolicValue::new_value(instruction_pointer, Provenance::Synthetic)
     }
@@ -264,7 +270,9 @@ mod test {
     fn new_stack_with_items(item_count: usize) -> anyhow::Result<Stack> {
         let mut stack = Stack::new();
         for i in (0..item_count).rev() {
-            stack.push(new_synthetic_value(i as u32))?
+            stack.push(new_synthetic_value(u32::try_from(i).expect(
+                "We only deal with instruction streams up to length u32::MAX",
+            )))?;
         }
 
         Ok(stack)
@@ -303,10 +311,9 @@ mod test {
     }
 
     #[test]
-    fn cannot_pop_item_when_empty() -> anyhow::Result<()> {
+    fn cannot_pop_item_when_empty() {
         let mut stack = Stack::default();
         stack.pop().expect_err("Did not error when popping empty stack");
-        Ok(())
     }
 
     #[test]
@@ -328,11 +335,9 @@ mod test {
     }
 
     #[test]
-    fn cannot_read_item_in_empty_stack() -> anyhow::Result<()> {
+    fn cannot_read_item_in_empty_stack() {
         let stack = Stack::default();
         stack.read(0).expect_err("Read a frame from an empty stack");
-
-        Ok(())
     }
 
     #[test]
@@ -354,13 +359,11 @@ mod test {
     }
 
     #[test]
-    fn cannot_dup_item_when_empty() -> anyhow::Result<()> {
+    fn cannot_dup_item_when_empty() {
         let mut stack = Stack::default();
         stack
             .dup(0)
             .expect_err("Duplicated a stack item when stack was empty");
-
-        Ok(())
     }
 
     #[test]
@@ -388,11 +391,9 @@ mod test {
     }
 
     #[test]
-    fn cannot_swap_while_empty() -> anyhow::Result<()> {
+    fn cannot_swap_while_empty() {
         let mut stack = Stack::default();
         stack.swap(0).expect_err("Swapped when the stack was empty");
-
-        Ok(())
     }
 
     #[test]

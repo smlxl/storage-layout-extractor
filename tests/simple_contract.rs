@@ -26,8 +26,15 @@ fn analyses_simple_contract() -> anyhow::Result<()> {
             val_tp: Box::new(AbiType::Any),
         }),
     };
-    let expected_mapping_slot = StorageSlot::new(0, expected_mapping);
+    let expected_mapping_slot = StorageSlot::new(0, expected_mapping, false);
     assert!(layout.slots().contains(&expected_mapping_slot));
+
+    // Check that we see the `any[]`
+    let expected_dyn_array = AbiType::DynArray {
+        tp: Box::new(AbiType::Any),
+    };
+    let expected_array_slot = StorageSlot::new(1, expected_dyn_array, false);
+    assert!(layout.slots().contains(&expected_array_slot));
 
     Ok(())
 }

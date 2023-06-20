@@ -31,7 +31,7 @@ use crate::{
 ///
 /// It is assumed that all errors returned by this function are instances of
 /// [`VMError`].
-#[allow(clippy::boxed_local)]
+#[allow(clippy::boxed_local)] // We always pass around boxed values during execution
 pub fn validate_jump_destination(counter: &BoxedVal, vm: &mut VM) -> execution::Result<u32> {
     let instruction_pointer = vm.instruction_pointer()?;
     let jump_target = match &counter.clone().constant_fold().data {

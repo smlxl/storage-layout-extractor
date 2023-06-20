@@ -18,9 +18,6 @@ pub enum Error {
     #[error("Invalid stack item {item:?} provided for the `{name}` opcode")]
     InvalidStackItem { item: u8, name: String },
 
-    #[error("{_0:?} is not a valid EVM opcode")]
-    InvalidOpcode(u8),
-
     #[error("Bytecode cannot be empty")]
     EmptyBytecode,
 
@@ -29,6 +26,9 @@ pub enum Error {
 
     #[error("Encountered invalid hex char {_0:?} at index {_1:?}")]
     InvalidHexCharacter(char, usize),
+
+    #[error("The length of the bytecode exceeded {}", u32::MAX)]
+    BytecodeTooLarge,
 }
 
 /// Make it possible to attach locations to these errors.

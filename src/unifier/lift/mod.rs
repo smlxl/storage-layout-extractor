@@ -76,6 +76,7 @@ impl LiftingPasses {
 
     /// Gets a reference to the pass of the given type, if it exists in the
     /// passes container.
+    #[must_use]
     pub fn get<P: Lift>(&self) -> Option<&P> {
         self.passes
             .iter()
@@ -100,7 +101,7 @@ impl LiftingPasses {
     ///
     /// Returns [`Err`] if any of the passes error.
     pub fn run(&mut self, mut value: BoxedVal, state: &TypingState) -> Result<BoxedVal> {
-        for pass in self.passes.iter_mut() {
+        for pass in &mut self.passes {
             value = pass.run(value, state)?;
         }
 

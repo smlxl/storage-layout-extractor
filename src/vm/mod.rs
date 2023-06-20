@@ -58,11 +58,19 @@ impl VM {
     /// # Errors
     ///
     /// Returns [`Err`] if the virtual machine could not be constructed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the length of the instruction stream exceeds [`u32::MAX`].
+    /// This is a programmer bug.
     pub fn new(instructions: InstructionStream, config: Config) -> Result<Self> {
         // Create the initial thread internally as we can't use the function for this
         // while `self` doesn't exist.
-        let initial_state =
-            VMState::new_at_start(instructions.len() as u32, config.iterations_per_opcode);
+        let instructions_len = instructions
+            .len()
+            .try_into()
+            .unwrap_or_else(|_| panic!("Instruction length should not exceed {}", u32::MAX));
+        let initial_state = VMState::new_at_start(instructions_len, config.iterations_per_opcode);
         let initial_instruction_thread = instructions.new_thread(0)?;
         let initial_thread = VMThread::new(initial_state, initial_instruction_thread);
 
@@ -106,10 +114,13 @@ impl VM {
             let result = instruction.execute(self);
             match result {
                 Ok(_) => {
-                    // We know that there is a thread here as we just executed an instruction from
-                    // it.
                     self.current_thread_mut()
-                        .unwrap()
+                        .unwrap_or_else(|_| {
+                            unreachable!(
+                                "We already know a thread is present as we executed an \
+                                 instruction from it"
+                            )
+                        })
                         .consume_gas(instruction.min_gas_cost());
                 }
                 Err(payload) => {
@@ -136,6 +147,10 @@ impl VM {
     }
 
     /// Gets the instruction indicated by the current instruction pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no current thread.
     pub fn current_instruction(&self) -> Result<DynOpcode> {
         self.current_thread().map(|thread| thread.instructions().current())
     }
@@ -148,26 +163,27 @@ impl VM {
     /// in the virtual machine pointing to an invalid instruction.
     pub fn advance(&mut self) -> Result<()> {
         if self.thread_queue.is_empty() {
-            return Err(Error::InvalidStep.locate(self.instructions.len() as u32));
+            return Err(Error::InvalidStep.locate(self.instructions_len()));
         }
 
+        // Safe to unwrap
         let instruction_pointer = self
             .thread_queue
             .front_mut()
-            .unwrap()
+            .unwrap_or_else(|| unreachable!("We already know a thread is present"))
             .instructions_mut()
             .instruction_pointer();
 
         // Here we need to mark the current opcode as visited. It is a programmer bug if
         // a non-existent opcode is asked about here, so the error is immediately
         // forwarded.
+        let instructions_len = self.instructions_len();
         let current_thread = self.current_thread_mut()?;
         current_thread
             .state_mut()
             .visited_instructions_mut()
             .mark_visited(instruction_pointer)?;
 
-        let instructions_len = current_thread.instructions_mut().len() as u32;
         let next_offset = instruction_pointer + 1;
 
         // It is a programmer bug if a non-existent opcode is asked about here, so the
@@ -177,15 +193,22 @@ impl VM {
                 .state()
                 .visited_instructions()
                 .at_visit_limit(next_offset)?;
-        let is_out_of_gas =
-            self.thread_queue.front_mut().unwrap().gas_usage() > self.config.gas_limit;
+        let is_out_of_gas = self
+            .thread_queue
+            .front_mut()
+            .unwrap_or_else(|| unreachable!("We already know a thread is present"))
+            .gas_usage()
+            > self.config.gas_limit;
         let should_die = self.current_thread_killed;
 
         if no_valid_next || is_out_of_gas || should_die {
             // In this case we are at the end of this thread, so we need to collect it and
             // move on by removing it from the queue. We already know that the queue isn't
             // empty, so it's safe to `unwrap`.
-            let thread = self.thread_queue.pop_front().unwrap();
+            let thread = self
+                .thread_queue
+                .pop_front()
+                .unwrap_or_else(|| unreachable!("We already know a thread is present"));
             self.stored_states.push(thread.into());
 
             // The thread no longer is the current, so whether is was or wasn't killed the
@@ -194,11 +217,14 @@ impl VM {
 
             // If we have run out of gas, mark it as an error.
             if is_out_of_gas {
-                self.errors.add_located(instruction_pointer, Error::GasLimitExceeded)
+                self.errors.add_located(instruction_pointer, Error::GasLimitExceeded);
             }
         } else {
             // And then continue execution on the current thread.
-            self.current_thread_mut().unwrap().instructions_mut().step();
+            self.current_thread_mut()
+                .unwrap_or_else(|_| unreachable!("We already know a thread is present"))
+                .instructions_mut()
+                .step();
         }
 
         Ok(())
@@ -210,6 +236,10 @@ impl VM {
     ///
     /// If you want to get the actual stack, rather than a view onto it, instead
     /// call `.state()?.stack`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no current thread.
     pub fn stack_handle(&mut self) -> Result<LocatedStackHandle<'_>> {
         let instruction_pointer = self.instruction_pointer()?;
         self.current_thread_mut()
@@ -217,40 +247,63 @@ impl VM {
     }
 
     /// Gets the virtual machine state that is currently being executed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no current thread.
     pub fn state(&mut self) -> Result<&mut VMState> {
-        self.current_thread_mut().map(|thread| thread.state_mut())
+        self.current_thread_mut().map(VMThread::state_mut)
     }
 
     /// Gets the current execution thread (instruction sequence) that is being
     /// executed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no current thread.
     pub fn execution_thread(&self) -> Result<&ExecutionThread> {
-        self.current_thread().map(|thread| thread.instructions())
+        self.current_thread().map(VMThread::instructions)
     }
 
     /// Gets the current execution thread (instruction sequence) that is being
     /// executed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no current thread.
     pub fn execution_thread_mut(&mut self) -> Result<&mut ExecutionThread> {
-        self.current_thread_mut().map(|thread| thread.instructions_mut())
+        self.current_thread_mut().map(VMThread::instructions_mut)
     }
 
     /// Gets the current value of the instruction pointer for the thread that is
     /// being executed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no current thread.
     pub fn instruction_pointer(&mut self) -> Result<u32> {
         self.current_thread_mut()
             .map(|thread| thread.instructions_mut().instruction_pointer())
     }
 
-    /// Gets the currently executing virtual machine thread if there is one, or
-    /// [`None`] if there is no such thread.
+    /// Gets the currently executing virtual machine thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no current thread.
     pub fn current_thread(&self) -> Result<&VMThread> {
-        let offset = self.instructions.len() as u32;
-        self.thread_queue.front().ok_or(Error::NoSuchThread.locate(offset))
+        self.thread_queue
+            .front()
+            .ok_or(Error::NoSuchThread.locate(self.instructions_len()))
     }
 
-    /// Gets the currently executing virtual machine thread if there is one, or
-    /// [`None`] if there is no such thread.
+    /// Gets the currently executing virtual machine thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if there is no current thread.
     pub fn current_thread_mut(&mut self) -> Result<&mut VMThread> {
-        let offset = self.instructions.len() as u32;
+        let offset = self.instructions_len();
         self.thread_queue
             .front_mut()
             .ok_or(Error::NoSuchThread.locate(offset))
@@ -277,6 +330,7 @@ impl VM {
     }
 
     /// Checks if the current thread has been killed.
+    #[must_use]
     pub fn current_thread_killed(&self) -> bool {
         self.current_thread_killed
     }
@@ -289,32 +343,52 @@ impl VM {
 
     /// Gets the count of remaining threads of execution for this virtual
     /// machine.
+    #[must_use]
     pub fn remaining_thread_count(&self) -> usize {
         self.thread_queue.len()
     }
 
     /// Gets the queue of remaining threads for inspection.
+    #[must_use]
     pub fn remaining_threads(&self) -> &VecDeque<VMThread> {
         &self.thread_queue
     }
 
     /// Gets the queue of remaining threads for inspection or modification.
+    #[must_use]
     pub fn remaining_threads_mut(&mut self) -> &mut VecDeque<VMThread> {
         &mut self.thread_queue
     }
 
     /// Checks if the virtual machine has any more code to execute.
+    #[must_use]
     pub fn is_complete(&self) -> bool {
         self.remaining_thread_count() == 0
     }
 
-    /// Gets the instruction stream associated with this virtual machine.
+    /// Gets the instruction stream associated with this virtual machine.a
+    #[must_use]
     pub fn instructions(&self) -> &InstructionStream {
         &self.instructions
     }
 
+    /// Gets the length of the instruction stream.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the instructions length exceeds [`u32::MAX`] as this a
+    /// programmer error.
+    #[must_use]
+    fn instructions_len(&self) -> u32 {
+        self.instructions
+            .len()
+            .try_into()
+            .unwrap_or_else(|_| panic!("Instruction length should not exceed {}", u32::MAX))
+    }
+
     /// Gets the stored states that have resulted from execution in this virtual
     /// machine.
+    #[must_use]
     pub fn stored_states(&self) -> &[VMState] {
         self.stored_states.as_slice()
     }
@@ -326,6 +400,7 @@ impl VM {
 
     /// Consumes the virtual machine to convert it into the data necessary for
     /// the analysis in the [`crate::unifier::Unifier`].
+    #[must_use]
     pub fn consume(self) -> ExecutionResult {
         ExecutionResult {
             instructions: self.instructions,
@@ -355,7 +430,7 @@ pub struct ExecutionResult {
 impl ExecutionResult {
     /// Gathers all of the symbolic values known about by the execution result.
     pub fn all_values(&self) -> Vec<BoxedVal> {
-        self.states.iter().flat_map(|state| state.all_values()).collect()
+        self.states.iter().flat_map(VMState::all_values).collect()
     }
 }
 
@@ -424,7 +499,7 @@ mod test {
             PushN::new(1, vec![0x00])?, // Value to store
             PushN::new(1, vec![0x00])?, // Key under which to store it
             SStore,                     // Storage
-            Invalid,                    // Return from this thread with invalid instruction
+            Invalid::default(),         // Return from this thread with invalid instruction
             JumpDest,                   // The destination for the jump
             PushN::new(1, vec![0xff])?, // The value to store into memory
             PushN::new(1, vec![0x00])?, // The offset in memory to store it at
@@ -475,7 +550,7 @@ mod test {
             PushN::new(1, vec![0x0b])?, // Push the jump destination offset onto the stack
             JumpI,                      // Jump if the condition is true
             SStore,                     // Storage with invalid operands so the thread dies
-            Invalid,                    // Return from this thread with invalid instruction
+            Invalid::default(),         // Return from this thread with invalid instruction
             JumpDest,                   // The destination for the jump
             PushN::new(1, vec![0xff])?, // The value to store into memory
             PushN::new(1, vec![0x00])?, // The offset in memory to store it at

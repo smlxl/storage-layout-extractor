@@ -22,6 +22,7 @@ pub struct MaskWord;
 
 impl MaskWord {
     /// Constructs a new instance of the word mask lifting pass.
+    #[must_use]
     pub fn new() -> Box<Self> {
         Box::new(Self)
     }
@@ -133,7 +134,7 @@ mod test {
         let input_value = SymbolicValue::new_value(4, Provenance::Synthetic);
         let input_mask = SymbolicValue::new_known_value(
             0,
-            KnownWord::from(0x0000ffff0000),
+            KnownWord::from(0x0000_ffff_0000),
             Provenance::Synthetic,
         );
         let and = SymbolicValue::new(
@@ -151,7 +152,7 @@ mod test {
         match &result.data {
             SVD::WordMask { value, mask } => {
                 assert_eq!(value, &input_value);
-                assert_eq!(*mask, 0x0000ffff0000);
+                assert_eq!(*mask, 0x0000_ffff_0000);
             }
             _ => panic!("Incorrect payload"),
         };

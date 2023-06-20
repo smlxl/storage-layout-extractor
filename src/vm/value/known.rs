@@ -18,11 +18,13 @@ pub struct KnownWord {
 impl KnownWord {
     /// Creates a known value representing zero as a 256-bit wide unsigned
     /// integer.
+    #[must_use]
     pub fn zero() -> Self {
         Self::from(vec![0])
     }
 
     /// Gets the value of the known word.
+    #[must_use]
     pub fn value(&self) -> U256 {
         self.value
     }

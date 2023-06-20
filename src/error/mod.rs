@@ -133,7 +133,7 @@ impl From<unification::LocatedError> for Errors {
 impl From<execution::Errors> for Errors {
     fn from(value: execution::Errors) -> Self {
         let errs: Vec<execution::LocatedError> = value.into();
-        let new_errs: Vec<LocatedError> = errs.into_iter().map(|e| e.into()).collect();
+        let new_errs: Vec<LocatedError> = errs.into_iter().map(std::convert::Into::into).collect();
 
         new_errs.into()
     }
@@ -144,7 +144,7 @@ impl From<execution::Errors> for Errors {
 impl From<unification::Errors> for Errors {
     fn from(value: unification::Errors) -> Self {
         let errs: Vec<unification::LocatedError> = value.into();
-        let new_errs: Vec<LocatedError> = errs.into_iter().map(|e| e.into()).collect();
+        let new_errs: Vec<LocatedError> = errs.into_iter().map(std::convert::Into::into).collect();
 
         new_errs.into()
     }

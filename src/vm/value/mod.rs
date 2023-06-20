@@ -46,6 +46,7 @@ impl SymbolicValue {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    #[must_use]
     pub fn new(
         instruction_pointer: u32,
         data: SymbolicValueData,
@@ -65,6 +66,7 @@ impl SymbolicValue {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    #[must_use]
     pub fn new_from_execution(instruction_pointer: u32, data: SymbolicValueData) -> Box<Self> {
         Self::new(instruction_pointer, data, Provenance::Execution)
     }
@@ -76,6 +78,7 @@ impl SymbolicValue {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    #[must_use]
     pub fn new_synthetic(instruction_pointer: u32, data: SymbolicValueData) -> Box<Self> {
         Self::new(instruction_pointer, data, Provenance::Synthetic)
     }
@@ -85,6 +88,7 @@ impl SymbolicValue {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    #[must_use]
     pub fn new_value(instruction_pointer: u32, provenance: Provenance) -> Box<Self> {
         Self::new(
             instruction_pointer,
@@ -99,6 +103,7 @@ impl SymbolicValue {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    #[must_use]
     pub fn new_known_value(
         instruction_pointer: u32,
         value_data: KnownWord,
@@ -113,6 +118,7 @@ impl SymbolicValue {
 
     /// Compares two symbolic values for strict equality, _including_ the value
     /// of the `instruction_pointer`.
+    #[must_use]
     pub fn strict_eq(&self, other: &Self) -> bool {
         self.instruction_pointer == other.instruction_pointer && self == other
     }
@@ -127,6 +133,7 @@ impl SymbolicValue {
     ///
     /// This algorithm is recursive. If it turns out to be a problem in practice
     /// it can be re-written.
+    #[must_use]
     pub fn constant_fold(self) -> BoxedVal {
         let data = self.data.constant_fold();
         let instruction_pointer = self.instruction_pointer;
@@ -140,11 +147,13 @@ impl SymbolicValue {
     }
 
     /// Checks if the payload is known data.
+    #[must_use]
     pub fn is_known_data(&self) -> bool {
         matches!(self.data, SymbolicValueData::KnownData { .. })
     }
 
     /// Converts the payload into a VM word if possible.
+    #[must_use]
     pub fn as_word(&self) -> Option<U256> {
         match &self.data {
             SymbolicValueData::KnownData { value } => Some(value.value()),
@@ -154,6 +163,7 @@ impl SymbolicValue {
 
     /// Transforms the payload data of the symbolic value by processing
     /// `self.data` with the `transform`.
+    #[must_use]
     pub fn transform_data(
         self,
         transform: impl Fn(&SymbolicValueData) -> Option<SymbolicValueData> + Copy,
@@ -166,6 +176,7 @@ impl SymbolicValue {
     }
 
     /// Gets all of the child nodes of this node.
+    #[must_use]
     pub fn children(&self) -> Vec<&BoxedVal> {
         self.data.children()
     }
@@ -426,11 +437,13 @@ pub enum SymbolicValueData {
 
 impl SymbolicValueData {
     /// Constructs a new [`Self::KnownData`] containing the data `value`.
+    #[must_use]
     pub fn new_known(value: KnownWord) -> Self {
         SymbolicValueData::KnownData { value }
     }
 
     /// Constructs a new [`Self::KnownData`] wrapping `value`.
+    #[must_use]
     fn known_from(value: U256) -> Self {
         Self::KnownData {
             value: value.into(),
@@ -439,12 +452,14 @@ impl SymbolicValueData {
 
     /// Constructs a new [`Self::Value`] about which only its existence and
     /// identity are known.
+    #[must_use]
     pub fn new_value() -> Self {
         let id = Uuid::new_v4();
         SymbolicValueData::Value { id }
     }
 
     /// Constructs a new [`Self::CallData`] instance with identity.
+    #[must_use]
     pub fn call_data(offset: BoxedVal, size: BoxedVal) -> Self {
         let id = Uuid::new_v4();
         Self::CallData { id, offset, size }
@@ -461,6 +476,8 @@ impl SymbolicValueData {
     ///
     /// This algorithm is recursive. If it turns out to be a problem in practice
     /// it can be re-written.
+    #[allow(clippy::match_same_arms, clippy::too_many_lines)]
+    #[must_use]
     pub fn transform(self, transform: impl Fn(&Self) -> Option<Self> + Copy) -> Self {
         match transform(&self) {
             Some(data) => data,
@@ -697,8 +714,11 @@ impl SymbolicValueData {
     ///
     /// This algorithm is recursive. If it turns out to be a problem in practice
     /// it can be re-written.
+    #[allow(clippy::match_same_arms, clippy::too_many_lines)]
+    #[must_use]
     pub fn constant_fold(self) -> Self {
         // The inner definition that actually implements the constant folding operation.
+        #[allow(clippy::too_many_lines)]
         fn constant_folder(data: &SVD) -> Option<SVD> {
             match data.clone() {
                 SVD::Add { left, right } => {
@@ -891,6 +911,8 @@ impl SymbolicValueData {
     }
 
     /// Gets the children of the provided node.
+    #[allow(clippy::match_same_arms)]
+    #[must_use]
     pub fn children(&self) -> Vec<&BoxedVal> {
         match self {
             Self::Value { .. } => vec![],
@@ -1199,7 +1221,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(8), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1217,7 +1239,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1235,7 +1257,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(6), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1253,7 +1275,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1271,7 +1293,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1289,7 +1311,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(1), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1307,7 +1329,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(1), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1325,7 +1347,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(49), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1343,7 +1365,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(true), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1361,7 +1383,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1379,7 +1401,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(true), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1397,7 +1419,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1415,7 +1437,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1432,7 +1454,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1452,7 +1474,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(0b0100), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1472,7 +1494,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(0b1111), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1492,7 +1514,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(0b1011), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1509,7 +1531,7 @@ mod test {
                 KnownWord::from(!U256::from(1u8)),
                 Provenance::Synthetic
             )
-        )
+        );
     }
 
     #[test]
@@ -1527,8 +1549,8 @@ mod test {
 
         assert_eq!(
             folded,
-            SymbolicValue::new_known_value(2, KnownWord::from(0b111000), Provenance::Synthetic)
-        )
+            SymbolicValue::new_known_value(2, KnownWord::from(0b11_1000), Provenance::Synthetic)
+        );
     }
 
     #[test]
@@ -1547,7 +1569,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(0b11), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1566,7 +1588,7 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(0b11), Provenance::Synthetic)
-        )
+        );
     }
 
     #[test]
@@ -1599,6 +1621,6 @@ mod test {
         assert_eq!(
             folded,
             SymbolicValue::new_known_value(2, KnownWord::from(16), Provenance::Synthetic)
-        )
+        );
     }
 }

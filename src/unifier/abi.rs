@@ -3,6 +3,8 @@
 
 use ethnum::U256;
 
+use crate::unifier::expression::TypeExpression;
+
 /// Concretely known Solidity ABI types.
 ///
 /// # Invariants
@@ -62,4 +64,19 @@ pub enum AbiType {
 
     /// A mapping from `key_tp` to `val_tp`.
     Mapping { key_tp: Box<AbiType>, val_tp: Box<AbiType> },
+
+    /// A type in the unifier that resolved to an infinite loop of type
+    /// variables.
+    InfiniteType,
+
+    /// A type that could not be concretely resolved due to conflicting
+    /// evidence.
+    ///
+    /// While the conflict is not usually useful itself, treating them as types
+    /// ensures that we still complete unification as well as is possible.
+    ConflictedType {
+        left:   TypeExpression,
+        right:  TypeExpression,
+        reason: String,
+    },
 }

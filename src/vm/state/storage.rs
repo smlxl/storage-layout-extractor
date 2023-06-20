@@ -33,6 +33,7 @@ pub struct Storage {
 
 impl Storage {
     /// Creates a new, empty storage.
+    #[must_use]
     pub fn new() -> Self {
         let fixed_slots = HashMap::new();
         let symbolic_slots = HashMap::new();
@@ -67,6 +68,7 @@ impl Storage {
     ///
     /// This is a best-effort analysis as we cannot guarantee knowing if there
     /// have been overwrites between adjacent slots.
+    #[must_use]
     pub fn load(&mut self, key: &BoxedVal) -> &BoxedVal {
         // First we need to work out which of the maps to read from.
         let target_map = match key.data {
@@ -86,8 +88,9 @@ impl Storage {
             )]
         });
 
-        // Safe as we always guarantee that there is at least one item in the vector.
-        entry.last().unwrap()
+        entry.last().unwrap_or_else(|| {
+            unreachable!("We already know there is at least one item in the vector")
+        })
     }
 
     /// Gets all of the stores that were made at the provided `key` during
@@ -95,6 +98,7 @@ impl Storage {
     ///
     /// Returns [`Some`] for keys that have seen at least one write, and
     /// otherwise returns [`None`].
+    #[must_use]
     pub fn generations(&self, key: &BoxedVal) -> Option<Vec<&BoxedVal>> {
         let target_map = match key.data {
             SymbolicValueData::KnownData { .. } => &self.known_slots,
@@ -105,11 +109,13 @@ impl Storage {
     }
 
     /// Gets the number of entries in the storage.
+    #[must_use]
     pub fn entry_count(&self) -> usize {
         self.known_slots.len() + self.symbolic_slots.len()
     }
 
     /// Gets the slot keys for this storage that have been written to.
+    #[must_use]
     pub fn keys(&self) -> Vec<&BoxedVal> {
         let mut known_keys: Vec<&BoxedVal> = self.known_slots.keys().collect();
         let symbolic_keys: Vec<&BoxedVal> = self.symbolic_slots.keys().collect();
@@ -121,6 +127,7 @@ impl Storage {
 
     /// Gets all of the values that are registered in the virtual machine stack
     /// at the time of calling.
+    #[must_use]
     pub fn all_values(&self) -> Vec<BoxedVal> {
         let mut values = Vec::new();
         values.extend(self.known_slots.keys().cloned());
@@ -140,6 +147,7 @@ impl Storage {
     /// Here, each `key -> value` pair, accounting for generations, is wrapped
     /// into [`SVD::StorageWrite`] of `(key, value)`, allowing for easier
     /// analysis later.
+    #[must_use]
     pub fn stores_as_values(&self) -> Vec<BoxedVal> {
         let mut known_writes: Vec<BoxedVal> = self
             .known_slots
@@ -193,14 +201,13 @@ impl Default for Storage {
 
 #[cfg(test)]
 mod test {
-    use std::ops::Deref;
-
     use crate::vm::{
         state::storage::Storage,
         value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
     };
 
     /// Creates a new synthetic value for testing purposes.
+    #[allow(clippy::unnecessary_box_returns)] // We use boxes everywhere during execution
     fn new_synthetic_value(instruction_pointer: u32) -> BoxedVal {
         SymbolicValue::new_value(instruction_pointer, Provenance::Synthetic)
     }
@@ -255,26 +262,26 @@ mod test {
         let key_1 = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
         let key_2 = new_synthetic_value(1);
 
-        match storage.load(&key_1).deref() {
+        match &**storage.load(&key_1) {
             SymbolicValue {
                 data: SymbolicValueData::SLoad { key },
                 provenance,
                 ..
             } => {
                 assert_eq!(key, &key_1);
-                assert_eq!(provenance, &Provenance::NonWrittenStorage)
+                assert_eq!(provenance, &Provenance::NonWrittenStorage);
             }
             _ => panic!("Test failure"),
         }
 
-        match storage.load(&key_2).deref() {
+        match &**storage.load(&key_2) {
             SymbolicValue {
                 data: SymbolicValueData::SLoad { key },
                 provenance,
                 ..
             } => {
                 assert_eq!(key, &key_2);
-                assert_eq!(provenance, &Provenance::NonWrittenStorage)
+                assert_eq!(provenance, &Provenance::NonWrittenStorage);
             }
             _ => panic!("Test failure"),
         }
