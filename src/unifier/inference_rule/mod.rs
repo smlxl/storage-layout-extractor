@@ -19,7 +19,11 @@ use downcast_rs::Downcast;
 use crate::{
     error::unification::Result,
     unifier::{
-        inference_rule::{mapping_write::MappingWriteRule, storage_write::StorageWriteRule},
+        inference_rule::{
+            dynamic_array_write::DynamicArrayWriteRule,
+            mapping_write::MappingWriteRule,
+            storage_write::StorageWriteRule,
+        },
         state::{TypeVariable, TypingState},
     },
     vm::value::BoxedVal,
@@ -108,6 +112,7 @@ impl Default for InferenceRules {
         let mut rules = Self::new();
         rules.add(StorageWriteRule);
         rules.add(MappingWriteRule);
+        rules.add(DynamicArrayWriteRule);
 
         rules
     }

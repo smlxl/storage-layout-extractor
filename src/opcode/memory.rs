@@ -55,7 +55,7 @@ impl Opcode for CallDataLoad {
         // Then we construct the returned value
         let value = SymbolicValue::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::CallData { offset, size },
+            SymbolicValueData::call_data(offset, size),
         );
 
         // And push it onto the stack
@@ -198,10 +198,7 @@ impl Opcode for CallDataCopy {
                     );
                     let value = SymbolicValue::new_from_execution(
                         instruction_pointer,
-                        SymbolicValueData::CallData {
-                            offset: src_offset,
-                            size:   num_32.clone(),
-                        },
+                        SymbolicValueData::call_data(src_offset, num_32.clone()),
                     );
                     memory.store(dest_offset, value);
                 }
@@ -209,7 +206,7 @@ impl Opcode for CallDataCopy {
             _ => {
                 let value = SymbolicValue::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::CallData { offset, size },
+                    SymbolicValueData::call_data(offset, size),
                 );
                 memory.store(dest_offset, value);
             }
@@ -1485,7 +1482,7 @@ mod test {
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
-            SymbolicValueData::CallData { offset, size } => {
+            SymbolicValueData::CallData { offset, size, .. } => {
                 assert_eq!(offset, &input_offset);
                 assert_eq!(size, &input_size);
             }

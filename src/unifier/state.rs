@@ -214,7 +214,7 @@ impl Default for TypingState {
 }
 
 /// A type variable represents the possibly-unbound type of an expression.
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct TypeVariable {
     id: Uuid,
 }
@@ -253,7 +253,7 @@ mod test {
         let value = SymbolicValue::new_value(0, Provenance::Synthetic);
         let type_variable = state.register(value);
 
-        let expression = TypeExpression::default_word();
+        let expression = TypeExpression::word(None, None);
         state.infer(type_variable, expression.clone());
 
         assert_eq!(

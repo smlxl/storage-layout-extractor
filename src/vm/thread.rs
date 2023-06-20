@@ -93,14 +93,20 @@ impl From<VMThread> for VMState {
 
 #[cfg(test)]
 mod test {
-    use crate::vm::{instructions::InstructionStream, state::VMState, thread::VMThread};
+    use crate::{
+        constant::DEFAULT_ITERATIONS_PER_OPCODE,
+        vm::{instructions::InstructionStream, state::VMState, thread::VMThread},
+    };
 
     #[test]
     fn can_fork_vm_thread() -> anyhow::Result<()> {
         let instruction_stream = InstructionStream::try_from(
             vec![0x00u8, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06].as_slice(),
         )?;
-        let state = VMState::new_at_start(instruction_stream.len() as u32);
+        let state = VMState::new_at_start(
+            instruction_stream.len() as u32,
+            DEFAULT_ITERATIONS_PER_OPCODE,
+        );
         let execution_thread = instruction_stream.new_thread(0)?;
         let mut vm_thread = VMThread::new(state, execution_thread);
 

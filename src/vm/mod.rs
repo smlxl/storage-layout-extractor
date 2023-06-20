@@ -9,7 +9,7 @@ pub mod value;
 use std::collections::VecDeque;
 
 use crate::{
-    constant::BLOCK_GAS_LIMIT,
+    constant::{BLOCK_GAS_LIMIT, DEFAULT_ITERATIONS_PER_OPCODE},
     error::{
         container::Locatable,
         execution::{Error, Errors, LocatedError, Result},
@@ -61,7 +61,8 @@ impl VM {
     pub fn new(instructions: InstructionStream, config: Config) -> Result<Self> {
         // Create the initial thread internally as we can't use the function for this
         // while `self` doesn't exist.
-        let initial_state = VMState::new_at_start(instructions.len() as u32);
+        let initial_state =
+            VMState::new_at_start(instructions.len() as u32, config.iterations_per_opcode);
         let initial_instruction_thread = instructions.new_thread(0)?;
         let initial_thread = VMThread::new(initial_state, initial_instruction_thread);
 
@@ -172,7 +173,10 @@ impl VM {
         // It is a programmer bug if a non-existent opcode is asked about here, so the
         // error is immediately forwarded.
         let no_valid_next = next_offset >= instructions_len
-            || current_thread.state().visited_instructions().visited(next_offset)?;
+            || current_thread
+                .state()
+                .visited_instructions()
+                .at_visit_limit(next_offset)?;
         let is_out_of_gas =
             self.thread_queue.front_mut().unwrap().gas_usage() > self.config.gas_limit;
         let should_die = self.current_thread_killed;
@@ -363,13 +367,24 @@ pub struct Config {
     /// Note that this limit is applied optimistically, assuming that every
     /// operation takes the minimal amount of gas it can. In reality, execution
     /// on an EVM will not get as far as symbolic execution can here.
+    ///
+    /// Defaults to [`BLOCK_GAS_LIMIT`].
     gas_limit: usize,
+
+    /// The number of times that the virtual machine will visit each opcode.
+    ///
+    /// Defaults to [`DEFAULT_ITERATIONS_PER_OPCODE`].
+    iterations_per_opcode: usize,
 }
 
 impl Default for Config {
     fn default() -> Self {
         let gas_limit = BLOCK_GAS_LIMIT;
-        Self { gas_limit }
+        let iterations_per_opcode = DEFAULT_ITERATIONS_PER_OPCODE;
+        Self {
+            gas_limit,
+            iterations_per_opcode,
+        }
     }
 }
 

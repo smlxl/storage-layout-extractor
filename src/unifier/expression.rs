@@ -8,10 +8,7 @@ use std::collections::HashSet;
 
 use ethnum::U256;
 
-use crate::{
-    constant::WORD_SIZE,
-    unifier::{abi::AbiType, state::TypeVariable},
-};
+use crate::unifier::{abi::AbiType, state::TypeVariable};
 
 /// An alias recommended for use when you have to write it out often.
 pub type TE = TypeExpression;
@@ -24,9 +21,6 @@ pub type TE = TypeExpression;
 /// slots.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum TypeExpression {
-    /// A type that has been concretely resolved to an EVM type.
-    ConcreteType { ty: AbiType },
-
     /// A representation of the possibly-unbound type of an expression.
     Equal { id: TypeVariable },
 
@@ -34,8 +28,8 @@ pub enum TypeExpression {
     Word {
         /// The width of the word in bits.
         ///
-        /// Defaults to [`WORD_SIZE`].
-        width: usize,
+        /// Defaults to [`None`].
+        width: Option<usize>,
 
         /// Whether the word is used as signed.
         ///
@@ -44,22 +38,34 @@ pub enum TypeExpression {
         signed: Option<bool>,
     },
 
+    /// A static array containing items of type `element` and with `length`.
+    FixedArray { element: TypeVariable, length: U256 },
+
     /// A mapping composite type with `key` type and `value` type.
     Mapping { key: TypeVariable, value: TypeVariable },
 
     /// A dynamic array containing items with the type of `element`.
     DynamicArray { element: TypeVariable },
 
-    /// A static array containing items of type `element` and with `length`.
-    FixedArray { element: TypeVariable, length: U256 },
+    /// A type that has been concretely resolved to an EVM type.
+    ConcreteType { ty: AbiType },
 }
 
 impl TypeExpression {
-    /// Constructs a word with the default width of [`WORD_SIZE`] bits and
-    /// unknown signedness.
-    pub fn default_word() -> Self {
-        let width = WORD_SIZE;
-        let signed = None;
+    /// Constructs a word with the provided `width` and `size`.
+    pub fn word(width: Option<usize>, signed: Option<bool>) -> Self {
+        Self::Word { width, signed }
+    }
+
+    /// Constructs an unsigned word with the provided `width`.
+    pub fn unsigned_word(width: Option<usize>) -> Self {
+        let signed = Some(false);
+        Self::Word { width, signed }
+    }
+
+    /// Constructs a signed word with the provided `width`.
+    pub fn signed_word(width: Option<usize>) -> Self {
+        let signed = Some(true);
         Self::Word { width, signed }
     }
 
@@ -72,25 +78,12 @@ impl TypeExpression {
     pub fn mapping(key: TypeVariable, value: TypeVariable) -> Self {
         Self::Mapping { key, value }
     }
+
+    /// Constructs a new dynamic array wrapping the `element` type.
+    pub fn dyn_array(element: TypeVariable) -> Self {
+        Self::DynamicArray { element }
+    }
 }
 
 /// A set of typing judgements.
 pub type InferenceSet = HashSet<TypeExpression>;
-
-#[cfg(test)]
-mod test {
-    use crate::{constant::WORD_SIZE, unifier::expression::TypeExpression};
-
-    #[test]
-    pub fn default_word_has_width_word_size() {
-        let expr = TypeExpression::default_word();
-
-        match expr {
-            TypeExpression::Word { width, signed } => {
-                assert_eq!(width, WORD_SIZE);
-                assert!(signed.is_none());
-            }
-            _ => panic!("Incorrect variant for default word"),
-        }
-    }
-}

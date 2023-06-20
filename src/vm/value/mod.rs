@@ -370,7 +370,9 @@ pub enum SymbolicValueData {
     ArithmeticRightShift { shift: BoxedVal, value: BoxedVal },
 
     /// Loading the data at `offset` for `size` in the call data.
-    CallData { offset: BoxedVal, size: BoxedVal },
+    ///
+    /// Note that CallData has non-structural identity.
+    CallData { id: Uuid, offset: BoxedVal, size: BoxedVal },
 
     /// The size of the current call data.
     CallDataSize,
@@ -440,6 +442,12 @@ impl SymbolicValueData {
     pub fn new_value() -> Self {
         let id = Uuid::new_v4();
         SymbolicValueData::Value { id }
+    }
+
+    /// Constructs a new [`Self::CallData`] instance with identity.
+    pub fn call_data(offset: BoxedVal, size: BoxedVal) -> Self {
+        let id = Uuid::new_v4();
+        Self::CallData { id, offset, size }
     }
 
     /// Transforms the data payload by applying `transform` to it.
@@ -615,9 +623,10 @@ impl SymbolicValueData {
                     shift: shift.transform_data(transform),
                     value: value.transform_data(transform),
                 },
-                Self::CallData { offset, size } => Self::CallData {
+                Self::CallData { id, offset, size } => Self::CallData {
+                    id,
                     offset: offset.transform_data(transform),
-                    size:   size.transform_data(transform),
+                    size: size.transform_data(transform),
                 },
                 Self::CallDataSize => self,
                 Self::CodeCopy { offset, size } => Self::CodeCopy {
@@ -949,7 +958,7 @@ impl SymbolicValueData {
             Self::LeftShift { shift, value } => vec![shift, value],
             Self::RightShift { shift, value } => vec![shift, value],
             Self::ArithmeticRightShift { shift, value } => vec![shift, value],
-            Self::CallData { offset, size } => vec![offset, size],
+            Self::CallData { offset, size, .. } => vec![offset, size],
             Self::CallDataSize => vec![],
             Self::CodeCopy { offset, size } => vec![offset, size],
             Self::ExtCodeSize { address } => vec![address],
@@ -1043,7 +1052,7 @@ impl Display for SymbolicValueData {
             Self::LeftShift { shift, value } => write!(f, "({value} << {shift})"),
             Self::RightShift { shift, value } => write!(f, "({value} >> {shift})"),
             Self::ArithmeticRightShift { shift, value } => write!(f, "({value} >>> {shift})"),
-            Self::CallData { offset, size } => write!(f, "call_data({offset}, {size})"),
+            Self::CallData { id, offset, size } => write!(f, "call_data[{id}]({offset}, {size})"),
             Self::CallDataSize => write!(f, "call_data_size"),
             Self::CodeCopy { offset, size } => write!(f, "code_copy({offset}, {size})"),
             Self::ExtCodeSize { address } => write!(f, "ext_code_size({address})"),
