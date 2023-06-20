@@ -21,9 +21,9 @@ use crate::{
 /// - `base_slot_ty = type(slot(c_1))`
 /// - `key_ty = type(v_1)`
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct MappingWriteRule;
+pub struct MappingAccessRule;
 
-impl InferenceRule for MappingWriteRule {
+impl InferenceRule for MappingAccessRule {
     fn infer(
         &self,
         value: &BoxedVal,
@@ -48,7 +48,7 @@ mod test {
     use crate::{
         unifier::{
             expression::TE,
-            inference_rule::{mapping_write::MappingWriteRule, InferenceRule},
+            inference_rule::{mapping_access::MappingAccessRule, InferenceRule},
             state::TypingState,
         },
         vm::value::{known::KnownWord, Provenance, SV, SVD},
@@ -89,7 +89,7 @@ mod test {
         let outer_slot_tv = state.register(outer_slot.clone());
 
         // Run the inference rule
-        MappingWriteRule.infer(&outer_slot, outer_slot_tv, &mut state)?;
+        MappingAccessRule.infer(&outer_slot, outer_slot_tv, &mut state)?;
 
         assert!(state.inferences(v_1_tv).is_empty());
         assert!(state.inferences(c_1_tv).is_empty());

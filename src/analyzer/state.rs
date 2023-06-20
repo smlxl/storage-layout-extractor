@@ -3,7 +3,9 @@
 use std::fmt::Debug;
 
 use crate::{
+    unifier,
     unifier::Unifier,
+    vm,
     vm::{instructions::InstructionStream, ExecutionResult, VM},
     StorageLayout,
 };
@@ -17,7 +19,13 @@ where
 
 /// The initial state for the analyzer.
 #[derive(Debug)]
-pub struct HasContract;
+pub struct HasContract {
+    /// The virtual machine configuration.
+    pub vm_config: vm::Config,
+
+    /// The unifier configuration.
+    pub unifier_config: unifier::Config,
+}
 impl State for HasContract {}
 
 /// The analyzer has successfully disassembled the bytecode.
@@ -25,6 +33,12 @@ impl State for HasContract {}
 pub struct DisassemblyComplete {
     /// The disassembled bytecode for the contract being analyzed.
     pub bytecode: InstructionStream,
+
+    /// The virtual machine configuration.
+    pub vm_config: vm::Config,
+
+    /// The unifier configuration.
+    pub unifier_config: unifier::Config,
 }
 impl State for DisassemblyComplete {}
 
@@ -32,7 +46,11 @@ impl State for DisassemblyComplete {}
 /// contract's bytecode.
 #[derive(Debug)]
 pub struct VMReady {
+    /// The prepared virtual machine.
     pub vm: VM,
+
+    /// The unifier configuration.
+    pub unifier_config: unifier::Config,
 }
 impl State for VMReady {}
 
@@ -40,12 +58,16 @@ impl State for VMReady {}
 pub struct ExecutionComplete {
     /// The results from executing the bytecode.
     pub execution_result: ExecutionResult,
+
+    /// The unifier configuration.
+    pub unifier_config: unifier::Config,
 }
 impl State for ExecutionComplete {}
 
 /// The analyzer has prepared the unifier to perform its processes.
 #[derive(Debug)]
 pub struct UnifierReady {
+    /// The unifier, ready to perform unification.
     pub unifier: Unifier,
 }
 impl State for UnifierReady {}
@@ -54,7 +76,10 @@ impl State for UnifierReady {}
 /// ready to provide the concrete storage layout.
 #[derive(Debug)]
 pub struct UnificationComplete {
+    /// The unifier after it has performed unification.
     pub unifier: Unifier,
-    pub layout:  StorageLayout,
+
+    /// The computed storage layout.
+    pub layout: StorageLayout,
 }
 impl State for UnificationComplete {}
