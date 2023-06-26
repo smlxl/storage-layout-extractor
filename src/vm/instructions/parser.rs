@@ -40,7 +40,8 @@ use crate::{
 /// # Errors
 ///
 /// When one of the `bytes` cannot be parsed as a valid opcode, or when `bytes`
-/// is empty.
+/// is empty or too large.
+#[allow(clippy::too_many_lines)] // Splitting the function up brings no benefit
 pub fn parse(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
     if bytes.is_empty() {
         return Err(Error::EmptyBytecode.locate(0));
@@ -54,10 +55,11 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
     let mut push_bytes: Vec<u8> = Vec::with_capacity(PUSH_OPCODE_MAX_BYTES as usize);
 
     // Iterate over the bytes, parsing into Opcodes as necessary.
+    #[allow(clippy::if_not_else)] // It is cleaner here to order it this way
     for (offset, byte) in bytes.iter().enumerate() {
         // We assume bytecodes are far less than [`u32::MAX`] bytes already.
-        #[allow(clippy::cast_possible_truncation)]
-        let instruction_pointer = offset as u32;
+        let instruction_pointer =
+            u32::try_from(offset).map_err(|_| Error::BytecodeTooLarge.locate(u32::MAX))?;
         if push_size_bytes != 0 {
             // While we have bytes remaining as part of the push opcode we want to consume
             // them.
@@ -171,7 +173,7 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
                     let topic_count = byte - LOG_OPCODE_BASE_VALUE;
                     let opcode =
                         env::LogN::new(topic_count).map_err(|e| e.locate(instruction_pointer))?;
-                    add_op(ops, opcode)
+                    add_op(ops, opcode);
                 }
                 0xf0 => add_op(ops, env::Create),
                 0xf1 => add_op(ops, control::Call),
@@ -181,11 +183,12 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
                 0xf5 => add_op(ops, env::Create2),
                 0xfa => add_op(ops, control::StaticCall),
                 0xfd => add_op(ops, control::Revert),
-                0xfe => add_op(ops, control::Invalid),
+                0xfe => add_op(ops, control::Invalid::default()),
                 0xff => add_op(ops, env::SelfDestruct),
-                _ => {
-                    return Err(Error::InvalidOpcode(*byte).locate(instruction_pointer));
-                }
+                // If we don't recognise it, it might be CBOR metadata or something otherwise
+                // invalid. They should only be reachable intentionally to cause a revert, so we
+                // just translate them to `INVALID`
+                _ => add_op(ops, control::Invalid::new(*byte)),
             }
         }
     }
@@ -195,5 +198,5 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
 
 /// Adds an operation `elem` to the array of opcodes `ops`.
 fn add_op<T: Opcode>(ops: &mut Vec<DynOpcode>, elem: T) {
-    ops.push(Rc::new(elem))
+    ops.push(Rc::new(elem));
 }

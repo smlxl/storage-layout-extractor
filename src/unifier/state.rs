@@ -1,13 +1,16 @@
 //! This module contains the definition of the unifier state and other
 //! supporting types.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 use bimap::BiMap;
 use uuid::Uuid;
 
 use crate::{
-    unifier::expression::{InferenceSet, TypeExpression, TE},
+    unifier::{
+        expression::{InferenceSet, TypeExpression, TE},
+        unification::UnificationForest,
+    },
     vm::value::BoxedVal,
 };
 
@@ -24,16 +27,24 @@ pub struct TypingState {
 
     /// A mapping from type variables to their corresponding typing judgements.
     inferences: HashMap<TypeVariable, InferenceSet>,
+
+    /// The results of running unification.
+    ///
+    /// This may be empty if the process has not yet reached the correct place.
+    unification_result: UnificationForest,
 }
 
 impl TypingState {
     /// Constructs a new, empty state for the unifier.
+    #[must_use]
     pub fn empty() -> Self {
         let expressions_and_vars = BiMap::new();
         let inferences = HashMap::new();
+        let unification_result = UnificationForest::new();
         Self {
             expressions_and_vars,
             inferences,
+            unification_result,
         }
     }
 
@@ -44,14 +55,13 @@ impl TypingState {
     /// is returned. If not, a fresh type variable is associated with the value
     /// and returned.
     pub fn register(&mut self, value: BoxedVal) -> TypeVariable {
-        match self.expressions_and_vars.get_by_left(&value) {
-            Some(v) => *v,
-            None => {
-                let type_var = TypeVariable::fresh();
-                self.expressions_and_vars.insert(value, type_var);
-                self.inferences.entry(type_var).or_insert(HashSet::new());
-                type_var
-            }
+        if let Some(v) = self.expressions_and_vars.get_by_left(&value) {
+            *v
+        } else {
+            let type_var = TypeVariable::fresh();
+            self.expressions_and_vars.insert(value, type_var);
+            self.inferences.entry(type_var).or_insert(HashSet::new());
+            type_var
         }
     }
 
@@ -59,14 +69,37 @@ impl TypingState {
     /// provided type `variable`.
     ///
     /// It is valid for a judgement to be added multiple times.
+    ///
+    /// # Panics
+    ///
+    /// If `variable` does not exist in the typing state. This is only possible
+    /// through use of `unsafe` operations to violate the invariants of the
+    /// typing state.
     pub fn infer(&mut self, variable: TypeVariable, expression: impl Into<TypeExpression>) {
+        let expression = expression.into();
+
+        // If it is an equality we want to make it symmetric so we add it to both sets
+        if let TE::Equal { id } = &expression {
+            if id == &variable {
+                return;
+            }
+            self.inferences.get_mut(id).unwrap().insert(TE::eq(variable));
+        }
+
         // This is safe to unwrap as the only source of new type variables is the `add`
         // method above, and so we know it will exist.
-        self.inferences.get_mut(&variable).unwrap().insert(expression.into());
+        self.inferences.get_mut(&variable).unwrap().insert(expression);
     }
 
     /// Gets the typing expressions associated with the provided type
     /// `variable`.
+    ///
+    /// # Panics
+    ///
+    /// If `variable` does not have associated inferences. This is only possible
+    /// through use of `unsafe` operations to violate the invariants of the
+    /// typing state.
+    #[must_use]
     pub fn inferences(&self, variable: TypeVariable) -> &InferenceSet {
         // This is safe to unwrap as the only source of new type variables is the `add`
         // method above, and so we know it will exist.
@@ -75,73 +108,49 @@ impl TypingState {
 
     /// Gets the typing expressions associated with the provided type
     /// `variable`.
+    ///
+    /// # Panics
+    ///
+    /// If `variable` does not have associated inferences. This is only possible
+    /// through use of `unsafe` operations to violate the invariants of the
+    /// typing state.
+    #[must_use]
     pub fn inferences_cloned(&self, variable: TypeVariable) -> InferenceSet {
         self.inferences.get(&variable).unwrap().iter().cloned().collect()
     }
 
     /// Gets the typing expressions associated with the provided type
     /// `variable`.
+    ///
+    /// # Panics
+    ///
+    /// If `variable` does not have associated inferences. This is only possible
+    /// through use of `unsafe` operations to violate the invariants of the
+    /// typing state.
     pub fn inferences_mut(&mut self, variable: TypeVariable) -> &mut InferenceSet {
         // This is safe to unwrap as the only source of new type variables is the `add`
         // method above, and so we know it will exist.
         self.inferences.get_mut(&variable).unwrap()
     }
 
-    /// Gets the transitive closure of inferences made about `variable` by
-    /// following equality links.
-    pub fn transitive_inferences(&self, variable: TypeVariable) -> InferenceSet {
-        let mut inferences = InferenceSet::new();
-        let mut seen_tyvars = HashSet::new();
-        let mut tyvar_queue = VecDeque::new();
-
-        tyvar_queue.push_back(variable);
-
-        while let Some(tv) = tyvar_queue.pop_front() {
-            let tv_inferences = self.inferences(tv);
-
-            // Grab all the equalities from the current set of inferences
-            let equalities: Vec<TypeVariable> = tv_inferences
-                .iter()
-                .flat_map(|inference| {
-                    if let TE::Equal { id } = inference {
-                        vec![*id]
-                    } else {
-                        vec![]
-                    }
-                })
-                .collect();
-            let non_equalities: Vec<TypeExpression> = tv_inferences
-                .iter()
-                .filter(|i| !matches!(i, TE::Equal { .. }))
-                .cloned()
-                .collect();
-
-            inferences.extend(non_equalities);
-
-            // Add to the queue as long as we've not seen it before
-            equalities.iter().for_each(|eq| {
-                if !seen_tyvars.contains(eq) {
-                    tyvar_queue.push_back(*eq);
-                }
-            });
-
-            // Mark the current type var as seen so we don't process it again
-            seen_tyvars.insert(tv);
-        }
-
-        inferences
-    }
-
     /// Gets the type variable associated with a value, if it exists, returning
     /// [`None`] otherwise.
+    #[must_use]
     pub fn var(&self, value: &BoxedVal) -> Option<TypeVariable> {
-        self.expressions_and_vars.get_by_left(value).cloned()
+        self.expressions_and_vars.get_by_left(value).copied()
     }
 
     /// Gets the type variable associated with `value`, or panics if the typing
     /// state does not know about `value`.
     ///
     /// To be used when you know that `value` exists in the typing state.
+    ///
+    /// # Panics
+    ///
+    /// If `value` does not have an associated variable. This is only possible
+    /// through use of `unsafe` operations to violate the invariants of the
+    /// typing state.
+    #[must_use]
     pub fn var_unchecked(&self, value: &BoxedVal) -> TypeVariable {
         self.var(value).unwrap()
     }
@@ -158,6 +167,7 @@ impl TypingState {
     /// In the vast majority of cases—as long as you know that you will not be
     /// querying with invalid type variables—you can instead use
     /// [`Self::value_unchecked`].
+    #[must_use]
     pub fn value(&self, variable: TypeVariable) -> Option<&BoxedVal> {
         self.expressions_and_vars.get_by_right(&variable)
     }
@@ -166,32 +176,56 @@ impl TypingState {
     /// typing state has no such `variable`.
     ///
     /// To be used when you know that `value` exists in the typing state.
+    ///
+    /// # Panics
+    ///
+    /// If `variable` does not have an associated value. This is only possible
+    /// through use of `unsafe` operations to violate the invariants of the
+    /// typing state.
+    #[must_use]
     pub fn value_unchecked(&self, variable: TypeVariable) -> &BoxedVal {
         self.value(variable).unwrap()
     }
 
     /// Gets all of the values that are registered with the unifier state.
+    #[must_use]
     pub fn values(&self) -> Vec<&BoxedVal> {
         self.expressions_and_vars.left_values().collect()
     }
 
     /// Gets all of the type variables that are registered with the unifier
     /// state.
+    #[must_use]
     pub fn variables(&self) -> Vec<TypeVariable> {
         self.expressions_and_vars.right_values().copied().collect()
     }
 
     /// Gets the pairs of `(value, type_var)` from the state of the unifier.
+    #[must_use]
     pub fn pairs(&self) -> Vec<(&BoxedVal, TypeVariable)> {
         self.expressions_and_vars.iter().map(|(v, t)| (v, *t)).collect()
     }
 
     /// Gets the pairs of `(value, type_var)` from the state of the unifier.
+    #[must_use]
     pub fn pairs_cloned(&self) -> Vec<(BoxedVal, TypeVariable)> {
         self.expressions_and_vars
             .iter()
             .map(|(v, t)| (v.clone(), *t))
             .collect()
+    }
+
+    /// Gets the result of running unification.
+    ///
+    /// As all operations on a [`UnificationForest`] require it being mutable,
+    /// we only provide a mutable accessor.
+    pub fn result(&mut self) -> &mut UnificationForest {
+        &mut self.unification_result
+    }
+
+    /// Gets the result of running unification.
+    pub fn set_result(&mut self, result: UnificationForest) {
+        self.unification_result = result;
     }
 
     /// Clears the unifier state entirely.
@@ -236,7 +270,7 @@ mod test {
 
     use crate::{
         unifier::{
-            expression::TypeExpression,
+            expression::{TypeExpression, TE},
             state::{TypeVariable, TypingState},
         },
         vm::value::{Provenance, SymbolicValue},
@@ -253,7 +287,7 @@ mod test {
         let value = SymbolicValue::new_value(0, Provenance::Synthetic);
         let type_variable = state.register(value);
 
-        let expression = TypeExpression::word(None, None);
+        let expression = TypeExpression::default_word();
         state.infer(type_variable, expression.clone());
 
         assert_eq!(
@@ -299,5 +333,21 @@ mod test {
         let variables = state.variables();
         assert!(variables.contains(&type_variable_1));
         assert!(variables.contains(&type_variable_2));
+    }
+
+    #[test]
+    fn makes_equalities_symmetric_by_construction() {
+        let mut state = TypingState::empty();
+        let value_1 = SymbolicValue::new_value(0, Provenance::Synthetic);
+        let value_2 = SymbolicValue::new_value(0, Provenance::Synthetic);
+        let type_variable_1 = state.register(value_1);
+        let type_variable_2 = state.register(value_2);
+
+        // Add an equality
+        state.infer(type_variable_1, TE::eq(type_variable_2));
+
+        // Check the results
+        assert!(state.inferences(type_variable_1).contains(&TE::eq(type_variable_2)));
+        assert!(state.inferences(type_variable_2).contains(&TE::eq(type_variable_1)));
     }
 }

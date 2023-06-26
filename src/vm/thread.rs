@@ -23,6 +23,7 @@ pub struct VMThread {
 impl VMThread {
     /// Constructs a new virtual machine thread with `state` as the initial
     /// state at `thread.instruction_pointer()`.
+    #[must_use]
     pub fn new(state: VMState, thread: ExecutionThread) -> Self {
         let gas_usage = 0;
         Self {
@@ -33,23 +34,27 @@ impl VMThread {
     }
 
     /// Gets the current virtual machine state for this virtual machine thread.
+    #[must_use]
     pub fn state(&self) -> &VMState {
         &self.state
     }
 
     /// Gets the current virtual machine state for this virtual machine thread.
+    #[must_use]
     pub fn state_mut(&mut self) -> &mut VMState {
         &mut self.state
     }
 
     /// Gets the instruction stream and current execution position associated
     /// with this virtual machine thread.
+    #[must_use]
     pub fn instructions(&self) -> &ExecutionThread {
         &self.thread
     }
 
     /// Gets the instruction stream and current execution position associated
     /// with this virtual machine thread.
+    #[must_use]
     pub fn instructions_mut(&mut self) -> &mut ExecutionThread {
         &mut self.thread
     }
@@ -60,6 +65,7 @@ impl VMThread {
     ///
     /// This method performs no validation as to whether the fork point is a
     /// valid fork point. This is up to the VM itself.
+    #[must_use]
     pub fn fork(&self, target: u32) -> Self {
         let instruction_pointer = self.thread.instruction_pointer();
         let state = self.state.fork(instruction_pointer);
@@ -76,10 +82,11 @@ impl VMThread {
 
     /// Adds the provided `gas` to the gas usage of this thread.
     pub fn consume_gas(&mut self, gas: usize) {
-        self.gas_usage += gas
+        self.gas_usage += gas;
     }
 
     /// Gets the gas usage of this thread.
+    #[must_use]
     pub fn gas_usage(&self) -> usize {
         self.gas_usage
     }
@@ -104,7 +111,7 @@ mod test {
             vec![0x00u8, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06].as_slice(),
         )?;
         let state = VMState::new_at_start(
-            instruction_stream.len() as u32,
+            u32::try_from(instruction_stream.len()).unwrap(),
             DEFAULT_ITERATIONS_PER_OPCODE,
         );
         let execution_thread = instruction_stream.new_thread(0)?;

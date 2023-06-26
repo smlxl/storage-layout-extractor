@@ -72,22 +72,26 @@ pub struct Errors<E> {
 
 impl<E> Errors<E> {
     /// Creates a new container for errors.
+    #[must_use]
     pub fn new() -> Self {
         let payloads = vec![];
         Self { payloads }
     }
 
     /// Gets the errors contained within this error.
+    #[must_use]
     pub fn payloads(&self) -> &[E] {
         self.payloads.as_slice()
     }
 
     /// Gets the length of the errors container.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.payloads.len()
     }
 
     /// Checks if the errors container is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -99,12 +103,12 @@ where
 {
     /// Adds the provided `error` to the container.
     pub fn add(&mut self, error: E) {
-        self.payloads.push(error)
+        self.payloads.push(error);
     }
 
     /// Adds the multiple provided errors to the container.
     pub fn add_many(&mut self, errors: impl Into<Vec<E>>) {
-        self.payloads.extend(errors.into())
+        self.payloads.extend(errors.into());
     }
 }
 
@@ -190,8 +194,8 @@ where
             write!(f, "Encountered no errors")?;
         } else {
             writeln!(f, "Encountered {} errors:", self.payloads.len())?;
-            for error in self.payloads.iter() {
-                writeln!(f, "{}", error)?;
+            for error in &self.payloads {
+                writeln!(f, "{error}")?;
             }
         }
 

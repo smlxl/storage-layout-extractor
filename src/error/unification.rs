@@ -3,7 +3,14 @@
 
 use thiserror::Error;
 
-use crate::{error::container, unifier::expression::TypeExpression, vm::value::BoxedVal};
+use crate::{
+    error::container,
+    unifier::{
+        expression::{InferenceSet, TypeExpression},
+        state::TypeVariable,
+    },
+    vm::value::BoxedVal,
+};
 
 /// Errors that occur during unification and type inference process in the
 /// [`crate::unifier::Unifier`].
@@ -14,6 +21,15 @@ pub enum Error {
 
     #[error("Invalid typing expression {value:?} encountered during unification: {reason}")]
     InvalidInference { value: TypeExpression, reason: String },
+
+    #[error("Unification is not complete for {var:?}, found multiple inferences: {inferences:?}")]
+    UnificationIncomplete { var: TypeVariable, inferences: InferenceSet },
+
+    #[error("Type variable {var:?} has no associated inferences")]
+    UnificationFailure { var: TypeVariable },
+
+    #[error("Tried to convert {value} to fit in size {width} but it was too large")]
+    OverSizedNumber { value: i128, width: usize },
 }
 
 /// Make it possible to attach locations to these errors.

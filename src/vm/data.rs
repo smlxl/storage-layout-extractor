@@ -20,6 +20,7 @@ pub struct VisitedOpcodes {
 impl VisitedOpcodes {
     /// Constructs a new visited opcodes container for up to `instructions_len`
     /// opcodes.
+    #[must_use]
     pub fn new(instructions_len: u32, iterations_per_opcode: usize) -> Self {
         let data = HashMap::default();
 
@@ -137,7 +138,7 @@ mod test {
         }
 
         #[test]
-        fn cannot_mark_invalid_instructions_as_visited() -> anyhow::Result<()> {
+        fn cannot_mark_invalid_instructions_as_visited() {
             let mut tracker = VisitedOpcodes::new(20, 1);
             let mark = tracker
                 .mark_visited(1000)
@@ -150,12 +151,10 @@ mod test {
                     available: 20,
                 }
             );
-
-            Ok(())
         }
 
         #[test]
-        fn cannot_unmark_invalid_instructions_as_visited() -> anyhow::Result<()> {
+        fn cannot_unmark_invalid_instructions_as_visited() {
             let mut tracker = VisitedOpcodes::new(20, 1);
             let mark = tracker
                 .unmark_visited(1000)
@@ -168,8 +167,6 @@ mod test {
                     available: 20,
                 }
             );
-
-            Ok(())
         }
     }
 }

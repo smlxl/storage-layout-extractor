@@ -569,6 +569,7 @@ impl Opcode for Not {
 pub struct Byte;
 
 impl Opcode for Byte {
+    #[allow(clippy::similar_names)] // They are accurate names
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and the env data
         let instruction_pointer = vm.instruction_pointer()?;
@@ -1166,7 +1167,7 @@ mod test {
                                         assert_eq!(
                                             value,
                                             &KnownWord::from(0xf8u8.to_le_bytes().to_vec(),)
-                                        )
+                                        );
                                     }
                                     _ => panic!("Invalid payload"),
                                 }
@@ -1185,7 +1186,7 @@ mod test {
                                                 assert_eq!(
                                                     value,
                                                     &KnownWord::from(0x08u8.to_le_bytes().to_vec())
-                                                )
+                                                );
                                             }
                                             _ => panic!("Invalid payload"),
                                         }

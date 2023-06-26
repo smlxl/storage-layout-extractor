@@ -168,48 +168,46 @@ impl Opcode for CallDataCopy {
 
         // Modify the memory
         let memory = vm.state()?.memory_mut();
-        match &size.data {
-            SymbolicValueData::KnownData { value } => {
-                let num_32 = SymbolicValue::new_known_value(
+
+        if let SymbolicValueData::KnownData { value } = &size.data {
+            let num_32 = SymbolicValue::new_known_value(
+                instruction_pointer,
+                KnownWord::from(32),
+                Provenance::Execution,
+            );
+            let actual_size: usize = value.into();
+            for internal_offset in (0..actual_size).step_by(32) {
+                let to_add_to_offset = SymbolicValue::new_known_value(
                     instruction_pointer,
-                    KnownWord::from(32),
+                    KnownWord::from(internal_offset),
                     Provenance::Execution,
                 );
-                let actual_size: usize = value.into();
-                for internal_offset in (0..actual_size).step_by(32) {
-                    let to_add_to_offset = SymbolicValue::new_known_value(
-                        instruction_pointer,
-                        KnownWord::from(internal_offset),
-                        Provenance::Execution,
-                    );
-                    let dest_offset = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::Add {
-                            left:  dest_offset.clone(),
-                            right: to_add_to_offset.clone(),
-                        },
-                    );
-                    let src_offset = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::Add {
-                            left:  offset.clone(),
-                            right: to_add_to_offset,
-                        },
-                    );
-                    let value = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::call_data(src_offset, num_32.clone()),
-                    );
-                    memory.store(dest_offset, value);
-                }
-            }
-            _ => {
+                let dest_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  dest_offset.clone(),
+                        right: to_add_to_offset.clone(),
+                    },
+                );
+                let src_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  offset.clone(),
+                        right: to_add_to_offset,
+                    },
+                );
                 let value = SymbolicValue::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::call_data(offset, size),
+                    SymbolicValueData::call_data(src_offset, num_32.clone()),
                 );
                 memory.store(dest_offset, value);
             }
+        } else {
+            let value = SymbolicValue::new_from_execution(
+                instruction_pointer,
+                SymbolicValueData::call_data(offset, size),
+            );
+            memory.store(dest_offset, value);
         }
 
         // Done, so return ok
@@ -323,51 +321,49 @@ impl Opcode for CodeCopy {
 
         // Modify the memory
         let memory = vm.state()?.memory_mut();
-        match &size.data {
-            SymbolicValueData::KnownData { value } => {
-                let num_32 = SymbolicValue::new_known_value(
+
+        if let SymbolicValueData::KnownData { value } = &size.data {
+            let num_32 = SymbolicValue::new_known_value(
+                instruction_pointer,
+                KnownWord::from(32),
+                Provenance::Execution,
+            );
+            let actual_size: usize = value.into();
+            for internal_offset in (0..actual_size).step_by(32) {
+                let to_add_to_offset = SymbolicValue::new_known_value(
                     instruction_pointer,
-                    KnownWord::from(32),
+                    KnownWord::from(internal_offset),
                     Provenance::Execution,
                 );
-                let actual_size: usize = value.into();
-                for internal_offset in (0..actual_size).step_by(32) {
-                    let to_add_to_offset = SymbolicValue::new_known_value(
-                        instruction_pointer,
-                        KnownWord::from(internal_offset),
-                        Provenance::Execution,
-                    );
-                    let dest_offset = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::Add {
-                            left:  dest_offset.clone(),
-                            right: to_add_to_offset.clone(),
-                        },
-                    );
-                    let src_offset = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::Add {
-                            left:  offset.clone(),
-                            right: to_add_to_offset,
-                        },
-                    );
-                    let value = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::CodeCopy {
-                            offset: src_offset,
-                            size:   num_32.clone(),
-                        },
-                    );
-                    memory.store(dest_offset, value);
-                }
-            }
-            _ => {
+                let dest_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  dest_offset.clone(),
+                        right: to_add_to_offset.clone(),
+                    },
+                );
+                let src_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  offset.clone(),
+                        right: to_add_to_offset,
+                    },
+                );
                 let value = SymbolicValue::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::CodeCopy { offset, size },
+                    SymbolicValueData::CodeCopy {
+                        offset: src_offset,
+                        size:   num_32.clone(),
+                    },
                 );
                 memory.store(dest_offset, value);
             }
+        } else {
+            let value = SymbolicValue::new_from_execution(
+                instruction_pointer,
+                SymbolicValueData::CodeCopy { offset, size },
+            );
+            memory.store(dest_offset, value);
         }
 
         // Done, so return ok
@@ -489,56 +485,54 @@ impl Opcode for ExtCodeCopy {
 
         // Modify the memory
         let memory = vm.state()?.memory_mut();
-        match &size.data {
-            SymbolicValueData::KnownData { value } => {
-                let num_32 = SymbolicValue::new_known_value(
+
+        if let SymbolicValueData::KnownData { value } = &size.data {
+            let num_32 = SymbolicValue::new_known_value(
+                instruction_pointer,
+                KnownWord::from(32),
+                Provenance::Execution,
+            );
+            let actual_size: usize = value.into();
+            for internal_offset in (0..actual_size).step_by(32) {
+                let to_add_to_offset = SymbolicValue::new_known_value(
                     instruction_pointer,
-                    KnownWord::from(32),
+                    KnownWord::from(internal_offset),
                     Provenance::Execution,
                 );
-                let actual_size: usize = value.into();
-                for internal_offset in (0..actual_size).step_by(32) {
-                    let to_add_to_offset = SymbolicValue::new_known_value(
-                        instruction_pointer,
-                        KnownWord::from(internal_offset),
-                        Provenance::Execution,
-                    );
-                    let dest_offset = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::Add {
-                            left:  dest_offset.clone(),
-                            right: to_add_to_offset.clone(),
-                        },
-                    );
-                    let src_offset = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::Add {
-                            left:  offset.clone(),
-                            right: to_add_to_offset,
-                        },
-                    );
-                    let value = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::ExtCodeCopy {
-                            address: address.clone(),
-                            offset:  src_offset,
-                            size:    num_32.clone(),
-                        },
-                    );
-                    memory.store(dest_offset, value);
-                }
-            }
-            _ => {
+                let dest_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  dest_offset.clone(),
+                        right: to_add_to_offset.clone(),
+                    },
+                );
+                let src_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  offset.clone(),
+                        right: to_add_to_offset,
+                    },
+                );
                 let value = SymbolicValue::new_from_execution(
                     instruction_pointer,
                     SymbolicValueData::ExtCodeCopy {
-                        address,
-                        offset,
-                        size,
+                        address: address.clone(),
+                        offset:  src_offset,
+                        size:    num_32.clone(),
                     },
                 );
                 memory.store(dest_offset, value);
             }
+        } else {
+            let value = SymbolicValue::new_from_execution(
+                instruction_pointer,
+                SymbolicValueData::ExtCodeCopy {
+                    address,
+                    offset,
+                    size,
+                },
+            );
+            memory.store(dest_offset, value);
         }
 
         // Done, so return ok
@@ -652,51 +646,49 @@ impl Opcode for ReturnDataCopy {
 
         // Modify the memory
         let memory = vm.state()?.memory_mut();
-        match &size.data {
-            SymbolicValueData::KnownData { value } => {
-                let num_32 = SymbolicValue::new_known_value(
+
+        if let SymbolicValueData::KnownData { value } = &size.data {
+            let num_32 = SymbolicValue::new_known_value(
+                instruction_pointer,
+                KnownWord::from(32),
+                Provenance::Execution,
+            );
+            let actual_size: usize = value.into();
+            for internal_offset in (0..actual_size).step_by(32) {
+                let to_add_to_offset = SymbolicValue::new_known_value(
                     instruction_pointer,
-                    KnownWord::from(32),
+                    KnownWord::from(internal_offset),
                     Provenance::Execution,
                 );
-                let actual_size: usize = value.into();
-                for internal_offset in (0..actual_size).step_by(32) {
-                    let to_add_to_offset = SymbolicValue::new_known_value(
-                        instruction_pointer,
-                        KnownWord::from(internal_offset),
-                        Provenance::Execution,
-                    );
-                    let dest_offset = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::Add {
-                            left:  dest_offset.clone(),
-                            right: to_add_to_offset.clone(),
-                        },
-                    );
-                    let src_offset = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::Add {
-                            left:  offset.clone(),
-                            right: to_add_to_offset,
-                        },
-                    );
-                    let value = SymbolicValue::new_from_execution(
-                        instruction_pointer,
-                        SymbolicValueData::ReturnData {
-                            offset: src_offset,
-                            size:   num_32.clone(),
-                        },
-                    );
-                    memory.store(dest_offset, value);
-                }
-            }
-            _ => {
+                let dest_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  dest_offset.clone(),
+                        right: to_add_to_offset.clone(),
+                    },
+                );
+                let src_offset = SymbolicValue::new_from_execution(
+                    instruction_pointer,
+                    SymbolicValueData::Add {
+                        left:  offset.clone(),
+                        right: to_add_to_offset,
+                    },
+                );
                 let value = SymbolicValue::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::ReturnData { offset, size },
+                    SymbolicValueData::ReturnData {
+                        offset: src_offset,
+                        size:   num_32.clone(),
+                    },
                 );
                 memory.store(dest_offset, value);
             }
+        } else {
+            let value = SymbolicValue::new_from_execution(
+                instruction_pointer,
+                SymbolicValueData::ReturnData { offset, size },
+            );
+            memory.store(dest_offset, value);
         }
 
         // Done, so return ok
@@ -1192,12 +1184,14 @@ impl PushN {
     }
 
     /// Get the number of bytes this `PUSHN` opcode pushes onto the stack.
+    #[must_use]
     pub fn byte_size(&self) -> u8 {
         self.byte_count
     }
 
     /// Get the data to be pushed onto the stack by this opcode. It is
     /// guaranteed that `bytes_data.len() == byte_size()`.
+    #[must_use]
     pub fn bytes_data(&self) -> &[u8] {
         &self.bytes
     }
@@ -1244,7 +1238,7 @@ impl Opcode for PushN {
 
     fn encode(&self) -> Vec<u8> {
         let mut data = vec![self.as_byte()];
-        let bytes_be: Vec<u8> = self.bytes_data().iter().rev().cloned().collect();
+        let bytes_be: Vec<u8> = self.bytes_data().iter().rev().copied().collect();
         data.extend(bytes_be);
         data
     }
@@ -1289,6 +1283,7 @@ impl DupN {
     }
 
     /// Gets the item on the stack that this opcode is duplicating.
+    #[must_use]
     pub fn n(&self) -> u8 {
         self.item
     }
@@ -1299,8 +1294,9 @@ impl Opcode for DupN {
         // Get the stack
         let mut stack = vm.stack_handle()?;
 
-        // Get the dup frame, converting from EVM to internal semantics
-        let frame = self.item as u32 - 1;
+        // Get the dup frame, converting from EVM to internal semantics and with the
+        // subtraction always safe as `DupN` is guaranteed to have `item >= 1`.
+        let frame = u32::from(self.n()) - 1;
 
         // Duplicate the specified item; verification is done in parsing
         stack.dup(frame)?;
@@ -1364,6 +1360,7 @@ impl SwapN {
     }
 
     /// Gets the item on the stack that this opcode is swapping with.
+    #[must_use]
     pub fn n(&self) -> u8 {
         self.item
     }
@@ -1375,7 +1372,7 @@ impl Opcode for SwapN {
         let mut stack = vm.stack_handle()?;
 
         // Compute the internal item to swap with
-        let frame = self.n() as u32;
+        let frame = u32::from(self.n());
 
         // Swap the items
         stack.swap(frame)?;
@@ -1431,7 +1428,7 @@ mod test {
         assert_eq!(item.instruction_pointer, 0);
         match &item.data {
             SymbolicValueData::CallData { offset, .. } => {
-                assert_eq!(offset.provenance, Provenance::Synthetic)
+                assert_eq!(offset.provenance, Provenance::Synthetic);
             }
             _ => panic!("Invalid data"),
         };
@@ -1513,7 +1510,7 @@ mod test {
                 assert_eq!(
                     value,
                     &KnownWord::from(code_size_actual.to_le_bytes().to_vec(),)
-                )
+                );
             }
             _ => panic!("Incorrect data payload"),
         }
@@ -1872,7 +1869,7 @@ mod test {
             assert_eq!(value.provenance, Provenance::Bytecode);
             match &value.data {
                 SymbolicValueData::KnownData { value, .. } => {
-                    assert_eq!(value, &KnownWord::from(bytes))
+                    assert_eq!(value, &KnownWord::from(bytes));
                 }
                 _ => panic!("Incorrect payload"),
             };
@@ -1946,7 +1943,7 @@ mod test {
             // Inspect the stack
             let stack = vm.state()?.stack_mut();
             assert_eq!(stack.depth(), input_stack_size);
-            let item_at_depth = stack.read(item as u32)?;
+            let item_at_depth = stack.read(u32::from(item))?;
             let item_at_top = stack.read(0)?;
             assert_eq!(item_at_depth, &stack_top);
             assert_eq!(item_at_top, &item_to_swap);

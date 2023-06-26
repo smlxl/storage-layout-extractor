@@ -120,7 +120,7 @@ mod test_util {
     }
 
     /// Constructs a new virtual machine with the provided `instructions` and
-    /// with the provided values` pushed onto its stack in order.
+    /// with the provided `values` pushed onto its stack in order.
     ///
     /// This means that the last item in `values` will be put on the top of
     /// the stack.
@@ -134,9 +134,9 @@ mod test_util {
         let stack = vm.state()?.stack_mut();
 
         let values_len = values.len();
-        values.into_iter().for_each(|val| {
+        for val in values {
             stack.push(val).expect("Failed to insert value into stack");
-        });
+        }
 
         // Check that we have constructed the stack correctly
         assert_eq!(stack.depth(), values_len);

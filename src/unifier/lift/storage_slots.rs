@@ -22,6 +22,7 @@ pub struct StorageSlots;
 
 impl StorageSlots {
     /// Constructs a new instance of the storage slot access lifting pass.
+    #[must_use]
     pub fn new() -> Box<Self> {
         Box::new(Self)
     }
@@ -114,7 +115,7 @@ mod test {
                 assert_eq!(key, mapping_key);
                 match slot.data {
                     SVD::StorageSlot { key } => {
-                        assert_eq!(key, slot_index_constant)
+                        assert_eq!(key, slot_index_constant);
                     }
                     _ => panic!("Incorrect payload"),
                 }
@@ -165,7 +166,7 @@ mod test {
                         assert_eq!(key, mapping_key);
                         match slot.data {
                             SVD::StorageSlot { key } => {
-                                assert_eq!(key, slot_index_constant)
+                                assert_eq!(key, slot_index_constant);
                             }
                             _ => panic!("Incorrect payload"),
                         }

@@ -43,5 +43,14 @@ pub const MAXIMUM_STACK_DEPTH: usize = 1024;
 /// The width of word on the EVM in bits.
 pub const WORD_SIZE: usize = 256;
 
+/// The bit-width of an address type.
+pub const ADDRESS_WIDTH_BITS: usize = 160;
+
+/// The bit-width of a selector type.
+pub const SELECTOR_WIDTH_BITS: usize = 32;
+
+/// The bit-width of a function type.
+pub const FUNCTION_WIDTH_BITS: usize = ADDRESS_WIDTH_BITS + SELECTOR_WIDTH_BITS;
+
 /// The default number of times that the virtual machine will visit each opcode.
 pub const DEFAULT_ITERATIONS_PER_OPCODE: usize = 10;

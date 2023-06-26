@@ -44,7 +44,17 @@ impl Opcode for Stop {
 ///
 /// Equivalent to [`Revert`] with 0 and 0 as its stack parameters.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Invalid;
+pub struct Invalid {
+    pub byte: u8,
+}
+
+impl Invalid {
+    /// Creates a new invalid wrapping the specified byte.
+    #[must_use]
+    pub fn new(byte: u8) -> Self {
+        Self { byte }
+    }
+}
 
 impl Opcode for Invalid {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
@@ -73,7 +83,15 @@ impl Opcode for Invalid {
     }
 
     fn as_byte(&self) -> u8 {
-        0xfe
+        self.byte
+    }
+}
+
+impl Default for Invalid {
+    /// The default invalid opcode is the one that has a byte corresponding to
+    /// the one specified by the EVM.
+    fn default() -> Self {
+        Self::new(0xfe)
     }
 }
 
@@ -214,10 +232,10 @@ impl Opcode for JumpI {
                 // If we get an error here, we need to change what we do based on whether it is
                 // in this thread or the target thread.
                 let result = match payload.payload {
-                    execution::Error::NoConcreteJumpDestination { .. } => Ok(payload),
-                    execution::Error::NonExistentJumpTarget { .. } => Ok(payload),
-                    execution::Error::InvalidJumpTarget { .. } => Ok(payload),
-                    execution::Error::InvalidOffsetForJump { .. } => Ok(payload),
+                    execution::Error::NoConcreteJumpDestination { .. }
+                    | execution::Error::NonExistentJumpTarget { .. }
+                    | execution::Error::InvalidJumpTarget { .. }
+                    | execution::Error::InvalidOffsetForJump { .. } => Ok(payload),
                     _ => Err(payload),
                 }?;
 
@@ -340,47 +358,45 @@ fn store_return_data(ret_size: &BoxedVal, ret_offset: &BoxedVal, vm: &mut VM) ->
     let instruction_pointer = vm.instruction_pointer()?;
     let memory = vm.state()?.memory_mut();
     let ret_size = ret_size.clone().constant_fold();
-    match ret_size.data {
-        SymbolicValueData::KnownData { value } => {
-            let num_32 = SymbolicValue::new_known_value(
+
+    if let SymbolicValueData::KnownData { value } = ret_size.data {
+        let num_32 = SymbolicValue::new_known_value(
+            instruction_pointer,
+            KnownWord::from(32),
+            Provenance::Execution,
+        );
+        let actual_size: usize = value.into();
+        for internal_offset in (0..actual_size).step_by(32) {
+            let to_add_to_offset = SymbolicValue::new_known_value(
                 instruction_pointer,
-                KnownWord::from(32),
+                KnownWord::from(internal_offset),
                 Provenance::Execution,
             );
-            let actual_size: usize = value.into();
-            for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = SymbolicValue::new_known_value(
-                    instruction_pointer,
-                    KnownWord::from(internal_offset),
-                    Provenance::Execution,
-                );
-                let dest_offset = SymbolicValue::new_from_execution(
-                    instruction_pointer,
-                    SymbolicValueData::Add {
-                        left:  ret_offset.clone().constant_fold(),
-                        right: to_add_to_offset.clone(),
-                    },
-                );
-                // Offsets in the _return data_ start at zero.
-                let src_offset = SymbolicValue::new_from_execution(
-                    instruction_pointer,
-                    SymbolicValueData::new_known(KnownWord::from(internal_offset)),
-                );
-                let value = SymbolicValue::new_from_execution(
-                    instruction_pointer,
-                    SymbolicValueData::ReturnData {
-                        offset: src_offset,
-                        size:   num_32.clone(),
-                    },
-                );
-                memory.store(dest_offset, value);
-            }
+            let dest_offset = SymbolicValue::new_from_execution(
+                instruction_pointer,
+                SymbolicValueData::Add {
+                    left:  ret_offset.clone().constant_fold(),
+                    right: to_add_to_offset.clone(),
+                },
+            );
+            // Offsets in the _return data_ start at zero.
+            let src_offset = SymbolicValue::new_from_execution(
+                instruction_pointer,
+                SymbolicValueData::new_known(KnownWord::from(internal_offset)),
+            );
+            let value = SymbolicValue::new_from_execution(
+                instruction_pointer,
+                SymbolicValueData::ReturnData {
+                    offset: src_offset,
+                    size:   num_32.clone(),
+                },
+            );
+            memory.store(dest_offset, value);
         }
-        _ => {
-            let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
-            vm.state()?.memory_mut().store(ret_offset.clone(), ret_value);
-        }
-    };
+    } else {
+        let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
+        vm.state()?.memory_mut().store(ret_offset.clone(), ret_value);
+    }
 
     Ok(())
 }
@@ -904,7 +920,7 @@ mod test {
         let mut vm = util::new_vm_with_values_on_stack(vec![])?;
 
         // Prepare and run the opcode
-        let opcode = control::Invalid;
+        let opcode = control::Invalid::default();
         opcode.execute(&mut vm)?;
 
         // Check that it has marked execution as needing to halt on the current thread
@@ -918,8 +934,8 @@ mod test {
         // Prepare the instruction stream, as it actually does matter this time
         let bytes: Vec<u8> = bytecode![
             control::Jump,
-            control::Invalid,
-            control::Invalid,
+            control::Invalid::default(),
+            control::Invalid::default(),
             control::JumpDest,
         ];
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
@@ -951,8 +967,8 @@ mod test {
         // Prepare the instruction stream, as it actually does matter this time
         let bytes: Vec<u8> = bytecode![
             control::Jump,
-            control::Invalid,
-            control::Invalid,
+            control::Invalid::default(),
+            control::Invalid::default(),
             control::JumpDest,
         ];
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
@@ -983,8 +999,8 @@ mod test {
         // Prepare the instruction stream, as it actually does matter this time
         let bytes: Vec<u8> = bytecode![
             control::Jump,
-            control::Invalid,
-            control::Invalid,
+            control::Invalid::default(),
+            control::Invalid::default(),
             control::JumpDest,
         ];
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
@@ -1018,9 +1034,9 @@ mod test {
         // Prepare the instruction stream, as it actually does matter this time
         let bytes: Vec<u8> = bytecode![
             control::Jump,
-            control::Invalid,
-            control::Invalid,
-            control::Invalid,
+            control::Invalid::default(),
+            control::Invalid::default(),
+            control::Invalid::default(),
         ];
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
@@ -1137,7 +1153,12 @@ mod test {
     #[test]
     fn conditional_jump_with_invalid_destination_halts_execution() -> anyhow::Result<()> {
         // Prepare the instruction stream, as it actually does matter this time
-        let bytes: Vec<u8> = bytecode![control::Jump, control::PC, control::Invalid, control::PC];
+        let bytes: Vec<u8> = bytecode![
+            control::Jump,
+            control::PC,
+            control::Invalid::default(),
+            control::PC
+        ];
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
@@ -1182,7 +1203,7 @@ mod test {
         let value = stack.read(0)?;
         match &value.data {
             SymbolicValueData::KnownData { value, .. } => {
-                assert_eq!(value, &KnownWord::from(0x00u32.to_le_bytes().to_vec(),))
+                assert_eq!(value, &KnownWord::from(0x00u32.to_le_bytes().to_vec(),));
             }
             _ => panic!("Invalid payload"),
         }

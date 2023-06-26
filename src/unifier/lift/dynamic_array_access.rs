@@ -27,6 +27,7 @@ use crate::{
 pub struct DynamicArrayAccess;
 
 impl DynamicArrayAccess {
+    #[must_use]
     pub fn new() -> Box<Self> {
         Box::new(Self)
     }

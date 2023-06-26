@@ -16,6 +16,7 @@ use crate::{
 
 /// Creates a new analyzer wrapping the provided `contract`, and with the
 /// provided `vm_config` and `unifier_config`.
+#[must_use]
 pub fn new(
     contract: Contract,
     vm_config: vm::Config,
@@ -120,6 +121,10 @@ impl<S: State> Analyzer<S> {
     /// Do not force a state transition for the analyzer unless you totally
     /// understand the state that the analyzer is in, and the implications
     /// of doing so.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if the provided `transform` returns [`Err`].
     pub unsafe fn transform_state<NS: State>(
         self,
         transform: impl FnOnce(S) -> error::Result<NS>,
@@ -127,7 +132,7 @@ impl<S: State> Analyzer<S> {
         let state = transform(self.state)?;
         let contract = self.contract;
 
-        Ok(Analyzer { state, contract })
+        Ok(Analyzer { contract, state })
     }
 }
 
@@ -139,11 +144,15 @@ pub type InitialAnalyzer = Analyzer<state::HasContract>;
 impl Analyzer<state::HasContract> {
     /// Executes the analysis process for beginning to end, performing all the
     /// intermediate steps automatically and returning the storage layout.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if any step in the process fails.
     pub fn analyze(self) -> error::Result<StorageLayout> {
         let analyzer = self.disassemble()?;
         let analyzer = analyzer.prepare_vm()?;
         let analyzer = analyzer.execute()?;
-        let analyzer = analyzer.prepare_unifier()?;
+        let analyzer = analyzer.prepare_unifier();
         let analyzer = analyzer.unify()?;
         let layout = analyzer.layout();
 
@@ -152,6 +161,10 @@ impl Analyzer<state::HasContract> {
 
     /// Performs the disassembly process to turn the input contract code into
     /// bytecode.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if disassembly fails.
     pub fn disassemble(self) -> error::Result<Analyzer<state::DisassemblyComplete>> {
         let bytecode = InstructionStream::try_from(self.contract.bytecode().as_slice())?;
         unsafe {
@@ -172,6 +185,11 @@ impl Analyzer<state::HasContract> {
 /// the bytecode.
 impl Analyzer<state::DisassemblyComplete> {
     /// Prepares the virtual machine for symbolic execution of the bytecode.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if the virtual machine cannot be constructed for some
+    /// reason.
     pub fn prepare_vm(self) -> error::Result<Analyzer<state::VMReady>> {
         unsafe {
             self.transform_state(|old_state| {
@@ -188,6 +206,11 @@ impl Analyzer<state::DisassemblyComplete> {
 impl Analyzer<state::VMReady> {
     /// Symbolically executes the disassembled bytecode on the [`VM`] to gather
     /// symbolic values that are built during execution.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if execution in the virtual machine fails for any
+    /// reason.
     pub fn execute(self) -> error::Result<Analyzer<state::ExecutionComplete>> {
         unsafe {
             self.transform_state(|mut old_state| {
@@ -207,12 +230,15 @@ impl Analyzer<state::VMReady> {
 /// execution of the bytecode.
 impl Analyzer<state::ExecutionComplete> {
     /// Takes thew results of execution and uses them to prepare a new unifier.
-    pub fn prepare_unifier(self) -> error::Result<Analyzer<state::UnifierReady>> {
+    #[must_use]
+    pub fn prepare_unifier(self) -> Analyzer<state::UnifierReady> {
         unsafe {
+            // Safe to unwrap as we guarantee that the internal operations cannot fail.
             self.transform_state(|old_state| {
                 let unifier = Unifier::new(old_state.unifier_config, old_state.execution_result);
                 Ok(state::UnifierReady { unifier })
             })
+            .unwrap_or_else(|_| unreachable!("Explicit closure cannot return Err"))
         }
     }
 }
@@ -222,12 +248,16 @@ impl Analyzer<state::ExecutionComplete> {
 impl Analyzer<state::UnifierReady> {
     /// Takes the prepared unifier and runs the unification process on the
     /// execution results.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if the execution of the unifier fails.
     pub fn unify(self) -> error::Result<Analyzer<state::UnificationComplete>> {
         unsafe {
             self.transform_state(|mut old_state| {
                 let layout = old_state.unifier.run()?;
                 let unifier = old_state.unifier;
-                Ok(state::UnificationComplete { layout, unifier })
+                Ok(state::UnificationComplete { unifier, layout })
             })
         }
     }
@@ -236,11 +266,13 @@ impl Analyzer<state::UnifierReady> {
 /// Operations available on an analyzer that has completed unification.
 impl Analyzer<state::UnificationComplete> {
     /// Gets the final unifier state that computed the storage layout.
+    #[must_use]
     pub fn unifier(&self) -> &Unifier {
         &self.state.unifier
     }
 
     /// Gets the computed storage layout for the contract.
+    #[must_use]
     pub fn layout(&self) -> &StorageLayout {
         &self.state.layout
     }

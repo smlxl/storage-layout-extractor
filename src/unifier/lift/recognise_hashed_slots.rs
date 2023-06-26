@@ -1,6 +1,7 @@
 //! This module contains a lifting pass that recognises the keccaks of the first
 //! [`SLOT_COUNT`] storage slot indices in order to make the recognition of
 //! dynamic array accesses easier.
+
 use bimap::BiMap;
 use ethnum::U256;
 use sha3::{Digest, Keccak256};
@@ -12,29 +13,36 @@ use crate::{
 
 /// The number of storage indices for which hashes will be generated (and hence
 /// recognised).
-pub const SLOT_COUNT: usize = 1000;
+pub const SLOT_COUNT: usize = 10000;
 
 /// This pass detects and lifts expressions that appear to be the hashes of the
 /// first [`SLOT_COUNT`] storage slot indices.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct StorageSlotHashes;
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StorageSlotHashes {
+    hashes: BiMap<U256, usize>,
+}
 
 impl StorageSlotHashes {
     /// Creates a new instance of the mapping access lifting pass.
+    #[must_use]
     pub fn new() -> Box<Self> {
-        Box::new(Self)
+        let hashes = Self::make_hashes(SLOT_COUNT);
+        Box::new(Self { hashes })
     }
 
     /// Generates the slot hashes for the first `count` slots, assuming
     /// big-endian (network) byte ordering.
-    pub fn slot_hashes(count: usize) -> BiMap<U256, usize> {
+    #[must_use]
+    pub fn make_hashes(count: usize) -> BiMap<U256, usize> {
         let mut data = BiMap::new();
 
         for slot_ix in 0..count {
             let mut hasher = Keccak256::new();
             hasher.update(U256::from(slot_ix as u64).to_be_bytes());
             let hash = hasher.finalize().to_vec();
-            let key = U256::from_be_bytes(hash.as_slice().try_into().unwrap());
+            let key = U256::from_be_bytes(hash.as_slice().try_into().unwrap_or_else(|_| {
+                unreachable!("The number of bytes in `hash` should be correct")
+            }));
             data.insert(key, slot_ix);
         }
 
@@ -48,7 +56,7 @@ impl Lift for StorageSlotHashes {
         value: BoxedVal,
         _state: &TypingState,
     ) -> crate::error::unification::Result<BoxedVal> {
-        let hashes = StorageSlotHashes::slot_hashes(SLOT_COUNT);
+        let hashes = &self.hashes;
         let value_clone = value.clone();
         let lift_hashes = |input_value: &SVD| {
             let SVD::KnownData { value: known_value } = input_value else { return None };
@@ -96,7 +104,7 @@ mod test {
 
         // Get the first five slot indices as hashes.
         let hash_count = 5;
-        let hashes_map = StorageSlotHashes::slot_hashes(hash_count);
+        let hashes_map = StorageSlotHashes::make_hashes(hash_count);
 
         for index in 0..hash_count {
             let slot_expected = util::expected_hash_from_be_hex_string(hashes[index]);
@@ -114,13 +122,13 @@ mod test {
 
         // Run the pass
         let state = TypingState::empty();
-        let result = StorageSlotHashes.run(value, &state)?;
+        let result = StorageSlotHashes::new().run(value, &state)?;
 
         // Check the structure
         match result.data {
             SVD::Sha3 { data } => match data.data {
                 SVD::KnownData { value } => {
-                    assert_eq!(value, KnownWord::from(3))
+                    assert_eq!(value, KnownWord::from(3));
                 }
 
                 _ => panic!("Incorrect payload"),

@@ -12,12 +12,13 @@ pub struct StorageLayout {
 
 impl StorageLayout {
     /// Adds a slot specified by `index` and `typ` to the storage layout.
-    pub fn add(&mut self, index: usize, typ: AbiType) {
-        let slot = StorageSlot::new(index, typ);
+    pub fn add(&mut self, index: usize, typ: AbiType, defaulted: bool) {
+        let slot = StorageSlot::new(index, typ, defaulted);
         self.slots.push(slot);
     }
 
     /// Gets the storage slots that make up this layout.
+    #[must_use]
     pub fn slots(&self) -> &Vec<StorageSlot> {
         &self.slots
     }
@@ -38,12 +39,20 @@ pub struct StorageSlot {
 
     /// The best-known type of the storage slot.
     pub typ: AbiType,
+
+    /// A flag indicating if any defaulting took place while computing `typ`.
+    pub defaulted: bool,
 }
 
 impl StorageSlot {
     /// Constructs a new storage slot container for the data at `index` with
     /// type `typ`.
-    pub fn new(index: usize, typ: AbiType) -> Self {
-        Self { index, typ }
+    #[must_use]
+    pub fn new(index: usize, typ: AbiType, defaulted: bool) -> Self {
+        Self {
+            index,
+            typ,
+            defaulted,
+        }
     }
 }

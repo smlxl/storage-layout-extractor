@@ -52,6 +52,7 @@ pub struct VMState {
 impl VMState {
     /// Constructs a new virtual machine state originating at the provided
     /// `fork_point`, with all memory locations set to their default values.
+    #[must_use]
     pub fn new(fork_point: u32, instructions_len: u32, iterations_per_opcode: usize) -> Self {
         let stack = Stack::new();
         let memory = Memory::new();
@@ -73,48 +74,57 @@ impl VMState {
 
     /// Creates a new virtual machine state originating at the start of
     /// execution, with all memory locations set to their default values.
+    #[must_use]
     pub fn new_at_start(instructions_len: u32, iterations_per_opcode: usize) -> Self {
         Self::new(0, instructions_len, iterations_per_opcode)
     }
 
     /// Gets the stack associated with this virtual machine state.
+    #[must_use]
     pub fn stack(&self) -> &Stack {
         &self.stack
     }
 
     /// Gets the stack associated with this virtual machine state.
+    #[must_use]
     pub fn stack_mut(&mut self) -> &mut Stack {
         &mut self.stack
     }
 
     /// Gets the memory associated with this virtual machine state.
+    #[must_use]
     pub fn memory(&self) -> &Memory {
         &self.memory
     }
 
     /// Gets the memory associated with this virtual machine state.
+    #[must_use]
     pub fn memory_mut(&mut self) -> &mut Memory {
         &mut self.memory
     }
 
     /// Gets the storage associated with this virtual machine state.
+    #[must_use]
     pub fn storage(&self) -> &Storage {
         &self.storage
     }
 
     /// Gets the storage associated with this virtual machine state.
+    #[must_use]
     pub fn storage_mut(&mut self) -> &mut Storage {
         &mut self.storage
     }
 
     /// Gets the structure that tracks whether a given opcode has been visited
     /// by the current thread of execution.
+    #[must_use]
     pub fn visited_instructions(&self) -> &VisitedOpcodes {
         &self.visited_instructions
     }
 
     /// Gets the structure that tracks whether a given opcode has been visited
     /// by the current thread of execution.
+    #[must_use]
     pub fn visited_instructions_mut(&mut self) -> &mut VisitedOpcodes {
         &mut self.visited_instructions
     }
@@ -128,6 +138,7 @@ impl VMState {
 
     /// Gets the values that have been recorded to be available for analysis
     /// though not stored in the VM's working memories.
+    #[must_use]
     pub fn recorded_values(&self) -> &[BoxedVal] {
         self.recorded_values.as_slice()
     }
@@ -141,12 +152,14 @@ impl VMState {
 
     /// Gets the values that have been recorded to be available for analysis
     /// though not stored in the VM's working memories.
+    #[must_use]
     pub fn logged_values(&self) -> &[BoxedVal] {
         self.logged_values.as_slice()
     }
 
     /// Gets the point in the instruction stream, specifically the value of the
     /// instruction pointer, at which this VM state was forked.
+    #[must_use]
     pub fn fork_point(&self) -> u32 {
         self.fork_point
     }
@@ -156,6 +169,7 @@ impl VMState {
     /// it was forked from.
     ///
     /// This is used for exploring all branches of the bytecode.
+    #[must_use]
     pub fn fork(&self, fork_point: u32) -> Self {
         let mut fork = self.clone();
         fork.fork_point = fork_point;
@@ -165,6 +179,7 @@ impl VMState {
 
     /// Gets all of the values that are registered in the virtual machine state
     /// at the time of calling.
+    #[must_use]
     pub fn all_values(&self) -> Vec<BoxedVal> {
         let mut values = Vec::new();
         values.extend(self.stack.all_values());

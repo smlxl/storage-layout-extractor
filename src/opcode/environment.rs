@@ -1006,6 +1006,7 @@ impl LogN {
     }
 
     /// Gets the number of topics passed to this log call.
+    #[must_use]
     pub fn n(&self) -> u8 {
         self.topic_count
     }
@@ -1021,7 +1022,7 @@ impl Opcode for LogN {
         let offset = stack.pop()?;
         let size = stack.pop()?;
         let mut topics: Vec<BoxedVal> = Vec::new();
-        let upper_bound = self.n() as u32 + 2;
+        let upper_bound = u32::from(self.n()) + 2;
         for _ in 2..upper_bound {
             topics.push(stack.pop()?);
         }
@@ -1678,7 +1679,7 @@ mod test {
             let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
             let stored_data = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
 
-            for i in 0..topic_count as u32 {
+            for i in 0..u32::from(topic_count) {
                 let value = SymbolicValue::new_synthetic(3 + i, SymbolicValueData::new_value());
                 topics.push(value);
             }
@@ -1810,7 +1811,7 @@ mod test {
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
             SymbolicValueData::SelfDestruct { target } => {
-                assert_eq!(target, &input_address)
+                assert_eq!(target, &input_address);
             }
             _ => panic!("Invalid payload"),
         }

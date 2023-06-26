@@ -70,6 +70,7 @@ pub struct InferenceRules {
 
 impl InferenceRules {
     /// Constructs a new container for inference rules.
+    #[must_use]
     pub fn new() -> Self {
         let rules = HashSet::new();
         Self { rules }
@@ -99,8 +100,8 @@ impl InferenceRules {
         ty_var: TypeVariable,
         state: &mut TypingState,
     ) -> Result<()> {
-        for rule in self.rules.iter() {
-            rule.infer(value, ty_var, state)?
+        for rule in &self.rules {
+            rule.infer(value, ty_var, state)?;
         }
 
         Ok(())

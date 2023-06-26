@@ -10,7 +10,7 @@ use downcast_rs::Downcast;
 use hex::FromHexError;
 
 use crate::{
-    error::{container::Locatable, disassembly, execution},
+    error::{container::Locatable, disassembly, disassembly::Error, execution},
     opcode::{DynOpcode, Opcode},
 };
 
@@ -91,12 +91,14 @@ impl InstructionStream {
 
     /// Gets the length of the instruction stream in bytes.
     #[allow(clippy::len_without_is_empty)] // The structure cannot be empty.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.instructions.len()
     }
 
     /// Converts the instructions in the instruction stream to their
     /// corresponding bytecode.
+    #[must_use]
     pub fn as_bytecode(&self) -> Vec<u8> {
         self.instructions.iter().flat_map(|opcode| opcode.encode()).collect()
     }
@@ -108,6 +110,9 @@ impl<'a> TryFrom<&'a [u8]> for InstructionStream {
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         let instructions = Rc::new(parser::parse(value)?);
+        if instructions.len() > u32::MAX as usize {
+            return Err(Error::BytecodeTooLarge.locate(0));
+        }
         let result = Self { instructions };
 
         // An assertion that will be disabled in production builds, but a good sanity
@@ -126,12 +131,17 @@ impl TryFrom<&str> for InstructionStream {
         let bytes = match hex::decode(value) {
             Ok(b) => b,
             Err(e) => {
-                let error = match e {
-                    FromHexError::InvalidHexCharacter { c, index } => {
-                        disassembly::Error::InvalidHexCharacter(c, index).locate(index as u32)
-                    }
-                    _ => disassembly::Error::InvalidHexLength.locate(value.len() as u32),
+                let locate =
+                    |val| u32::try_from(val).map_err(|_| Error::BytecodeTooLarge.locate(u32::MAX));
+
+                let error = if let FromHexError::InvalidHexCharacter { c, index } = e {
+                    let location = locate(index);
+                    Error::InvalidHexCharacter(c, index).locate(location?)
+                } else {
+                    let location = locate(value.len());
+                    Error::InvalidHexLength.locate(location?)
                 };
+
                 return Err(error);
             }
         };
@@ -173,11 +183,13 @@ pub struct ExecutionThread {
 impl ExecutionThread {
     /// Gets the current value of the instruction pointer for this thread of
     /// execution.
+    #[must_use]
     pub fn instruction_pointer(&self) -> u32 {
         self.instruction_pointer
     }
 
     /// Gets the opcode at the current execution position.
+    #[must_use]
     pub fn current(&self) -> DynOpcode {
         self.instructions[self.instruction_pointer as usize].clone()
     }
@@ -187,6 +199,7 @@ impl ExecutionThread {
     ///
     /// If no instruction exists at the specified `instruction_pointer` location
     /// this method returns [`None`].
+    #[must_use]
     pub fn instruction(&self, instruction_pointer: u32) -> Option<DynOpcode> {
         self.instructions.get(instruction_pointer as usize).cloned()
     }
@@ -197,6 +210,7 @@ impl ExecutionThread {
     /// If no instruction exists at the specified `instruction_pointer`
     /// location, or the instruction exists but is not of type `T`, this method
     /// returns [`None`],
+    #[must_use]
     pub fn instruction_as<T: Opcode + Clone>(&self, instruction_pointer: u32) -> Option<T> {
         self.instruction(instruction_pointer)
             .and_then(|op| op.as_any().downcast_ref::<T>().cloned())
@@ -228,10 +242,12 @@ impl ExecutionThread {
     /// instruction stream, returns [`None`] and leaves the instruction pointer
     /// unchanged.
     pub fn jump_by(&mut self, jump: i64) -> Option<DynOpcode> {
-        let new_pointer: u32 = if self.instruction_pointer as i64 + jump < 0 {
+        let new_pointer: u32 = if i64::from(self.instruction_pointer) + jump < 0 {
             return None;
+        } else if let Ok(ptr) = u32::try_from(i64::from(self.instruction_pointer) + jump) {
+            ptr
         } else {
-            self.instruction_pointer + jump as u32
+            return None;
         };
         if let Some(opcode) = self.instructions.get(new_pointer as usize) {
             self.instruction_pointer = new_pointer;
@@ -258,7 +274,7 @@ impl ExecutionThread {
     /// Sets the execution position to the opcode at `offset` in the instruction
     /// stream if possible, returning that opcode if so.
     ///
-    /// Returns [`None`] if there is no opcode at `offset.
+    /// Returns [`None`] if there is no opcode at `offset`.
     pub fn at(&mut self, offset: u32) -> Option<DynOpcode> {
         if offset as usize >= self.instructions.len() {
             return None;
@@ -272,9 +288,15 @@ impl ExecutionThread {
     /// Gets the slice of opcodes in the requested range.
     ///
     /// The provided `range` is left-inclusive and right-exclusive.
+    ///
+    /// # Panics
+    ///
+    /// If the length of the bytecode exceeds [`u32::MAX`]. This is a programmer
+    /// error.
+    #[must_use]
     pub fn slice(&mut self, range: Range<u32>) -> Option<&[DynOpcode]> {
-        #[allow(clippy::cast_possible_truncation)] // Safe due to length invariant.
-        let bound = self.len() as u32;
+        let bound = u32::try_from(self.len())
+            .unwrap_or_else(|_| panic!("Bytecode length cannot exceed u32::MAX"));
         if range.is_empty() || range.start >= bound || range.end >= bound {
             return None;
         }
@@ -289,18 +311,21 @@ impl ExecutionThread {
 
     /// Gets the first instruction in the opcode stream without altering the
     /// position of the instruction pointer.
+    #[must_use]
     pub fn start(&self) -> DynOpcode {
         self.instructions[0].clone()
     }
 
     /// Gets the last instruction in the opcode stream without altering the
     /// position of the instruction pointer.
+    #[must_use]
     pub fn end(&self) -> DynOpcode {
         self.instructions[self.instructions.len() - 1].clone()
     }
 
     /// Gets the length of the instruction stream in bytes.
     #[allow(clippy::len_without_is_empty)] // The structure cannot be empty.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.instructions.len()
     }
@@ -316,7 +341,7 @@ mod test {
     };
 
     #[test]
-    fn can_parse_from_bytes() -> anyhow::Result<()> {
+    fn can_parse_from_bytes() {
         // Let's get all of the non-consolidated opcodes as bytes.
         let bytes = util::get_non_consolidated_opcode_bytes();
 
@@ -327,12 +352,10 @@ mod test {
         // The bytecode from it should equal the original bytecode.
         let bytecode: Vec<u8> = instruction_stream.into();
         assert_eq!(bytecode, bytes);
-
-        Ok(())
     }
 
     #[test]
-    fn can_parse_from_hex_stream() -> anyhow::Result<()> {
+    fn can_parse_from_hex_stream() {
         let bytes = util::get_non_consolidated_opcode_bytes();
         let hex_string = hex::encode(bytes.as_slice());
 
@@ -343,26 +366,24 @@ mod test {
         // The bytecode from this should equal the original bytecode.
         let bytecode: Vec<u8> = instruction_stream.into();
         assert_eq!(bytecode, bytes);
-
-        Ok(())
     }
 
     #[test]
-    fn emits_parse_error_on_unknown_opcode() -> anyhow::Result<()> {
+    fn translates_unknown_opcode_to_invalid() {
         // This opcode doesn't exist.
         let bytes: Vec<u8> = vec![0xf9];
 
         // So this should fail.
-        let result =
-            InstructionStream::try_from(bytes.as_slice()).expect_err("Parsing did not error");
-        assert_eq!(result.location, 0);
-        assert_eq!(result.payload, disassembly::Error::InvalidOpcode(0xf9));
-
-        Ok(())
+        let result = InstructionStream::try_from(bytes.as_slice()).expect("Parsing errored");
+        let thread = result.new_thread(0).unwrap();
+        assert_eq!(
+            thread.instruction(0).unwrap().as_ref().encode(),
+            control::Invalid::new(0xf9).encode()
+        );
     }
 
     #[test]
-    fn emits_parse_error_on_incorrectly_encoded_hex_string() -> anyhow::Result<()> {
+    fn emits_parse_error_on_incorrectly_encoded_hex_string() {
         // This is not actually hex-encoded.
         let not_hex_encoded = "ab70anx7302842";
 
@@ -376,12 +397,10 @@ mod test {
             result.payload,
             disassembly::Error::InvalidHexCharacter('n', 5)
         );
-
-        Ok(())
     }
 
     #[test]
-    fn emits_parse_error_on_hex_string_with_bad_length() -> anyhow::Result<()> {
+    fn emits_parse_error_on_hex_string_with_bad_length() {
         // This is hex encoded but bad length
         let bad_length = "ab21fe9b5";
 
@@ -389,14 +408,12 @@ mod test {
         let result = InstructionStream::try_from(bad_length).expect_err("Parsing did not error");
 
         // It should be a specific error.
-        assert_eq!(result.location, bad_length.len() as u32);
+        assert_eq!(result.location, u32::try_from(bad_length.len()).unwrap());
         assert_eq!(result.payload, disassembly::Error::InvalidHexLength);
-
-        Ok(())
     }
 
     #[test]
-    fn emits_parse_error_on_empty_input() -> anyhow::Result<()> {
+    fn emits_parse_error_on_empty_input() {
         // Our input is empty.
         let input: Vec<u8> = vec![];
 
@@ -407,8 +424,6 @@ mod test {
         // It should be a specific error.
         assert_eq!(result.location, 0);
         assert_eq!(result.payload, disassembly::Error::EmptyBytecode);
-
-        Ok(())
     }
 
     #[test]
@@ -430,7 +445,7 @@ mod test {
     }
 
     #[test]
-    fn can_parse_dup_opcode() -> anyhow::Result<()> {
+    fn can_parse_dup_opcode() {
         // The input is all of the dup opcodes.
         let mut bytes: Vec<u8> = vec![];
         for x in 1..=16 {
@@ -443,12 +458,10 @@ mod test {
         // The bytecode from this should equal the original bytecode.
         let bytecode: Vec<u8> = result.into();
         assert_eq!(bytecode, bytes);
-
-        Ok(())
     }
 
     #[test]
-    fn can_parse_swap_opcode() -> anyhow::Result<()> {
+    fn can_parse_swap_opcode() {
         // The input is all of the swap opcodes.
         let mut bytes: Vec<u8> = vec![];
         for x in 1..=16 {
@@ -461,12 +474,10 @@ mod test {
         // The bytecode from this should equal the original bytecode.
         let bytecode: Vec<u8> = result.into();
         assert_eq!(bytecode, bytes);
-
-        Ok(())
     }
 
     #[test]
-    fn can_parse_log_opcode() -> anyhow::Result<()> {
+    fn can_parse_log_opcode() {
         // The input is all of the log opcodes.
         let mut bytes: Vec<u8> = vec![];
         for x in 0..=4 {
@@ -479,8 +490,6 @@ mod test {
         // The bytecode from this should equal the original bytecode.
         let bytecode: Vec<u8> = result.into();
         assert_eq!(bytecode, bytes);
-
-        Ok(())
     }
 
     #[test]
@@ -556,7 +565,7 @@ mod test {
             for size in range {
                 let mut op_and_data = vec![PUSH_OPCODE_BASE_VALUE + size];
                 for _ in 0..size {
-                    op_and_data.push(rand::random())
+                    op_and_data.push(rand::random());
                 }
 
                 bytes.extend(op_and_data);
