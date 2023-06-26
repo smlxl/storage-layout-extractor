@@ -2,11 +2,8 @@
 //! writes to mappings.
 
 use crate::{
-    unifier::{
-        expression::TE,
-        inference_rule::InferenceRule,
-        state::{TypeVariable, TypingState},
-    },
+    error::unification::Result,
+    unifier::{expression::TE, inference_rule::InferenceRule, state::TypingState},
     vm::value::{BoxedVal, SVD},
 };
 
@@ -24,16 +21,12 @@ use crate::{
 pub struct MappingAccessRule;
 
 impl InferenceRule for MappingAccessRule {
-    fn infer(
-        &self,
-        value: &BoxedVal,
-        val_ty: TypeVariable,
-        state: &mut TypingState,
-    ) -> crate::error::unification::Result<()> {
+    fn infer(&self, value: &BoxedVal, state: &mut TypingState) -> Result<()> {
         if let SVD::StorageSlot { key } = &value.data {
             let SVD::MappingAccess { key, slot } = &key.data else { return Ok(()) };
 
             let key_tv = state.var_unchecked(key);
+            let val_ty = state.var_unchecked(value);
             let base_slot_tv = state.var_unchecked(slot);
             let slot_ty = TE::mapping(key_tv, val_ty);
             state.infer(base_slot_tv, slot_ty);
@@ -89,7 +82,7 @@ mod test {
         let outer_slot_tv = state.register(outer_slot.clone());
 
         // Run the inference rule
-        MappingAccessRule.infer(&outer_slot, outer_slot_tv, &mut state)?;
+        MappingAccessRule.infer(&outer_slot, &mut state)?;
 
         assert!(state.inferences(v_1_tv).is_empty());
         assert!(state.inferences(c_1_tv).is_empty());

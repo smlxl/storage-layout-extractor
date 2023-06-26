@@ -125,6 +125,14 @@ impl TypeExpression {
         Self::word(width, signed, WordUse::Function)
     }
 
+    /// Constructs a word that is actually used as one of the fixed-size byte
+    /// arrays.
+    #[must_use]
+    pub fn bytes(width: Option<usize>) -> Self {
+        let signed = Some(false);
+        Self::word(width, signed, WordUse::Bytes)
+    }
+
     /// Constructs an equality wrapping the provided type variable `id`.
     #[must_use]
     pub fn eq(id: TypeVariable) -> Self {
@@ -192,6 +200,9 @@ pub enum WordUse {
     /// The word has been used as a function (an address followed by a
     /// selector).
     Function,
+
+    /// The word is used as bytes directly rather than a standard word.
+    Bytes,
 
     /// Conflicting usages found.
     Conflict { conflicts: Vec<WordUse> },

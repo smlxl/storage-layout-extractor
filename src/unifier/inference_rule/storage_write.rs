@@ -2,11 +2,8 @@
 //! storage slots to the types of their contained values.
 
 use crate::{
-    unifier::{
-        expression::TE,
-        inference_rule::InferenceRule,
-        state::{TypeVariable, TypingState},
-    },
+    error::unification::Result,
+    unifier::{expression::TE, inference_rule::InferenceRule, state::TypingState},
     vm::value::{BoxedVal, SVD},
 };
 
@@ -16,12 +13,7 @@ use crate::{
 pub struct StorageWriteRule;
 
 impl InferenceRule for StorageWriteRule {
-    fn infer(
-        &self,
-        value: &BoxedVal,
-        _ty_var: TypeVariable,
-        state: &mut TypingState,
-    ) -> crate::error::unification::Result<()> {
+    fn infer(&self, value: &BoxedVal, state: &mut TypingState) -> Result<()> {
         match &value.data {
             SVD::StorageWrite { key, value } => {
                 // An equality for the key's type
@@ -75,7 +67,7 @@ mod test {
         let write_tv = state.register(write.clone());
 
         // Run the inference rule
-        StorageWriteRule.infer(&write, write_tv, &mut state)?;
+        StorageWriteRule.infer(&write, &mut state)?;
 
         // Check that the equalities hold and that we only get the judgements we expect
         assert_eq!(state.inferences(key_tv).len(), 1);

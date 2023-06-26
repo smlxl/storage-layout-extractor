@@ -1,7 +1,10 @@
 //! This module contains the definition of the unifier state and other
 //! supporting types.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    array,
+    collections::{HashMap, HashSet},
+};
 
 use bimap::BiMap;
 use uuid::Uuid;
@@ -65,6 +68,24 @@ impl TypingState {
         }
     }
 
+    /// Registers a symbolic `values` in the state, returning the associated
+    /// type variables in the corresponding order.
+    ///
+    /// If any one `value` already exists in the state, then the existing type
+    /// variable is returned. If not, a fresh type variable is associated
+    /// with the value and returned.
+    #[must_use]
+    pub fn register_many<const N: usize>(&mut self, values: [BoxedVal; N]) -> [TypeVariable; N] {
+        let mut iterator = values.into_iter();
+        array::from_fn(|_| {
+            self.register(
+                iterator
+                    .next()
+                    .expect("The number of values should always be the same"),
+            )
+        })
+    }
+
     /// Adds the provided `expression` to the typing expressions for the
     /// provided type `variable`.
     ///
@@ -75,7 +96,12 @@ impl TypingState {
     /// If `variable` does not exist in the typing state. This is only possible
     /// through use of `unsafe` operations to violate the invariants of the
     /// typing state.
-    pub fn infer(&mut self, variable: TypeVariable, expression: impl Into<TypeExpression>) {
+    pub fn infer(
+        &mut self,
+        variable: impl Into<TypeVariable>,
+        expression: impl Into<TypeExpression>,
+    ) {
+        let variable = variable.into();
         let expression = expression.into();
 
         // If it is an equality we want to make it symmetric so we add it to both sets
@@ -91,6 +117,64 @@ impl TypingState {
         self.inferences.get_mut(&variable).unwrap().insert(expression);
     }
 
+    /// Adds the provided `expression` to the typing expressions for each of the
+    /// provided type `variables`.
+    ///
+    /// # Panics
+    ///
+    /// If any of the `variables` do not exist in the typing state. This is only
+    /// possible through use of `unsafe` operations to violate the invariants of
+    /// the typing state.
+    pub fn infer_many<const N: usize>(
+        &mut self,
+        variables: [impl Into<TypeVariable>; N],
+        expression: impl Into<TypeExpression>,
+    ) {
+        let expression = expression.into();
+        variables.into_iter().for_each(|v| self.infer(v, expression.clone()));
+    }
+
+    /// Adds the provided `expression` to the typing expressions for the
+    /// `variable` associated with the provided `value`, returning the
+    /// associated type variable.
+    ///
+    /// If `value` has no associated variable, it is registered in the state.
+    pub fn infer_for(
+        &mut self,
+        value: &BoxedVal,
+        expression: impl Into<TypeExpression>,
+    ) -> TypeVariable {
+        let var = self.register(value.clone());
+        self.infer(var, expression);
+        var
+    }
+
+    /// Adds the provided `expression` to the typing expressions for the
+    /// `variable` associated with each of the `values`, returning the
+    /// associated type variable.
+    ///
+    /// It is guaranteed that the type variables are returned in the order
+    /// corresponding to the `values`.
+    ///
+    /// If any one `value` has no associated variable, it is registered in the
+    /// state.
+    pub fn infer_for_many<const N: usize>(
+        &mut self,
+        values: [&BoxedVal; N],
+        expression: impl Into<TypeExpression>,
+    ) -> [TypeVariable; N] {
+        let mut iterator = values.into_iter();
+        let expression = expression.into();
+        array::from_fn(|_| {
+            self.infer_for(
+                iterator
+                    .next()
+                    .expect("The number of values should always be the same"),
+                expression.clone(),
+            )
+        })
+    }
+
     /// Gets the typing expressions associated with the provided type
     /// `variable`.
     ///
@@ -100,7 +184,8 @@ impl TypingState {
     /// through use of `unsafe` operations to violate the invariants of the
     /// typing state.
     #[must_use]
-    pub fn inferences(&self, variable: TypeVariable) -> &InferenceSet {
+    pub fn inferences(&self, variable: impl Into<TypeVariable>) -> &InferenceSet {
+        let variable = variable.into();
         // This is safe to unwrap as the only source of new type variables is the `add`
         // method above, and so we know it will exist.
         self.inferences.get(&variable).unwrap()
@@ -115,7 +200,10 @@ impl TypingState {
     /// through use of `unsafe` operations to violate the invariants of the
     /// typing state.
     #[must_use]
-    pub fn inferences_cloned(&self, variable: TypeVariable) -> InferenceSet {
+    pub fn inferences_cloned(&self, variable: impl Into<TypeVariable>) -> InferenceSet {
+        let variable = variable.into();
+        // This is safe to unwrap as the only source of new type variables is the `add`
+        // method above, and so we know it will exist.
         self.inferences.get(&variable).unwrap().iter().cloned().collect()
     }
 
@@ -127,7 +215,9 @@ impl TypingState {
     /// If `variable` does not have associated inferences. This is only possible
     /// through use of `unsafe` operations to violate the invariants of the
     /// typing state.
-    pub fn inferences_mut(&mut self, variable: TypeVariable) -> &mut InferenceSet {
+    #[must_use]
+    pub fn inferences_mut(&mut self, variable: impl Into<TypeVariable>) -> &mut InferenceSet {
+        let variable = variable.into();
         // This is safe to unwrap as the only source of new type variables is the `add`
         // method above, and so we know it will exist.
         self.inferences.get_mut(&variable).unwrap()
@@ -168,7 +258,8 @@ impl TypingState {
     /// querying with invalid type variables—you can instead use
     /// [`Self::value_unchecked`].
     #[must_use]
-    pub fn value(&self, variable: TypeVariable) -> Option<&BoxedVal> {
+    pub fn value(&self, variable: impl Into<TypeVariable>) -> Option<&BoxedVal> {
+        let variable = variable.into();
         self.expressions_and_vars.get_by_right(&variable)
     }
 
@@ -183,7 +274,8 @@ impl TypingState {
     /// through use of `unsafe` operations to violate the invariants of the
     /// typing state.
     #[must_use]
-    pub fn value_unchecked(&self, variable: TypeVariable) -> &BoxedVal {
+    pub fn value_unchecked(&self, variable: impl Into<TypeVariable>) -> &BoxedVal {
+        let variable = variable.into();
         self.value(variable).unwrap()
     }
 
@@ -261,6 +353,12 @@ impl TypeVariable {
     fn fresh() -> Self {
         let id = Uuid::new_v4();
         Self { id }
+    }
+}
+
+impl From<&TypeVariable> for TypeVariable {
+    fn from(value: &TypeVariable) -> Self {
+        *value
     }
 }
 
