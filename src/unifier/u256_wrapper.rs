@@ -24,7 +24,7 @@ mod tests {
 
     #[test]
     fn can_be_serialized() {
-        let value = U256Wrapper(U256::from(0x42 as u128));
+        let value = U256Wrapper(U256::from(0x42_u128));
         let expected = "66";
         assert!(
             json!(value).as_str().unwrap().eq(expected),
