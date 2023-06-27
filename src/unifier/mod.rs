@@ -27,6 +27,7 @@ pub mod expression;
 pub mod inference_rule;
 pub mod lift;
 pub mod state;
+pub mod u256_wrapper;
 pub mod unification;
 
 /// The `Unifier` is responsible for combining the evidence as to the type of a

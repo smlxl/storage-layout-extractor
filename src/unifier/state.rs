@@ -4,6 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 use bimap::BiMap;
+use serde::ser::{Serialize, SerializeStructVariant, Serializer};
 use uuid::Uuid;
 
 use crate::{
@@ -264,9 +265,24 @@ impl TypeVariable {
     }
 }
 
+impl Serialize for TypeVariable {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state =
+            serializer.serialize_struct_variant("TypeVariable", 0, "type_variable", 1)?;
+        state.serialize_field("id", &self.id.to_string())?;
+        state.end()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashSet;
+
+    use serde_json::json;
+    use uuid::Uuid;
 
     use crate::{
         unifier::{
@@ -349,5 +365,20 @@ mod test {
         // Check the results
         assert!(state.inferences(type_variable_1).contains(&TE::eq(type_variable_2)));
         assert!(state.inferences(type_variable_2).contains(&TE::eq(type_variable_1)));
+    }
+
+    #[test]
+    fn can_be_serialized() {
+        let id = Uuid::new_v4();
+        let type_variable = TypeVariable { id };
+        let value = json!(type_variable).to_string();
+        assert!(
+            value.len() == 63,
+            "Serialization failed - does not match length"
+        );
+        assert!(
+            value.contains(&id.to_string()),
+            "Serialization failed - missing id value"
+        );
     }
 }

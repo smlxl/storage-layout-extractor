@@ -6,11 +6,11 @@
 
 use std::collections::HashSet;
 
-use ethnum::U256;
+use serde::Serialize;
 
 use crate::{
     constant::{ADDRESS_WIDTH_BITS, FUNCTION_WIDTH_BITS, SELECTOR_WIDTH_BITS},
-    unifier::state::TypeVariable,
+    unifier::{state::TypeVariable, u256_wrapper::U256Wrapper},
 };
 
 /// An alias recommended for use when you have to write it out often.
@@ -22,7 +22,7 @@ pub type TE = TypeExpression;
 /// discover non-conflicting patterns of evidence in the evidence for each
 /// value. It is this process that produces the best-known types for the storage
 /// slots.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize)]
 pub enum TypeExpression {
     /// A representation of the possibly-unbound type of an expression.
     Equal { id: TypeVariable },
@@ -45,7 +45,7 @@ pub enum TypeExpression {
     },
 
     /// A static array containing items of type `element` and with `length`.
-    FixedArray { element: TypeVariable, length: U256 },
+    FixedArray { element: TypeVariable, length: U256Wrapper },
 
     /// A mapping composite type with `key` type and `value` type.
     Mapping { key: TypeVariable, value: TypeVariable },
@@ -174,7 +174,7 @@ impl TypeExpression {
 pub type InferenceSet = HashSet<TypeExpression>;
 
 /// A representation of the special ways in which a word could be used.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize)]
 pub enum WordUse {
     /// The word has no special use.
     None,

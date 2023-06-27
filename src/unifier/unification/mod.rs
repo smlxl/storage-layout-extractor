@@ -304,6 +304,7 @@ mod test {
         unifier::{
             expression::{WordUse, TE},
             state::TypingState,
+            u256_wrapper::U256Wrapper,
             unification::{merge, unify},
         },
         vm::value::{Provenance, SV},
@@ -583,7 +584,7 @@ mod test {
         let array_tv = state.register(array);
         let elem_1_tv = state.register(elem_1);
         let elem_2_tv = state.register(elem_2);
-        let input_len = U256::from(7u64);
+        let input_len = U256Wrapper(U256::from(7u64));
 
         // Create some inferences and register them
         let array_inference_1 = TE::FixedArray {
@@ -630,7 +631,7 @@ mod test {
         let array_tv = state.register(array);
         let elem_1_tv = state.register(elem_1);
         let elem_2_tv = state.register(elem_2);
-        let input_len = U256::from(7u64);
+        let input_len = U256Wrapper(U256::from(7u64));
 
         // Create some inferences and register them
         let array_inference_1 = TE::FixedArray {
@@ -684,11 +685,11 @@ mod test {
         // Create some inferences and register them
         let array_inference_1 = TE::FixedArray {
             element: elem_1_tv,
-            length:  U256::from(7u32),
+            length:  U256Wrapper(U256::from(7u32)),
         };
         let array_inference_2 = TE::FixedArray {
             element: elem_2_tv,
-            length:  U256::from(8u32),
+            length:  U256Wrapper(U256::from(8u32)),
         };
         let elem_inference_1 = TE::default_word();
         let elem_inference_2 = TE::signed_word(Some(64));

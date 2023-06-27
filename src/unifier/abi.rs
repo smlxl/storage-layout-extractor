@@ -1,9 +1,9 @@
 //! This module contains the definition of the solidity ABI types that the
 //! analyzer is currently capable of dealing with.
 
-use ethnum::U256;
+use serde::Serialize;
 
-use crate::unifier::expression::TypeExpression;
+use crate::unifier::{expression::TypeExpression, u256_wrapper::U256Wrapper};
 
 /// Concretely known Solidity ABI types.
 ///
@@ -19,7 +19,8 @@ use crate::unifier::expression::TypeExpression;
 /// Solidity supports a `fixed` and `ufixed` type in the ABI, but the language
 /// support for them is lacking. For that reason we do not include them here for
 /// now.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AbiType {
     /// An unknown type, useful for the container types where we know something
     /// is a concrete container but not of what type(s).
@@ -51,19 +52,31 @@ pub enum AbiType {
     Bool,
 
     /// A fixed-`size` array containing elements of an element type `tp`.
-    Array { size: U256, tp: Box<AbiType> },
+    Array {
+        size: U256Wrapper,
+        #[serde(rename = "type")]
+        tp:   Box<AbiType>,
+    },
 
     /// Byte arrays of a fixed `length`, where `0 < length <= 32`.
     Bytes { length: u8 },
 
     /// A dynamically-sized array containing elements of a type `tp`.
-    DynArray { tp: Box<AbiType> },
+    DynArray {
+        #[serde(rename = "type")]
+        tp: Box<AbiType>,
+    },
 
     /// A dynamically-sized byte array, with each element packed.
     DynBytes,
 
     /// A mapping from `key_tp` to `val_tp`.
-    Mapping { key_tp: Box<AbiType>, val_tp: Box<AbiType> },
+    Mapping {
+        #[serde(rename = "key_type")]
+        key_tp: Box<AbiType>,
+        #[serde(rename = "key_type")]
+        val_tp: Box<AbiType>,
+    },
 
     /// A type in the unifier that resolved to an infinite loop of type
     /// variables.
