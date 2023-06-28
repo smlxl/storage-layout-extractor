@@ -2,7 +2,7 @@
 //!
 //! It currently only contains placeholder types.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::unifier::abi::AbiType;
 
@@ -34,7 +34,7 @@ impl Default for StorageLayout {
 }
 
 /// A representation of a concrete storage slot, with its best-known type.
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct StorageSlot {
     /// The concrete index of the storage slot in the contract.
     pub index: usize,
