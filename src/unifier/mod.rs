@@ -2,6 +2,7 @@
 
 use std::collections::{HashSet, VecDeque};
 
+use self::abi::U256Wrapper;
 use crate::{
     constant::WORD_SIZE,
     error::{
@@ -289,7 +290,7 @@ impl Unifier {
                 let (tp, inner_defaulted) = self.abi_type_for_impl(element, seen_exprs)?;
                 defaulted = inner_defaulted;
                 AbiType::Array {
-                    size: length,
+                    size: U256Wrapper(length),
                     tp:   Box::new(tp),
                 }
             }
@@ -321,8 +322,8 @@ impl Unifier {
                 right,
                 reason,
             } => AbiType::ConflictedType {
-                left: left.as_ref().clone(),
-                right: right.as_ref().clone(),
+                left: format!("{left:?}"),
+                right: format!("{right:?}"),
                 reason,
             },
         };
