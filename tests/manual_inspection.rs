@@ -53,7 +53,7 @@ fn inspect_contract_data() -> anyhow::Result<()> {
     let unifier_read = executed.prepare_unifier();
 
     // Perform unification
-    let unification_complete = unifier_read.unify()?;
+    let unification_complete = unifier_read.infer()?;
 
     // Get the final storage layout for the input contract and print it for
     // debugging

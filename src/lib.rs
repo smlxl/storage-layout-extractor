@@ -1,29 +1,39 @@
 //! This library implements an analysis of [EVM](https://ethereum.org/en/developers/docs/evm/)
-//! bytecode that aims to discover the storage layout—namely, what type the
-//! variable is for a given slot—of the contract being studied. It is a _best
-//! effort_ analysis.
+//! bytecode that aims to discover an approximate storage layout for the
+//! contract from which the bytecode was compiled. It is _not_ intended to be a
+//! full decompiler, and is instead a tool **highly** specialized for performing
+//! this discovery process.
 //!
-//! Note that this library is not intended to be nor expected to evolve into a
-//! full decompiler for EVM bytecode.
+//! The analysis it performs is _best effort_, and may produce incorrect
+//! results.
 //!
 //! # How it Works
 //!
 //! From a very high level, the storage layout discovery process is performed as
 //! follows:
 //!
-//! 1. Bytecode is ingested and turned into an
-//!    [`vm::instructions::InstructionStream`]. This is a sequence of
-//!    [`opcode::Opcode`]s that is equivalent to the bytecode.
+//! 1. Bytecode is ingested and disassembled into an
+//!    [`disassembly::InstructionStream`] that is amenable to dynamic analysis.
+//!    This is a sequence of [`opcode::Opcode`]s that is equivalent to the
+//!    bytecode.
 //! 2. The stream of instructions is executed symbolically on a specialised
-//!    [`vm::VM`]. This execution is both speculative and total, exploring all
-//!    possible code paths that can influence the type of a storage location.
-//! 3. For each [`vm::value::SymbolicValue`], the [`vm::VM`] collects an
-//!    execution tree that provides evidence as to the type of that variable.
-//! 4. The [`unifier::Unifier`] takes those execution trees as evidence, and
-//!    performs a process of lifting, heuristic evidence discovery, and
-//!    subsequent unification to discover the types in the program.
-//! 5. The types that are associated with storage slots are taken and written to
-//!    a [`StorageLayout`] that can then be output.
+//!    [`vm::VM`] (an EVM implementation). This execution is both
+//!    **speculative** and **total**, exploring all possible code paths that can
+//!    influence the type attributed to a given storage location.
+//! 3. For each value seen in the program during execution, the [`vm::VM`]
+//!    builds a [`vm::value::SymbolicValue`] (a little tree structure) that
+//!    represents the operations performed to that particular piece of "data".
+//! 4. These execution trees are passed to a type inference process implemented
+//!    by the [`inference::InferenceEngine`]. This process starts by running
+//!    multiple [`inference::lift::Lift`]s, that turn low-level constructs into
+//!    more-general high-level ones. The results of this lifting are then passed
+//!    to a series of [`inference::rule::InferenceRule`]s that output **type
+//!    inference judgements** about the trees they analyse. Finally, thee
+//!    inferences are combined through unification to perform whole-program type
+//!    inference.
+//! 5. The resolved types associated with each [`layout::StorageSlot`] are
+//!    turned into a [`StorageLayout`] that describes the type of each storage
+//!    slot that was encountered.
 //!
 //! # Basic Usage
 //!
@@ -33,11 +43,13 @@
 //! ```
 //! use storage_layout_analyzer as sla;
 //! use storage_layout_analyzer::{
-//!     analyzer::chain::{version::EthereumVersion, Chain},
+//!     analyzer::{
+//!         chain::{version::EthereumVersion, Chain},
+//!         contract::Contract,
+//!     },
 //!     bytecode,
-//!     contract::Contract,
+//!     inference,
 //!     opcode::{control::*, logic::*, memory::*, Opcode},
-//!     unifier,
 //!     vm,
 //! };
 //!
@@ -66,23 +78,47 @@
 //!     },
 //! );
 //!
-//! let layout = sla::new(contract, vm::Config::default(), unifier::Config::default())
-//!     .analyze()
-//!     .unwrap();
+//! let layout = sla::new(
+//!     contract,
+//!     vm::Config::default(),
+//!     inference::Config::default(),
+//! )
+//! .analyze()
+//! .unwrap();
 //!
 //! assert_eq!(layout.slots().len(), 1);
 //! ```
+//!
+//! ## More-Complex Usage
+//!
+//! While the library provides a high-level interface that automates the vast
+//! majority of its execution—from contract ingestion to layout output—it also
+//! provides access to its internals. Very little of the library's functionality
+//! is kept private, allowing the analysis to be introspected and modified at
+//! every stage of the pipeline.
+//!
+//! The hope is that novel uses for the library's functionality can be found
+//! beyond what it is currently envisioned for.
+//!
+//! To get access to this, take a look at the [`analyzer`] and the various
+//! functions that can be called on the analysis state machine. These provide
+//! access to all of the internal data, types, and functionality of the library.
+//!
+//! Note that the access provided means that it is _possible_ to violate the
+//! invariants of the library and the process as a whole. Any function that is
+//! capable of doing so is marked as `unsafe`, and should be used with the
+//! utmost care.
 
 #![warn(clippy::all, clippy::cargo, clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)] // Allows for better API naming
 
 pub mod analyzer;
 pub mod constant;
-pub mod contract;
+pub mod disassembly;
 pub mod error;
+pub mod inference;
 pub mod layout;
 pub mod opcode;
-pub mod unifier;
 pub mod vm;
 
 // Re-exports to provide the library interface.

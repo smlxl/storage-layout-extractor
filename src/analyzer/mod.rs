@@ -1,16 +1,17 @@
 //! This module contains the definition of the analyzer itself.
 
 pub mod chain;
+pub mod contract;
 pub mod state;
 
 use crate::{
-    analyzer::state::State,
-    contract::Contract,
+    analyzer::{contract::Contract, state::State},
+    disassembly::InstructionStream,
     error,
-    unifier,
-    unifier::Unifier,
+    inference,
+    inference::InferenceEngine,
     vm,
-    vm::{instructions::InstructionStream, VM},
+    vm::VM,
     StorageLayout,
 };
 
@@ -20,7 +21,7 @@ use crate::{
 pub fn new(
     contract: Contract,
     vm_config: vm::Config,
-    unifier_config: unifier::Config,
+    unifier_config: inference::Config,
 ) -> Analyzer<state::HasContract> {
     let state = state::HasContract {
         vm_config,
@@ -153,7 +154,7 @@ impl Analyzer<state::HasContract> {
         let analyzer = analyzer.prepare_vm()?;
         let analyzer = analyzer.execute()?;
         let analyzer = analyzer.prepare_unifier();
-        let analyzer = analyzer.unify()?;
+        let analyzer = analyzer.infer()?;
         let layout = analyzer.layout();
 
         Ok(layout.clone())
@@ -229,46 +230,52 @@ impl Analyzer<state::VMReady> {
 /// Operations available on an analyzer that has a VM which has completed
 /// execution of the bytecode.
 impl Analyzer<state::ExecutionComplete> {
-    /// Takes thew results of execution and uses them to prepare a new unifier.
+    /// Takes thew results of execution and uses them to prepare a new inference
+    /// engine.
     #[must_use]
-    pub fn prepare_unifier(self) -> Analyzer<state::UnifierReady> {
+    pub fn prepare_unifier(self) -> Analyzer<state::InferenceReady> {
         unsafe {
             // Safe to unwrap as we guarantee that the internal operations cannot fail.
             self.transform_state(|old_state| {
-                let unifier = Unifier::new(old_state.unifier_config, old_state.execution_result);
-                Ok(state::UnifierReady { unifier })
+                let unifier =
+                    InferenceEngine::new(old_state.unifier_config, old_state.execution_result);
+                Ok(state::InferenceReady { engine: unifier })
             })
-            .unwrap_or_else(|_| unreachable!("Explicit closure cannot return Err"))
+            .expect("Explicit closure cannot return Err")
         }
     }
 }
 
-/// Operations available on an analyzer that has a unifier ready to perform
-/// inference and unification processes.
-impl Analyzer<state::UnifierReady> {
-    /// Takes the prepared unifier and runs the unification process on the
-    /// execution results.
+/// Operations available on an analyzer that has an inference engine ready to
+/// perform the inference and unification processes.
+impl Analyzer<state::InferenceReady> {
+    /// Takes the prepared inference engine and runs the inference and
+    /// unification process on the execution results.
     ///
     /// # Errors
     ///
-    /// Returns [`Err`] if the execution of the unifier fails.
-    pub fn unify(self) -> error::Result<Analyzer<state::UnificationComplete>> {
+    /// Returns [`Err`] if the execution of the inference engine fails.
+    pub fn infer(self) -> error::Result<Analyzer<state::InferenceComplete>> {
         unsafe {
             self.transform_state(|mut old_state| {
-                let layout = old_state.unifier.run()?;
-                let unifier = old_state.unifier;
-                Ok(state::UnificationComplete { unifier, layout })
+                let layout = old_state.engine.run()?;
+                let unifier = old_state.engine;
+                Ok(state::InferenceComplete {
+                    engine: unifier,
+                    layout,
+                })
             })
         }
     }
 }
 
 /// Operations available on an analyzer that has completed unification.
-impl Analyzer<state::UnificationComplete> {
-    /// Gets the final unifier state that computed the storage layout.
+impl Analyzer<state::InferenceComplete> {
+    /// Gets the inference engine once it has completed inference and
+    /// unification.
     #[must_use]
-    pub fn unifier(&self) -> &Unifier {
-        &self.state.unifier
+    pub fn engine(&self) -> &InferenceEngine {
+        &self.state.engine
     }
 
     /// Gets the computed storage layout for the contract.

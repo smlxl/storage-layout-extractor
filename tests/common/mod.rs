@@ -12,10 +12,10 @@ use storage_layout_analyzer::{
             version::{ChainVersion, EthereumVersion},
             Chain,
         },
+        contract::Contract,
         InitialAnalyzer,
     },
-    contract::Contract,
-    unifier,
+    inference,
     vm,
 };
 
@@ -42,7 +42,7 @@ pub fn new_analyzer_from(path: impl Into<String>) -> anyhow::Result<InitialAnaly
         },
     )?;
     let vm_config = vm::Config::default();
-    let unifier_config = unifier::Config::default();
+    let unifier_config = inference::Config::default();
 
     Ok(sla::new(contract, vm_config, unifier_config))
 }

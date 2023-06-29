@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::unifier::abi::AbiType;
+use crate::inference::abi::AbiType;
 
 /// The most-concrete layout discovered for the input contract.
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -1,7 +1,6 @@
 //! This module deals with the implementation of the symbolic virtual machine.
 
 pub mod data;
-pub mod instructions;
 pub mod state;
 pub mod thread;
 pub mod value;
@@ -10,13 +9,13 @@ use std::collections::VecDeque;
 
 use crate::{
     constant::{BLOCK_GAS_LIMIT, DEFAULT_ITERATIONS_PER_OPCODE},
+    disassembly::{ExecutionThread, InstructionStream},
     error::{
         container::Locatable,
         execution::{Error, Errors, LocatedError, Result},
     },
     opcode::DynOpcode,
     vm::{
-        instructions::{ExecutionThread, InstructionStream},
         state::{stack::LocatedStackHandle, VMState},
         thread::VMThread,
         value::BoxedVal,
@@ -115,12 +114,10 @@ impl VM {
             match result {
                 Ok(_) => {
                     self.current_thread_mut()
-                        .unwrap_or_else(|_| {
-                            unreachable!(
-                                "We already know a thread is present as we executed an \
-                                 instruction from it"
-                            )
-                        })
+                        .expect(
+                            "We already know a thread is present as we executed an instruction \
+                             from it",
+                        )
                         .consume_gas(instruction.min_gas_cost());
                 }
                 Err(payload) => {
@@ -170,7 +167,7 @@ impl VM {
         let instruction_pointer = self
             .thread_queue
             .front_mut()
-            .unwrap_or_else(|| unreachable!("We already know a thread is present"))
+            .expect("We already know a thread is present")
             .instructions_mut()
             .instruction_pointer();
 
@@ -196,7 +193,7 @@ impl VM {
         let is_out_of_gas = self
             .thread_queue
             .front_mut()
-            .unwrap_or_else(|| unreachable!("We already know a thread is present"))
+            .expect("We already know a thread is present")
             .gas_usage()
             > self.config.gas_limit;
         let should_die = self.current_thread_killed;
@@ -208,7 +205,7 @@ impl VM {
             let thread = self
                 .thread_queue
                 .pop_front()
-                .unwrap_or_else(|| unreachable!("We already know a thread is present"));
+                .expect("We already know a thread is present");
             self.stored_states.push(thread.into());
 
             // The thread no longer is the current, so whether is was or wasn't killed the
@@ -222,7 +219,7 @@ impl VM {
         } else {
             // And then continue execution on the current thread.
             self.current_thread_mut()
-                .unwrap_or_else(|_| unreachable!("We already know a thread is present"))
+                .expect("We already know a thread is present")
                 .instructions_mut()
                 .step();
         }
@@ -399,7 +396,7 @@ impl VM {
     }
 
     /// Consumes the virtual machine to convert it into the data necessary for
-    /// the analysis in the [`crate::unifier::Unifier`].
+    /// the analysis in the [`crate::inference::InferenceEngine`].
     #[must_use]
     pub fn consume(self) -> ExecutionResult {
         ExecutionResult {
@@ -467,13 +464,14 @@ impl Default for Config {
 mod test {
     use crate::{
         bytecode,
+        disassembly::InstructionStream,
         error::execution::{Error, LocatedError},
         opcode::{
             control::{Invalid, JumpDest, JumpI, Return},
             logic::IsZero,
             memory::{CallDataSize, MStore, PushN, SStore},
         },
-        vm::{instructions::InstructionStream, Config, VM},
+        vm::{Config, VM},
     };
 
     #[test]
@@ -607,7 +605,7 @@ mod test {
 
     /// Utilities for aiding in the testing of the virtual machine.
     mod util {
-        use crate::vm::instructions::InstructionStream;
+        use crate::disassembly::InstructionStream;
 
         /// Constructs a basic instruction stream for testing purposes.
         pub fn basic_instruction_stream() -> InstructionStream {

@@ -891,12 +891,10 @@ impl Opcode for Nop {
 #[cfg(test)]
 mod test {
     use crate::{
+        disassembly::InstructionStream,
         error::execution,
         opcode::{control, macros::bytecode, test_util as util, Opcode},
-        vm::{
-            instructions::InstructionStream,
-            value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
-        },
+        vm::value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
     };
 
     #[test]
