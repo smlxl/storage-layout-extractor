@@ -1,5 +1,7 @@
 //! Opcodes that perform operations on memory or stack on the EVM.
 
+use std::mem;
+
 use crate::{
     constant::{
         DUP_OPCODE_BASE_VALUE,
@@ -48,7 +50,7 @@ impl Opcode for CallDataLoad {
         // Construct a constant representing the word read
         let size = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownWord::from(32u8.to_le_bytes().to_vec()),
+            KnownWord::from_le(32u8),
             Provenance::Synthetic,
         );
 
@@ -256,7 +258,7 @@ impl Opcode for CodeSize {
         // Construct the value
         let code_size_constant = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownWord::from(true_code_size.to_le_bytes().to_vec()),
+            KnownWord::from(true_code_size),
             Provenance::Execution,
         );
 
@@ -1195,6 +1197,21 @@ impl PushN {
     pub fn bytes_data(&self) -> &[u8] {
         &self.bytes
     }
+
+    /// Gets the bytes that are pushed as a known word.
+    #[must_use]
+    pub fn bytes_as_word(&self) -> KnownWord {
+        // Get the bytes we have and extend them out to be long enough
+        let mut bytes = self.bytes.clone();
+        bytes.resize(mem::size_of::<KnownWord>(), 0x0);
+
+        // This gives us a word we want to interpret as LE
+        let bytes: [u8; mem::size_of::<KnownWord>()] = bytes
+            .as_slice()
+            .try_into()
+            .expect("A known size array was not of that size");
+        KnownWord::from_le_bytes(bytes)
+    }
 }
 
 impl Opcode for PushN {
@@ -1204,12 +1221,12 @@ impl Opcode for PushN {
         let mut stack = vm.stack_handle()?;
 
         // Pull the data out of the opcode; validation is done in parsing
-        let item_data = self.bytes.clone();
+        let item_data = self.bytes_as_word();
 
         // Construct the value to push
         let item = SymbolicValue::new(
             instruction_pointer,
-            SymbolicValueData::new_known(KnownWord::from(item_data)),
+            SymbolicValueData::new_known(item_data),
             Provenance::Bytecode,
         );
 
@@ -1507,10 +1524,7 @@ mod test {
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
             SymbolicValueData::KnownData { value, .. } => {
-                assert_eq!(
-                    value,
-                    &KnownWord::from(code_size_actual.to_le_bytes().to_vec(),)
-                );
+                assert_eq!(value, &KnownWord::from(code_size_actual));
             }
             _ => panic!("Incorrect data payload"),
         }
@@ -1843,6 +1857,7 @@ mod test {
     }
 
     #[test]
+    #[allow(unreachable_code)]
     fn push_n_pushes_encoded_value_onto_stack() -> anyhow::Result<()> {
         // We want to test for all valid push sizes
         for byte_count in 1..=32 {
@@ -1869,7 +1884,7 @@ mod test {
             assert_eq!(value.provenance, Provenance::Bytecode);
             match &value.data {
                 SymbolicValueData::KnownData { value, .. } => {
-                    assert_eq!(value, &KnownWord::from(bytes));
+                    assert_eq!(value, &opcode.bytes_as_word());
                 }
                 _ => panic!("Incorrect payload"),
             };
@@ -1919,7 +1934,7 @@ mod test {
                 SymbolicValue::new_synthetic(0, SymbolicValueData::new_known(KnownWord::zero()));
             let item_to_swap = SymbolicValue::new_synthetic(
                 1,
-                SymbolicValueData::new_known(KnownWord::from(1u32.to_le_bytes().to_vec())),
+                SymbolicValueData::new_known(KnownWord::from_le(1u32)),
             );
             let other_item = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
 

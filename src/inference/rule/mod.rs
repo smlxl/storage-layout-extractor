@@ -5,6 +5,7 @@
 pub mod arithmetic_operations;
 pub mod bit_shifts;
 pub mod boolean_operations;
+pub mod call_data;
 pub mod condition;
 pub mod create;
 pub mod dynamic_array_write;
@@ -12,6 +13,7 @@ pub mod environment_opcodes;
 pub mod ext_code;
 pub mod external_calls;
 pub mod mapping_access;
+pub mod masked_word;
 pub mod offset_size;
 pub mod sha3;
 pub mod storage_key;
@@ -34,12 +36,14 @@ use crate::{
             arithmetic_operations::ArithmeticOperationRule,
             bit_shifts::BitShiftRule,
             boolean_operations::BooleanOpsRule,
+            call_data::CallDataRule,
             condition::ConditionRule,
             create::CreateContractRule,
             dynamic_array_write::DynamicArrayWriteRule,
             environment_opcodes::EnvironmentCodesRule,
             external_calls::ExternalCallRule,
             mapping_access::MappingAccessRule,
+            masked_word::MaskedWordRule,
             offset_size::OffsetSizeRule,
             sha3::HashRule,
             storage_key::StorageKeyRule,
@@ -126,10 +130,12 @@ impl InferenceRules {
 
 impl Default for InferenceRules {
     fn default() -> Self {
+        // Keep these sorted for easy visual grep
         let mut rules = Self::new();
         rules.add(ArithmeticOperationRule);
         rules.add(BitShiftRule);
         rules.add(BooleanOpsRule);
+        rules.add(CallDataRule);
         rules.add(ConditionRule);
         rules.add(CreateContractRule);
         rules.add(DynamicArrayWriteRule);
@@ -137,6 +143,7 @@ impl Default for InferenceRules {
         rules.add(ExternalCallRule);
         rules.add(HashRule);
         rules.add(MappingAccessRule);
+        rules.add(MaskedWordRule);
         rules.add(OffsetSizeRule);
         rules.add(StorageKeyRule);
         rules.add(StorageWriteRule);

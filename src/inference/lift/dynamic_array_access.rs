@@ -50,9 +50,17 @@ impl Lift for DynamicArrayAccess {
             let SVD::Add { left, right } = &key.data else {
                 return None;
             };
-            let SVD::Sha3 { data } = &left.data else {
+
+            // Important to check if either side of the addition is the hash
+            let data = if let SVD::Sha3 { data } = &left.data {
+                data
+            } else if let SVD::Sha3 { data } = &right.data {
+                data
+            } else {
                 return None;
-            };
+            }
+            .clone()
+            .constant_fold();
             let SVD::KnownData { .. } = &data.data else {
                 return None;
             };
@@ -60,7 +68,7 @@ impl Lift for DynamicArrayAccess {
             let access = SV::new(
                 key.instruction_pointer,
                 SVD::DynamicArrayAccess {
-                    slot:  data.clone().transform_data(lift_dyn_array_accesses),
+                    slot:  data.transform_data(lift_dyn_array_accesses),
                     index: right.clone().transform_data(lift_dyn_array_accesses),
                 },
                 key.provenance,

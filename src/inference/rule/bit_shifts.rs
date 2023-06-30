@@ -30,8 +30,8 @@ impl InferenceRule for BitShiftRule {
                 // The shift amount is always interpreted as unsigned
                 state.infer_for(shift, TE::unsigned_word(None));
 
-                // We know nothing about the result of a normal bit shift or the value
-                state.infer_for_many([value, shift_val], TE::default_word());
+                // We know little about the result of a normal bit shift or the value
+                state.infer_for_many([value, shift_val], TE::bytes(None));
             }
             SVD::ArithmeticRightShift {
                 shift,
@@ -82,9 +82,9 @@ mod test {
         BitShiftRule.infer(&shift, &mut state)?;
 
         // Check we get the expected equations
-        assert!(state.inferences(value_tv).contains(&TE::default_word()));
+        assert!(state.inferences(value_tv).contains(&TE::bytes(None)));
         assert!(state.inferences(shift_amount_tv).contains(&TE::unsigned_word(None)));
-        assert!(state.inferences(shift_tv).contains(&TE::default_word()));
+        assert!(state.inferences(shift_tv).contains(&TE::bytes(None)));
 
         Ok(())
     }
@@ -109,9 +109,9 @@ mod test {
         BitShiftRule.infer(&shift, &mut state)?;
 
         // Check we get the expected equations
-        assert!(state.inferences(value_tv).contains(&TE::default_word()));
+        assert!(state.inferences(value_tv).contains(&TE::bytes(None)));
         assert!(state.inferences(shift_amount_tv).contains(&TE::unsigned_word(None)));
-        assert!(state.inferences(shift_tv).contains(&TE::default_word()));
+        assert!(state.inferences(shift_tv).contains(&TE::bytes(None)));
 
         Ok(())
     }

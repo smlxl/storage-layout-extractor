@@ -78,7 +78,7 @@ impl Lift for StorageSlotHashes {
 
             // Now we can look up the hash we found, and convert it to the `Sha3` of a known
             // value if it is one.
-            if let Some(slot_index) = hashes.get_by_left(&known_value.value()) {
+            if let Some(slot_index) = hashes.get_by_left(&known_value.value_le()) {
                 let data = SV::new_known_value(
                     value_clone.instruction_pointer,
                     KnownWord::from(*slot_index),
@@ -130,7 +130,7 @@ mod test {
 
     #[test]
     fn can_recognise_a_slot_hash_in_lifting() -> anyhow::Result<()> {
-        let word = KnownWord::from(util::expected_hash_from_be_hex_string(
+        let word = KnownWord::from_le(util::expected_hash_from_be_hex_string(
             "c2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b",
         ));
         let value = SV::new_known_value(0, word, Provenance::Synthetic);

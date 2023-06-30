@@ -58,6 +58,7 @@ pub fn disassemble(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
 
     let mut opcodes: Vec<DynOpcode> = Vec::with_capacity(bytes.len());
     let ops = &mut opcodes;
+    let mut last_push: u8 = 0;
     let mut last_push_start: u32 = 0;
     let mut push_size: u8 = 0;
     let mut push_size_bytes: u8 = push_size;
@@ -92,6 +93,7 @@ pub fn disassemble(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
                 // Now we can zero out our state variables.
                 push_bytes.clear();
                 push_size = 0;
+                last_push = 0;
             }
         } else {
             // Now we can match the next byte and process the opcode.
@@ -162,6 +164,7 @@ pub fn disassemble(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
                 0x5b => add_op(ops, control::JumpDest),
                 0x5f => add_op(ops, mem::Push0),
                 0x60..=0x7f => {
+                    last_push = *byte;
                     last_push_start = instruction_pointer;
                     push_size = byte - PUSH_OPCODE_BASE_VALUE;
                     push_size_bytes = push_size;
@@ -200,6 +203,18 @@ pub fn disassemble(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
                 _ => add_op(ops, control::Invalid::new(*byte)),
             }
         }
+    }
+
+    // Solc has generated valid code that ends with an incomplete push, so we have
+    // to handle it by treating the unterminated push and all the subsequent bytes
+    // as invalid
+    if !push_bytes.is_empty() && push_bytes.len() != push_size as usize {
+        add_op(ops, control::Invalid::new(last_push));
+        push_bytes.iter().for_each(|b| add_op(ops, control::Invalid::new(*b)));
+    } else if push_size != 0 {
+        let opcode = mem::PushN::new(push_size, push_bytes.clone())
+            .map_err(|e| e.locate(last_push_start))?;
+        add_op(ops, opcode);
     }
 
     Ok(opcodes)

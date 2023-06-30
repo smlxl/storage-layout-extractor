@@ -34,21 +34,20 @@ impl InferenceRule for BooleanOpsRule {
             }
             // Equality can operate over arbitrary words, of any width
             SVD::Equals { left, right } => {
-                state.infer_for_many([left, right], TE::default_word());
+                state.infer_for_many([left, right], TE::bytes(None));
                 state.infer_for(value, TE::bool());
             }
             // This is a numeric comparison to zero
             SVD::IsZero { number } => {
-                state.infer_for(number, TE::default_word());
+                state.infer_for(number, TE::numeric(None));
                 state.infer_for(value, TE::bool());
             }
             // These operate over arbitrary words as well
             SVD::And { left, right } | SVD::Or { left, right } | SVD::Xor { left, right } => {
-                state.infer_for_many([left, right], TE::default_word());
-                state.infer_for(value, TE::default_word());
+                state.infer_for_many([left, right, value], TE::bytes(None));
             }
             SVD::Not { value: not_val } => {
-                state.infer_for_many([value, not_val], TE::default_word());
+                state.infer_for_many([value, not_val], TE::bytes(None));
             }
             _ => (),
         }
@@ -191,8 +190,8 @@ mod test {
         BooleanOpsRule.infer(&operator, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(left_tv).contains(&TE::default_word()));
-        assert!(state.inferences(right_tv).contains(&TE::default_word()));
+        assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
         assert!(state.inferences(operator_tv).contains(&TE::bool()));
 
         Ok(())
@@ -215,7 +214,7 @@ mod test {
         BooleanOpsRule.infer(&operator, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(value_tv).contains(&TE::default_word()));
+        assert!(state.inferences(value_tv).contains(&TE::numeric(None)));
         assert!(state.inferences(operator_tv).contains(&TE::bool()));
 
         Ok(())
@@ -240,9 +239,9 @@ mod test {
         BooleanOpsRule.infer(&operator, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(left_tv).contains(&TE::default_word()));
-        assert!(state.inferences(right_tv).contains(&TE::default_word()));
-        assert!(state.inferences(operator_tv).contains(&TE::default_word()));
+        assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
 
         Ok(())
     }
@@ -266,9 +265,9 @@ mod test {
         BooleanOpsRule.infer(&operator, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(left_tv).contains(&TE::default_word()));
-        assert!(state.inferences(right_tv).contains(&TE::default_word()));
-        assert!(state.inferences(operator_tv).contains(&TE::default_word()));
+        assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
 
         Ok(())
     }
@@ -292,9 +291,9 @@ mod test {
         BooleanOpsRule.infer(&operator, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(left_tv).contains(&TE::default_word()));
-        assert!(state.inferences(right_tv).contains(&TE::default_word()));
-        assert!(state.inferences(operator_tv).contains(&TE::default_word()));
+        assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
 
         Ok(())
     }
@@ -316,8 +315,8 @@ mod test {
         BooleanOpsRule.infer(&operator, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(value_tv).contains(&TE::default_word()));
-        assert!(state.inferences(operator_tv).contains(&TE::default_word()));
+        assert!(state.inferences(value_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
 
         Ok(())
     }

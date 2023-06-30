@@ -20,7 +20,7 @@ use crate::{
 /// # Depth
 ///
 /// In a true EVM, it is a depth [`MAXIMUM_STACK_DEPTH`] stack, where each item
-/// is of size [`crate::constant::WORD_SIZE`]. Here, the symbolic virtual
+/// is of size [`crate::constant::WORD_SIZE_BITS`]. Here, the symbolic virtual
 /// machine maintains the same maximum depth, but instead stores
 /// [`crate::vm::value::SymbolicValue`]s instead of words.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

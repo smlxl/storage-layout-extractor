@@ -387,7 +387,7 @@ mod test {
         let value = SymbolicValue::new_value(0, Provenance::Synthetic);
         let type_variable = state.register(value);
 
-        let expression = TypeExpression::default_word();
+        let expression = TypeExpression::bytes(None);
         state.infer(type_variable, expression.clone());
 
         assert_eq!(

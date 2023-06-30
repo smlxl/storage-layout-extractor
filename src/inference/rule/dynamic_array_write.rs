@@ -7,18 +7,18 @@ use crate::{
     vm::value::{BoxedVal, SVD},
 };
 
-/// This rule creates the equations `d = dynamic_array<b>`, `f = unsigned`, `b =
-/// g` for expressions of the following form.
+/// This rule creates the following equations in the typing state for
+/// expressions of the following form.
 ///
 /// ```code
 /// s_store(storage_slot(dynamic_array<storage_slot(base_slot)>[index]), value)
 ///    a          b            c             d          e         f        g
 /// ```
 ///
-/// where
-/// - The second row are the type variable names for the corresponding
-///   expression above. These type variables extend over the whole enclosing
-///   expression.
+/// equating
+/// - `d = dynamic_array<b>`
+/// - `f = word(width = unknown, usage = UnsignedWord)`
+/// - `b = g`
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DynamicArrayWriteRule;
 

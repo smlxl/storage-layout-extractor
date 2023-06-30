@@ -14,8 +14,8 @@ pub struct StorageLayout {
 
 impl StorageLayout {
     /// Adds a slot specified by `index` and `typ` to the storage layout.
-    pub fn add(&mut self, index: usize, typ: AbiType, defaulted: bool) {
-        let slot = StorageSlot::new(index, typ, defaulted);
+    pub fn add(&mut self, index: usize, offset: usize, typ: AbiType) {
+        let slot = StorageSlot::new(index, offset, typ);
         self.slots.push(slot);
     }
 
@@ -39,23 +39,21 @@ pub struct StorageSlot {
     /// The concrete index of the storage slot in the contract.
     pub index: usize,
 
+    /// The offset at which the type starts within the storage slot.
+    ///
+    /// This will be 0 except in the case of structs and other packed encodings.
+    pub offset: usize,
+
     #[serde(rename = "type")]
     /// The best-known type of the storage slot.
     pub typ: AbiType,
-
-    /// A flag indicating if any defaulting took place while computing `typ`.
-    pub defaulted: bool,
 }
 
 impl StorageSlot {
     /// Constructs a new storage slot container for the data at `index` with
     /// type `typ`.
     #[must_use]
-    pub fn new(index: usize, typ: AbiType, defaulted: bool) -> Self {
-        Self {
-            index,
-            typ,
-            defaulted,
-        }
+    pub fn new(index: usize, offset: usize, typ: AbiType) -> Self {
+        Self { index, offset, typ }
     }
 }

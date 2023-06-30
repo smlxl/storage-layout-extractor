@@ -18,22 +18,24 @@ fn analyses_simple_contract() -> anyhow::Result<()> {
     // Inspect it to check that things are correct
     assert_eq!(layout.slots().len(), 2);
 
-    // Check that we see the `mapping(any => mapping(any => any))`
+    // Check that we see the `mapping(bytes16 => mapping(bytes16 => bytes32))`
     let expected_mapping = AbiType::Mapping {
-        key_tp: Box::new(AbiType::Any),
+        key_tp: Box::new(AbiType::Bytes { length: Some(16) }),
         val_tp: Box::new(AbiType::Mapping {
-            key_tp: Box::new(AbiType::Any),
-            val_tp: Box::new(AbiType::Any),
+            key_tp: Box::new(AbiType::Bytes { length: Some(16) }),
+            val_tp: Box::new(AbiType::Bytes { length: Some(32) }),
         }),
     };
-    let expected_mapping_slot = StorageSlot::new(0, expected_mapping, false);
+    let expected_mapping_slot = StorageSlot::new(0, 0, expected_mapping);
     assert!(layout.slots().contains(&expected_mapping_slot));
 
-    // Check that we see the `any[]`
+    // Check that we see the `uint64[]`
     let expected_dyn_array = AbiType::DynArray {
-        tp: Box::new(AbiType::Any),
+        // Unfortunately we can't currently work out that it's 64 bit as they use a different
+        // method to scale the values beyond the supported one
+        tp: Box::new(AbiType::UInt { size: None }),
     };
-    let expected_array_slot = StorageSlot::new(1, expected_dyn_array, false);
+    let expected_array_slot = StorageSlot::new(1, 0, expected_dyn_array);
     assert!(layout.slots().contains(&expected_array_slot));
 
     Ok(())
