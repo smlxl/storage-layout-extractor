@@ -75,6 +75,16 @@ impl Lift for StorageSlots {
                         slot,
                     })
                 }
+                SVD::SLoad { key } => {
+                    let data = match &key.data {
+                        SVD::StorageSlot { .. } => key.data.clone(),
+                        _ => SVD::StorageSlot {
+                            key: key.clone().transform_data(insert_storage_accesses),
+                        },
+                    };
+                    let slot = SymbolicValue::new(key.instruction_pointer, data, key.provenance);
+                    Some(SVD::SLoad { key: slot })
+                }
                 _ => None,
             }
         }
@@ -337,6 +347,32 @@ mod test {
                 assert_eq!(index, input_index);
                 assert_eq!(slot, input_slot);
             }
+            _ => panic!("Incorrect payload"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn wraps_slots_in_s_loads() -> anyhow::Result<()> {
+        let input_key = SV::new_value(0, Provenance::Synthetic);
+        let s_load = SV::new_synthetic(
+            1,
+            SVD::SLoad {
+                key: input_key.clone(),
+            },
+        );
+
+        let state = TypingState::empty();
+        let result = StorageSlots.run(s_load, &state)?;
+
+        match result.data {
+            SVD::SLoad { key } => match key.data {
+                SVD::StorageSlot { key } => {
+                    assert_eq!(key, input_key);
+                }
+                _ => panic!("Incorrect payload"),
+            },
             _ => panic!("Incorrect payload"),
         }
 

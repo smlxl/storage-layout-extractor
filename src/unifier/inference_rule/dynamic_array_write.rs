@@ -2,11 +2,8 @@
 //! array writes.
 
 use crate::{
-    unifier::{
-        expression::TE,
-        inference_rule::InferenceRule,
-        state::{TypeVariable, TypingState},
-    },
+    error::unification::Result,
+    unifier::{expression::TE, inference_rule::InferenceRule, state::TypingState},
     vm::value::{BoxedVal, SVD},
 };
 
@@ -27,12 +24,7 @@ pub struct DynamicArrayWriteRule;
 
 impl InferenceRule for DynamicArrayWriteRule {
     #[allow(clippy::many_single_char_names)] // They correspond to the above spec
-    fn infer(
-        &self,
-        value: &BoxedVal,
-        _a_tv: TypeVariable,
-        state: &mut TypingState,
-    ) -> crate::error::unification::Result<()> {
+    fn infer(&self, value: &BoxedVal, state: &mut TypingState) -> Result<()> {
         let SVD::StorageWrite { key: b, value: g } = &value.data else { return Ok(()) };
         let SVD::StorageSlot { key: c } = &b.data else { return Ok(()) };
         let SVD::DynamicArrayAccess { slot: d, index: f } = &c.data else { return Ok(()) };
@@ -114,7 +106,7 @@ mod test {
         let a_tv = state.register(store.clone());
 
         // Run the inference rule
-        DynamicArrayWriteRule.infer(&store, a_tv, &mut state)?;
+        DynamicArrayWriteRule.infer(&store, &mut state)?;
 
         // Check that we end up with expected results in the state
         assert_eq!(state.inferences(g_tv).len(), 1);

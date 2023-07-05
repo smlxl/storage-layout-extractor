@@ -141,9 +141,9 @@ impl Unifier {
     ///
     /// Returns [`Err`] if one or more of the heuristics returns an error.
     pub fn infer(&mut self) -> Result<()> {
-        let pairs: Vec<(BoxedVal, TypeVariable)> = self.state.pairs_cloned();
-        for (value, ty) in pairs {
-            self.config.inference_rules.infer(&value, ty, &mut self.state)?;
+        let values = self.state.values().into_iter().cloned().collect::<Vec<_>>();
+        for value in values {
+            self.config.inference_rules.infer(&value, &mut self.state)?;
         }
 
         Ok(())
@@ -223,6 +223,7 @@ impl Unifier {
     /// # Errors
     ///
     /// If something goes wrong in the computation of the [`AbiType`].
+    #[allow(clippy::too_many_lines)] // Necessary length, splitting not beneficial
     fn abi_type_for_impl(
         &mut self,
         var: TypeVariable,
@@ -280,6 +281,18 @@ impl Unifier {
                     WordUse::Selector => AbiType::Selector,
                     WordUse::Function => AbiType::Function,
                     WordUse::None => from_signed(signed),
+                    WordUse::Bytes => {
+                        if let Ok(length) = u8::try_from(width / 32) {
+                            AbiType::Bytes { length }
+                        } else {
+                            let location = self.state.value(var).unwrap().instruction_pointer;
+                            Err(Error::OverSizedNumber {
+                                value: (width / 32) as i128,
+                                width: 8,
+                            })
+                            .locate(location)?
+                        }
+                    }
                     WordUse::Conflict { .. } => {
                         defaulted = true;
                         from_signed(signed)
@@ -587,7 +600,7 @@ pub mod test {
             first_slot.typ,
             AbiType::Mapping {
                 key_tp: Box::new(AbiType::Any),
-                val_tp: Box::new(AbiType::Any),
+                val_tp: Box::new(AbiType::UInt { size: 256 }),
             }
         );
 

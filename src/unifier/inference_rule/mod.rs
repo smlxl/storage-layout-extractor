@@ -2,8 +2,19 @@
 //! provides the unifier with the ability to make inferences based on the
 //! structure of the symbolic values.
 
-mod dynamic_array_write;
+pub mod arithmetic_operations;
+pub mod bit_shifts;
+pub mod boolean_operations;
+pub mod condition;
+pub mod create;
+pub mod dynamic_array_write;
+pub mod environment_opcodes;
+pub mod ext_code;
+pub mod external_calls;
 pub mod mapping_access;
+pub mod offset_size;
+pub mod sha3;
+pub mod storage_key;
 pub mod storage_write;
 
 use std::{
@@ -20,11 +31,21 @@ use crate::{
     error::unification::Result,
     unifier::{
         inference_rule::{
+            arithmetic_operations::ArithmeticOperationRule,
+            bit_shifts::BitShiftRule,
+            boolean_operations::BooleanOpsRule,
+            condition::ConditionRule,
+            create::CreateContractRule,
             dynamic_array_write::DynamicArrayWriteRule,
+            environment_opcodes::EnvironmentCodesRule,
+            external_calls::ExternalCallRule,
             mapping_access::MappingAccessRule,
+            offset_size::OffsetSizeRule,
+            sha3::HashRule,
+            storage_key::StorageKeyRule,
             storage_write::StorageWriteRule,
         },
-        state::{TypeVariable, TypingState},
+        state::TypingState,
     },
     vm::value::BoxedVal,
 };
@@ -34,9 +55,9 @@ pub trait InferenceRule
 where
     Self: Any + Debug + Downcast,
 {
-    /// Runs the analysis on the provided `value` and its associated
-    /// `type_variable` with access to the unifier state in `state` into which
-    /// it can write typing judgements.
+    /// Runs the analysis on the provided `value` and its associated with access
+    /// to the unifier state in `state` into which it can write typing
+    /// judgements.
     ///
     /// # Modifying the Unifier State
     ///
@@ -57,7 +78,7 @@ where
     /// # Errors
     ///
     /// Returns [`Err`] if something goes wrong with the heuristic analysis.
-    fn infer(&self, value: &BoxedVal, ty_var: TypeVariable, state: &mut TypingState) -> Result<()>;
+    fn infer(&self, value: &BoxedVal, state: &mut TypingState) -> Result<()>;
 }
 
 /// A container for a set of inference rules that will be run in an arbitrary
@@ -94,14 +115,9 @@ impl InferenceRules {
     /// # Errors
     ///
     /// Returns [`Err`] if any of the passes error.
-    pub fn infer(
-        &mut self,
-        value: &BoxedVal,
-        ty_var: TypeVariable,
-        state: &mut TypingState,
-    ) -> Result<()> {
+    pub fn infer(&mut self, value: &BoxedVal, state: &mut TypingState) -> Result<()> {
         for rule in &self.rules {
-            rule.infer(value, ty_var, state)?;
+            rule.infer(value, state)?;
         }
 
         Ok(())
@@ -111,9 +127,19 @@ impl InferenceRules {
 impl Default for InferenceRules {
     fn default() -> Self {
         let mut rules = Self::new();
-        rules.add(StorageWriteRule);
-        rules.add(MappingAccessRule);
+        rules.add(ArithmeticOperationRule);
+        rules.add(BitShiftRule);
+        rules.add(BooleanOpsRule);
+        rules.add(ConditionRule);
+        rules.add(CreateContractRule);
         rules.add(DynamicArrayWriteRule);
+        rules.add(EnvironmentCodesRule);
+        rules.add(ExternalCallRule);
+        rules.add(HashRule);
+        rules.add(MappingAccessRule);
+        rules.add(OffsetSizeRule);
+        rules.add(StorageKeyRule);
+        rules.add(StorageWriteRule);
 
         rules
     }
