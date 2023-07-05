@@ -88,9 +88,9 @@ impl Storage {
             )]
         });
 
-        entry.last().unwrap_or_else(|| {
-            unreachable!("We already know there is at least one item in the vector")
-        })
+        entry
+            .last()
+            .expect("We already know there is at least one item in the vector")
     }
 
     /// Gets all of the stores that were made at the provided `key` during

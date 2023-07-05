@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     error::container,
-    unifier::{
+    inference::{
         expression::{InferenceSet, TypeExpression},
         state::TypeVariable,
     },
@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// Errors that occur during unification and type inference process in the
-/// [`crate::unifier::Unifier`].
+/// [`crate::inference::InferenceEngine`].
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
     #[error("Invalid tree {value:?} encountered during unification: {reason}")]

@@ -3,10 +3,11 @@
 use std::fmt::Debug;
 
 use crate::{
-    unifier,
-    unifier::Unifier,
+    disassembly::InstructionStream,
+    inference,
+    inference::InferenceEngine,
     vm,
-    vm::{instructions::InstructionStream, ExecutionResult, VM},
+    vm::{ExecutionResult, VM},
     StorageLayout,
 };
 
@@ -24,7 +25,7 @@ pub struct HasContract {
     pub vm_config: vm::Config,
 
     /// The unifier configuration.
-    pub unifier_config: unifier::Config,
+    pub unifier_config: inference::Config,
 }
 impl State for HasContract {}
 
@@ -38,7 +39,7 @@ pub struct DisassemblyComplete {
     pub vm_config: vm::Config,
 
     /// The unifier configuration.
-    pub unifier_config: unifier::Config,
+    pub unifier_config: inference::Config,
 }
 impl State for DisassemblyComplete {}
 
@@ -50,7 +51,7 @@ pub struct VMReady {
     pub vm: VM,
 
     /// The unifier configuration.
-    pub unifier_config: unifier::Config,
+    pub unifier_config: inference::Config,
 }
 impl State for VMReady {}
 
@@ -60,26 +61,26 @@ pub struct ExecutionComplete {
     pub execution_result: ExecutionResult,
 
     /// The unifier configuration.
-    pub unifier_config: unifier::Config,
+    pub unifier_config: inference::Config,
 }
 impl State for ExecutionComplete {}
 
-/// The analyzer has prepared the unifier to perform its processes.
+/// The analyzer has prepared the inference engine to perform its processes.
 #[derive(Debug)]
-pub struct UnifierReady {
-    /// The unifier, ready to perform unification.
-    pub unifier: Unifier,
+pub struct InferenceReady {
+    /// The inference engine, ready to perform inference and unification.
+    pub engine: InferenceEngine,
 }
-impl State for UnifierReady {}
+impl State for InferenceReady {}
 
-/// The analyzer has completed its unification and inference process, and is now
+/// The analyzer has completed its inference and unification process, and is now
 /// ready to provide the concrete storage layout.
 #[derive(Debug)]
-pub struct UnificationComplete {
-    /// The unifier after it has performed unification.
-    pub unifier: Unifier,
+pub struct InferenceComplete {
+    /// The engine after it has performed inference and unification.
+    pub engine: InferenceEngine,
 
     /// The computed storage layout.
     pub layout: StorageLayout,
 }
-impl State for UnificationComplete {}
+impl State for InferenceComplete {}

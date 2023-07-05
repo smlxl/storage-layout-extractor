@@ -1,7 +1,7 @@
 //! This module contains the definition of the [`VMThread`] type, representing
 //! the divergent execution paths that can be taken during symbolic execution.
 
-use crate::vm::{instructions::ExecutionThread, state::VMState};
+use crate::{disassembly::ExecutionThread, vm::state::VMState};
 
 /// A `VMThread` is a representation of a given execution path during the course
 /// of symbolic execution.
@@ -102,7 +102,8 @@ impl From<VMThread> for VMState {
 mod test {
     use crate::{
         constant::DEFAULT_ITERATIONS_PER_OPCODE,
-        vm::{instructions::InstructionStream, state::VMState, thread::VMThread},
+        disassembly::InstructionStream,
+        vm::{state::VMState, thread::VMThread},
     };
 
     #[test]

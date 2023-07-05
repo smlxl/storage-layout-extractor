@@ -9,7 +9,7 @@ use ethnum::U256;
 /// here there is no interaction with a real EVM.
 ///
 /// For more information on the concrete definition of these data types, please
-/// see [`crate::unifier::abi::AbiType`].
+/// see [`crate::inference::abi::AbiType`].
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct KnownWord {
     value: U256,

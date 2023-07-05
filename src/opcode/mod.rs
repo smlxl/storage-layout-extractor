@@ -101,7 +101,10 @@ pub type ExecuteResult = Result<()>;
 
 #[cfg(test)]
 mod test_util {
-    use crate::vm::{instructions::InstructionStream, value::BoxedVal, Config, VM};
+    use crate::{
+        disassembly::InstructionStream,
+        vm::{value::BoxedVal, Config, VM},
+    };
 
     /// Constructs a new virtual machine with the provided `values` pushed
     /// onto its stack in order.
