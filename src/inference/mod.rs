@@ -5,14 +5,14 @@ use std::collections::{HashSet, VecDeque};
 
 use self::abi::U256Wrapper;
 use crate::{
-    constant::BYTE_SIZE,
+    constant::BYTE_SIZE_BITS,
     error::{
         container::Locatable,
         unification::{Error, Errors, Result},
     },
     inference::{
-        abi::AbiType,
-        expression::{TypeExpression, WordUse, TE},
+        abi::{AbiType, StructElement},
+        expression::{Span, TypeExpression, WordUse, TE},
         lift::LiftingPasses,
         rule::InferenceRules,
         state::{InferenceState, TypeVariable},
@@ -197,12 +197,14 @@ impl InferenceEngine {
                 .locate(slot.instruction_pointer))?
             };
 
+            // Get one or more types from the storage slot
             let index: usize = value.into();
-            let abi_type = self.abi_type_for(ty_var)?;
-
-            // For now we add things with a constant offset of zero as we don't deal with
-            // sub-word access
-            layout.add(index, 0, abi_type);
+            match self.abi_type_for(ty_var)? {
+                AbiValue::Type(typ) => layout.add(index, 0, typ),
+                AbiValue::Packed(types) => types
+                    .into_iter()
+                    .for_each(|(typ, offset)| layout.add(index, offset, typ)),
+            }
         }
 
         Ok(layout)
@@ -217,7 +219,7 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// If something goes wrong in the computation of the [`AbiType`].
-    fn abi_type_for(&mut self, var: TypeVariable) -> Result<AbiType> {
+    fn abi_type_for(&mut self, var: TypeVariable) -> Result<AbiValue> {
         let mut seen_vars = HashSet::new();
         self.abi_type_for_impl(var, &mut seen_vars)
     }
@@ -233,28 +235,29 @@ impl InferenceEngine {
         &mut self,
         var: TypeVariable,
         seen_exprs: &mut HashSet<TypeExpression>,
-    ) -> Result<AbiType> {
+    ) -> Result<AbiValue> {
         let type_expr = self.type_of(var)?;
 
         // If we see the same type constructor again when iterating, the type is
         // infinite so we short-circuit
         if seen_exprs.contains(&type_expr) && type_expr.is_type_constructor() {
-            return Ok(AbiType::InfiniteType);
+            return Ok(AbiType::InfiniteType.into());
         }
 
         seen_exprs.insert(type_expr.clone());
 
         // Get the location in case an error needs to be raised
         let location = self.state.value(var).unwrap().instruction_pointer;
-        let abi_type: AbiType = match type_expr {
-            TE::Any => AbiType::Any,
+        let abi_type: AbiValue = match type_expr {
+            TE::Any => AbiType::Any.into(),
             TE::Word { width, usage } => match usage {
                 WordUse::Bytes => AbiType::Bytes {
-                    length: width.map(|w| w / BYTE_SIZE),
-                },
-                WordUse::Numeric => AbiType::Number { size: width },
-                WordUse::UnsignedNumeric => AbiType::UInt { size: width },
-                WordUse::SignedNumeric => AbiType::Int { size: width },
+                    length: width.map(|w| w / BYTE_SIZE_BITS),
+                }
+                .into(),
+                WordUse::Numeric => AbiType::Number { size: width }.into(),
+                WordUse::UnsignedNumeric => AbiType::UInt { size: width }.into(),
+                WordUse::SignedNumeric => AbiType::Int { size: width }.into(),
                 WordUse::Bool => {
                     if width != usage.size() {
                         return Err(Error::InvalidInference {
@@ -264,7 +267,7 @@ impl InferenceEngine {
                         .locate(location)
                         .into());
                     }
-                    AbiType::Bool
+                    AbiType::Bool.into()
                 }
                 WordUse::Address => {
                     if width != usage.size() {
@@ -275,7 +278,7 @@ impl InferenceEngine {
                         .locate(location)
                         .into());
                     }
-                    AbiType::Address
+                    AbiType::Address.into()
                 }
                 WordUse::Selector => {
                     if width != usage.size() {
@@ -286,7 +289,7 @@ impl InferenceEngine {
                         .locate(location)
                         .into());
                     }
-                    AbiType::Selector
+                    AbiType::Selector.into()
                 }
                 WordUse::Function => {
                     if width != usage.size() {
@@ -297,27 +300,73 @@ impl InferenceEngine {
                         .locate(location)
                         .into());
                     }
-                    AbiType::Function
+                    AbiType::Function.into()
                 }
             },
             TE::FixedArray { element, length } => {
-                let tp = self.abi_type_for_impl(element, seen_exprs)?;
+                let tp = self
+                    .abi_type_for_impl(element, seen_exprs)?
+                    .expect_type("Fixed array element resolved to multiple types");
                 AbiType::Array {
                     size: U256Wrapper(length),
                     tp:   Box::new(tp),
                 }
+                .into()
             }
             TE::Mapping { key, value } => {
-                let key_tp = self.abi_type_for_impl(key, seen_exprs)?;
-                let val_tp = self.abi_type_for_impl(value, seen_exprs)?;
+                let key_tp = self
+                    .abi_type_for_impl(key, seen_exprs)?
+                    .expect_type("Mapping key resolved to multiple types");
+                let val_tp = self
+                    .abi_type_for_impl(value, seen_exprs)?
+                    .expect_type("Mapping value resolved to multiple types");
                 AbiType::Mapping {
-                    key_tp: Box::new(key_tp),
-                    val_tp: Box::new(val_tp),
+                    key_type:   Box::new(key_tp),
+                    value_type: Box::new(val_tp),
                 }
+                .into()
             }
             TE::DynamicArray { element } => {
-                let tp = self.abi_type_for_impl(element, seen_exprs)?;
-                AbiType::DynArray { tp: Box::new(tp) }
+                let tp = self
+                    .abi_type_for_impl(element, seen_exprs)?
+                    .expect_type("Dynamic array element resolved to multiple types");
+                AbiType::DynArray { tp: Box::new(tp) }.into()
+            }
+            TE::Packed { types, is_struct } => {
+                let mut pairs = Vec::new();
+                for Span { typ, offset, .. } in types {
+                    match self.abi_type_for_impl(typ, seen_exprs)? {
+                        AbiValue::Packed(xs) => pairs.extend(xs),
+                        AbiValue::Type(ty) => pairs.push((ty.clone(), offset)),
+                    }
+                }
+
+                if pairs.is_empty() {
+                    // If it is empty, we know nothing
+                    AbiType::Any.into()
+                } else if pairs.len() == 1 {
+                    // If it has length 1, it's not really packed
+                    let pair @ (typ, offset) = pairs.first().unwrap();
+                    if *offset == 0 {
+                        // If the offset is zero the slot is the contained type
+                        typ.into()
+                    } else {
+                        // But if it isn't, it's actually a packed where we don't know its elements
+                        // so we have to insert a synthetic element to make the spacing work
+                        AbiValue::Packed(vec![(AbiType::Any, 0), pair.clone()])
+                    }
+                } else if is_struct {
+                    // If it is a struct it is a single element, so we turn it into one
+                    let elements = pairs
+                        .into_iter()
+                        .map(|(typ, offset)| StructElement::new(offset, typ))
+                        .collect();
+                    AbiType::Struct { elements }.into()
+                } else {
+                    // Otherwise it is a standard packed encoding, so we return a set of sub-slot
+                    // types
+                    AbiValue::Packed(pairs)
+                }
             }
             TE::Equal { id } => {
                 return Err(Error::InvalidInference {
@@ -330,7 +379,8 @@ impl InferenceEngine {
             TE::Conflict { conflicts, reasons } => AbiType::ConflictedType {
                 reasons,
                 conflicts: conflicts.into_iter().map(|c| format!("{c:?}")).collect(),
-            },
+            }
+            .into(),
         };
 
         Ok(abi_type)
@@ -465,6 +515,50 @@ impl Default for Config {
     }
 }
 
+/// A representation of an `AbiType` that occurs at a specified position within
+/// a word.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AbiValue {
+    /// A single ABI type.
+    Type(AbiType),
+
+    /// A set of ABI types with their offsets in bits inside the parent word.
+    Packed(Vec<(AbiType, usize)>),
+}
+
+impl AbiValue {
+    /// Expects that the value is a single type.
+    ///
+    /// # Panics
+    ///
+    /// If `self` is not [`Self::Packed`].
+    #[must_use]
+    pub fn expect_type(self, msg: &'static str) -> AbiType {
+        match self {
+            Self::Type(tp) => tp,
+            Self::Packed(_) => panic!("{}", msg),
+        }
+    }
+}
+
+impl From<AbiType> for AbiValue {
+    fn from(value: AbiType) -> Self {
+        Self::Type(value)
+    }
+}
+
+impl From<&AbiType> for AbiValue {
+    fn from(value: &AbiType) -> Self {
+        Self::Type(value.clone())
+    }
+}
+
+impl From<Vec<(AbiType, usize)>> for AbiValue {
+    fn from(value: Vec<(AbiType, usize)>) -> Self {
+        Self::Packed(value)
+    }
+}
+
 #[cfg(test)]
 pub mod test {
     use crate::{
@@ -593,8 +687,8 @@ pub mod test {
         assert_eq!(
             first_slot.typ,
             AbiType::Mapping {
-                key_tp: Box::new(AbiType::Any),
-                val_tp: Box::new(AbiType::Number { size: None }),
+                key_type:   Box::new(AbiType::Any),
+                value_type: Box::new(AbiType::Number { size: None }),
             }
         );
 

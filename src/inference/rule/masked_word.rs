@@ -2,7 +2,11 @@
 //! from value sub-word masking operations.
 
 use crate::{
-    inference::{expression::TE, rule::InferenceRule, state::InferenceState},
+    inference::{
+        expression::{Span, TE},
+        rule::InferenceRule,
+        state::InferenceState,
+    },
     vm::value::{BoxedVal, SVD},
 };
 
@@ -15,7 +19,8 @@ use crate::{
 /// ```
 ///
 /// equating:
-/// - `a = word(width = size, usage = Bytes)`
+/// - `a = Word(width = size, usage = Bytes)`
+/// - `b = Packed([Positioned(a, offset)])`
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct MaskedWordRule;
 
@@ -25,12 +30,22 @@ impl InferenceRule for MaskedWordRule {
         value: &BoxedVal,
         state: &mut InferenceState,
     ) -> crate::error::unification::Result<()> {
-        let SVD::SubWord { size, .. } = &value.data else {
+        let SVD::SubWord {
+            value: sub_value,
+            offset,
+            size,
+        } = &value.data
+        else {
             return Ok(());
         };
 
+        let a_tv = state.var_unchecked(value);
+        let b_tv = state.var_unchecked(sub_value);
         let inferred_word = TE::bytes(Some(*size));
-        state.infer_for(value, inferred_word);
+        state.infer(a_tv, inferred_word);
+
+        let inferred_packed = TE::packed_of(vec![Span::new(a_tv, *offset, *size)]);
+        state.infer(b_tv, inferred_packed);
 
         Ok(())
     }
@@ -40,7 +55,7 @@ impl InferenceRule for MaskedWordRule {
 mod test {
     use crate::{
         inference::{
-            expression::{WordUse, TE},
+            expression::{Span, WordUse, TE},
             rule::{masked_word::MaskedWordRule, InferenceRule},
             state::InferenceState,
         },
@@ -68,7 +83,12 @@ mod test {
         MaskedWordRule.infer(&mask, &mut state)?;
 
         // Check that we end up with the correct equations
-        assert!(state.inferences(value_tv).is_empty());
+        assert_eq!(state.inferences(value_tv).len(), 1);
+        assert!(
+            state
+                .inferences(value_tv)
+                .contains(&TE::packed_of(vec![Span::new(mask_tv, 64, 128)]))
+        );
         assert_eq!(state.inferences(mask_tv).len(), 1);
         assert!(
             state

@@ -76,13 +76,11 @@ pub enum AbiType {
     /// A dynamically-sized byte array, with each element packed.
     DynBytes,
 
-    /// A mapping from `key_tp` to `val_tp`.
-    Mapping {
-        #[serde(rename = "key_type")]
-        key_tp: Box<AbiType>,
-        #[serde(rename = "value_type")]
-        val_tp: Box<AbiType>,
-    },
+    /// A mapping from `key_type` to `value_type`.
+    Mapping { key_type: Box<AbiType>, value_type: Box<AbiType> },
+
+    /// A struct, with the specified `elements`.
+    Struct { elements: Vec<StructElement> },
 
     /// A type in the unifier that resolved to an infinite loop of type
     /// variables.
@@ -118,6 +116,25 @@ impl<'de> Deserialize<'de> for U256Wrapper {
         let s: String = Deserialize::deserialize(deserializer)?;
         let u256 = U256::from_str_hex(&s).map_err(serde::de::Error::custom)?;
         Ok(U256Wrapper(u256))
+    }
+}
+
+/// An element of a struct in the ABI.
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct StructElement {
+    offset: usize,
+    #[serde(rename = "type")]
+    typ:    Box<AbiType>,
+}
+
+impl StructElement {
+    /// Constructs a new struct element with the provided `typ` at the specified
+    /// `offset`.
+    #[must_use]
+    pub fn new(offset: usize, typ: AbiType) -> Self {
+        let typ = Box::new(typ);
+        Self { offset, typ }
     }
 }
 

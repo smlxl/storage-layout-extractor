@@ -7,9 +7,16 @@
 use std::collections::HashSet;
 
 use ethnum::U256;
+use itertools::Itertools;
 
 use crate::{
-    constant::{ADDRESS_WIDTH_BITS, BOOL_WIDTH_BITS, FUNCTION_WIDTH_BITS, SELECTOR_WIDTH_BITS},
+    constant::{
+        ADDRESS_WIDTH_BITS,
+        BOOL_WIDTH_BITS,
+        BYTE_SIZE_BITS,
+        FUNCTION_WIDTH_BITS,
+        SELECTOR_WIDTH_BITS,
+    },
     inference::state::TypeVariable,
 };
 
@@ -49,6 +56,10 @@ pub enum TypeExpression {
 
     /// A dynamic array containing items with the type of `element`.
     DynamicArray { element: TypeVariable },
+
+    /// A type that is a packed encoding of multiple other `types`, and is
+    /// possibly a struct.
+    Packed { types: Vec<Span>, is_struct: bool },
 
     /// A representation of conflicting pieces of evidence.
     Conflict { conflicts: Vec<Box<TypeExpression>>, reasons: Vec<String> },
@@ -136,8 +147,30 @@ impl TypeExpression {
         Self::DynamicArray { element }
     }
 
+    /// Constructs a new packed encoding containing the provided `types`.
+    #[must_use]
+    pub fn packed_of(types: Vec<impl Into<Span>>) -> Self {
+        let types: Vec<Span> = types.into_iter().map_into().collect();
+
+        Self::Packed {
+            types,
+            is_struct: false,
+        }
+    }
+
+    /// Constructs a new struct containing the provided `types`.
+    #[must_use]
+    pub fn struct_of(types: Vec<impl Into<Span>>) -> Self {
+        let types = types.into_iter().map_into().collect();
+        Self::Packed {
+            types,
+            is_struct: true,
+        }
+    }
+
     /// Creates a type expression representing a conflict of the `left` and
     /// `right` expressions due to `reason`.
+    #[must_use]
     pub fn conflict(left: Self, right: Self, reason: impl Into<String>) -> Self {
         left.conflict_with(right, reason)
     }
@@ -174,7 +207,8 @@ impl TypeExpression {
             Self::FixedArray { .. }
             | Self::Mapping { .. }
             | Self::DynamicArray { .. }
-            | Self::Equal { .. } => true,
+            | Self::Equal { .. }
+            | Self::Packed { .. } => true,
         }
     }
 }
@@ -261,6 +295,103 @@ impl WordUse {
 impl Default for WordUse {
     fn default() -> Self {
         Self::Bytes
+    }
+}
+
+/// A representation of a type being at a specific position _inside_ an EVM
+/// word.
+///
+/// # Byte Alignment
+///
+/// It is assumed that the start and end of these spans are byte-aligned, so if
+/// creating a span not using [`Self::new`] you must ensure this invariant
+/// yourself.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Span {
+    /// The type variable of the type being positioned inside a word.
+    pub typ: TypeVariable,
+
+    /// The offset in bits within the word of `typ`.
+    pub offset: usize,
+
+    /// The size in bits within the word of `typ`.
+    pub size: usize,
+}
+
+impl Span {
+    /// Constructs a new span with type `typ` beginning at `offset` bits from
+    /// the start of the parent word and extending for `size` bits from that
+    /// position.
+    #[must_use]
+    pub fn new(typ: TypeVariable, offset: usize, size: usize) -> Self {
+        Self { typ, offset, size }
+    }
+
+    /// Gets the type of the span.
+    #[must_use]
+    pub fn typ(&self) -> TypeVariable {
+        self.typ
+    }
+
+    /// Gets the offset of the span from the start of the word in bits.
+    #[must_use]
+    pub fn offset_bits(&self) -> usize {
+        self.offset
+    }
+
+    /// Gets the offset of the span from the start of the word in bytes.
+    #[must_use]
+    pub fn offset_bytes(&self) -> usize {
+        self.offset / BYTE_SIZE_BITS
+    }
+
+    /// Gets the size in bits of the span.
+    #[must_use]
+    pub fn size_bits(&self) -> usize {
+        self.size
+    }
+
+    /// Gets the size in bytes of the span.
+    #[must_use]
+    pub fn size_bytes(&self) -> usize {
+        self.size_bits() / BYTE_SIZE_BITS
+    }
+
+    /// Gets the bit in the word (zero-indexed) where this span begins.
+    #[must_use]
+    pub fn start_bit(&self) -> usize {
+        self.offset
+    }
+
+    /// Gets the bit in the word (zero-indexed) where this span begins.
+    #[must_use]
+    pub fn start_byte(&self) -> usize {
+        self.start_bit() / BYTE_SIZE_BITS
+    }
+
+    /// Gets the first bit in the word (zero-indexed) after the end of the span.
+    #[must_use]
+    pub fn end_bit(&self) -> usize {
+        self.offset + self.size
+    }
+
+    /// Gets the first byte in the word (zero-indexed) after the end of the
+    /// span.
+    #[must_use]
+    pub fn end_byte(&self) -> usize {
+        self.end_bit() / BYTE_SIZE_BITS
+    }
+}
+
+impl From<&Span> for Span {
+    fn from(value: &Span) -> Self {
+        *value
+    }
+}
+
+impl From<Span> for (TypeVariable, usize, usize) {
+    fn from(value: Span) -> Self {
+        (value.typ, value.offset, value.size)
     }
 }
 

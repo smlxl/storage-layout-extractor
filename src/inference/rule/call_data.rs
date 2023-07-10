@@ -2,7 +2,7 @@
 //! equivalent to the size that created it when reading from call data.
 
 use crate::{
-    constant::BYTE_SIZE,
+    constant::BYTE_SIZE_BITS,
     inference::{expression::TE, rule::InferenceRule, state::InferenceState},
     vm::value::{known::KnownWord, BoxedVal, SVD},
 };
@@ -41,7 +41,7 @@ impl InferenceRule for CallDataRule {
         };
 
         // Otherwise, we can infer that the type of the value is word
-        let value_bits: usize = <KnownWord as Into<usize>>::into(byte_size) * BYTE_SIZE;
+        let value_bits: usize = <KnownWord as Into<usize>>::into(byte_size) * BYTE_SIZE_BITS;
         state.infer_for(value, TE::bytes(Some(value_bits)));
 
         // All done
@@ -52,7 +52,7 @@ impl InferenceRule for CallDataRule {
 #[cfg(test)]
 mod test {
     use crate::{
-        constant::BYTE_SIZE,
+        constant::BYTE_SIZE_BITS,
         inference::{
             expression::TE,
             rule::{call_data::CallDataRule, InferenceRule},
@@ -106,7 +106,7 @@ mod test {
         assert!(
             state
                 .inferences(call_data_tv)
-                .contains(&TE::bytes(Some(16 * BYTE_SIZE)))
+                .contains(&TE::bytes(Some(16 * BYTE_SIZE_BITS)))
         );
 
         Ok(())
@@ -144,7 +144,7 @@ mod test {
         assert!(
             state
                 .inferences(call_data_tv)
-                .contains(&TE::bytes(Some(16 * BYTE_SIZE)))
+                .contains(&TE::bytes(Some(16 * BYTE_SIZE_BITS)))
         );
 
         Ok(())

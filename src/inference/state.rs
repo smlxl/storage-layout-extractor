@@ -352,9 +352,23 @@ impl TypeVariable {
     /// It is intended _only_ to be called from the [`InferenceState::register`]
     /// as there should be no other way to construct a fresh type variable and
     /// it is unsafe to do so.
+    #[must_use]
     fn fresh() -> Self {
         let id = Uuid::new_v4();
         Self { id }
+    }
+
+    /// Constructs a new, never-before-seen type variable.
+    ///
+    /// # Safety
+    ///
+    /// Calling `new` allows violation of the invariant that the
+    /// [`InferenceState`] is the only component that can construct new type
+    /// variables. If you call this function, you must be _very_ careful to
+    /// ensure that none of its results are passed to functions in that state.
+    #[must_use]
+    pub unsafe fn new() -> Self {
+        Self::fresh()
     }
 }
 
@@ -378,7 +392,7 @@ mod test {
 
     #[test]
     fn can_create_fresh_type_variable() {
-        TypeVariable::fresh();
+        let _ = TypeVariable::fresh();
     }
 
     #[test]
