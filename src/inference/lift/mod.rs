@@ -4,6 +4,8 @@
 
 pub mod dynamic_array_access;
 pub mod mapping_access;
+pub mod mul_shifted;
+pub mod packed_encoding;
 pub mod recognise_hashed_slots;
 pub mod storage_slots;
 pub mod sub_word;
@@ -21,6 +23,8 @@ use crate::{
         lift::{
             dynamic_array_access::DynamicArrayAccess,
             mapping_access::MappingAccess,
+            mul_shifted::MulShiftedValue,
+            packed_encoding::PackedEncoding,
             recognise_hashed_slots::StorageSlotHashes,
             storage_slots::StorageSlots,
             sub_word::SubWordValue,
@@ -121,6 +125,8 @@ impl Default for LiftingPasses {
             passes: vec![
                 StorageSlotHashes::new(),
                 SubWordValue::new(),
+                MulShiftedValue::new(),
+                PackedEncoding::new(),
                 MappingAccess::new(),
                 DynamicArrayAccess::new(),
                 StorageSlots::new(),

@@ -956,7 +956,7 @@ impl Opcode for SLoad {
 
         // Read from storage using that key
         let storage = vm.state()?.storage_mut();
-        let result = storage.load(&key).clone();
+        let result = storage.load(&key);
 
         // Write it into the stack
         vm.stack_handle()?.push(result)?;
@@ -1423,7 +1423,14 @@ mod test {
         opcode::{memory, test_util as util, Opcode},
         vm::{
             state::memory::MemStoreSize,
-            value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+            value::{
+                known::KnownWord,
+                BoxedVal,
+                Provenance,
+                SymbolicValue,
+                SymbolicValueData,
+                SVD,
+            },
         },
     };
 
@@ -1772,10 +1779,12 @@ mod test {
     #[test]
     fn s_load_loads_word_from_storage() -> anyhow::Result<()> {
         // Prepare the values and the vm
-        let key = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let mut vm = util::new_vm_with_values_on_stack(vec![key.clone()])?;
-        vm.state()?.storage_mut().store(key.clone(), value.clone());
+        let input_key = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm = util::new_vm_with_values_on_stack(vec![input_key.clone()])?;
+        vm.state()?
+            .storage_mut()
+            .store(input_key.clone(), input_value.clone());
 
         // Prepare and run the opcode
         let opcode = memory::SLoad;
@@ -1784,12 +1793,24 @@ mod test {
         // Inspect the stack state
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
-        assert_eq!(stack.read(0)?, &value);
+        match &stack.read(0)?.data {
+            SVD::SLoad { key, value } => {
+                assert_eq!(key, &input_key);
+                assert_eq!(value, &input_value);
+            }
+            _ => panic!("Incorrect payload"),
+        }
 
         // Inspect the storage state
         let storage = vm.state()?.storage_mut();
         assert_eq!(storage.entry_count(), 1);
-        assert_eq!(storage.load(&key), &value);
+        match &storage.load(&input_key).data {
+            SVD::SLoad { key, value } => {
+                assert_eq!(key, &input_key);
+                assert_eq!(value, &input_value);
+            }
+            _ => panic!("Incorrect payload"),
+        }
 
         Ok(())
     }
@@ -1797,9 +1818,10 @@ mod test {
     #[test]
     fn s_store_writes_word_to_storage() -> anyhow::Result<()> {
         // Prepare the values and the vm
-        let key = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let mut vm = util::new_vm_with_values_on_stack(vec![value.clone(), key.clone()])?;
+        let input_key = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![input_value.clone(), input_key.clone()])?;
 
         // Prepare and run the opcode
         let opcode = memory::SStore;
@@ -1811,7 +1833,13 @@ mod test {
         // Inspect the storage state
         let storage = vm.state()?.storage_mut();
         assert_eq!(storage.entry_count(), 1);
-        assert_eq!(storage.load(&key), &value);
+        match &storage.load(&input_key).data {
+            SVD::SLoad { key, value } => {
+                assert_eq!(key, &input_key);
+                assert_eq!(value, &input_value);
+            }
+            _ => panic!("Invalid payload"),
+        }
 
         Ok(())
     }

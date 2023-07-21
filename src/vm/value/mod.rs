@@ -411,9 +411,15 @@ pub enum SymbolicValueData {
     /// A value that was used as the input to a conditional.
     Condition { value: BoxedVal },
 
-    /// A value representing the return from a storage load at `key` where the
-    /// VM is unaware of any value at that key.
-    SLoad { key: BoxedVal },
+    /// The value read from storage that has not been written to at the time of
+    /// loading during the course of execution in the virtual machine.
+    UnwrittenStorageValue { key: BoxedVal },
+
+    /// A value representing the return from a storage load at `key`.
+    ///
+    /// If there is no value in the storage slot for `key`, `value` will be
+    /// [`Self::UnwrittenStorageValue`].
+    SLoad { key: BoxedVal, value: BoxedVal },
 
     /// A storage slot at `index`.
     StorageSlot { key: BoxedVal },
@@ -435,6 +441,15 @@ pub enum SymbolicValueData {
     /// The sub-word value begins at `offset` (0-based in bits where 0 is the
     /// LSB) in the overarching word, and with `size` (in bits).
     SubWord { value: BoxedVal, offset: usize, size: usize },
+
+    /// An operation that shifts `value` to begin at `offset` within the
+    /// containing word.
+    ///
+    /// Note that `offset` is the 0-indexed bit where the value begins.
+    Shifted { offset: usize, value: BoxedVal },
+
+    /// A packed encoding of data as a value, containing `elements`.
+    Packed { elements: Vec<PackedSpan> },
 }
 
 impl SymbolicValueData {
@@ -669,8 +684,12 @@ impl SymbolicValueData {
                 Self::Condition { value } => Self::Condition {
                     value: value.transform_data(transform),
                 },
-                Self::SLoad { key } => Self::SLoad {
+                Self::UnwrittenStorageValue { key } => Self::UnwrittenStorageValue {
                     key: key.transform_data(transform),
+                },
+                Self::SLoad { key, value } => Self::SLoad {
+                    key:   key.transform_data(transform),
+                    value: value.transform_data(transform),
                 },
                 Self::StorageSlot { key } => Self::StorageSlot {
                     key: key.transform_data(transform),
@@ -698,6 +717,13 @@ impl SymbolicValueData {
                     value: value.transform_data(transform),
                     offset,
                     size,
+                },
+                Self::Shifted { offset, value } => Self::Shifted {
+                    offset,
+                    value: value.transform_data(transform),
+                },
+                Self::Packed { elements } => Self::Packed {
+                    elements: elements.into_iter().map(|elem| elem.transform(transform)).collect(),
                 },
             },
         }
@@ -764,7 +790,7 @@ impl SymbolicValueData {
                     let divisor = divisor.transform_data(constant_folder);
                     let dividend = dividend.transform_data(constant_folder);
                     Some(match (dividend.as_word(), divisor.as_word()) {
-                        (Some(a), Some(b)) => SVD::new_known(a.modulo(b)),
+                        (Some(a), Some(b)) => SVD::new_known(a % b),
                         _ => SVD::Modulo { dividend, divisor },
                     })
                 }
@@ -980,13 +1006,16 @@ impl SymbolicValueData {
             Self::Return { data } => vec![data],
             Self::Revert { data } => vec![data],
             Self::Condition { value } => vec![value],
-            Self::SLoad { key } => vec![key],
+            Self::UnwrittenStorageValue { key } => vec![key],
+            Self::SLoad { key, value } => vec![key, value],
             Self::StorageSlot { key } => vec![key],
             Self::StorageWrite { key, value } => vec![key, value],
             Self::Concat { values } => values.iter().collect(),
             Self::MappingAccess { slot, key } => vec![slot, key],
             Self::DynamicArrayAccess { slot, index } => vec![slot, index],
             Self::SubWord { value, .. } => vec![value],
+            Self::Shifted { value, .. } => vec![value],
+            Self::Packed { elements } => elements.iter().map(|e| &e.value).collect(),
         }
     }
 }
@@ -1077,7 +1106,8 @@ impl Display for SymbolicValueData {
             Self::Return { data } => write!(f, "return({data})"),
             Self::Revert { data } => write!(f, "revert({data})"),
             Self::Condition { value } => write!(f, "bool({value})"),
-            Self::SLoad { key } => write!(f, "s_load({key})"),
+            Self::UnwrittenStorageValue { key } => write!(f, "uninit_storage({key})"),
+            Self::SLoad { key, value } => write!(f, "s_load({key}, {value})"),
             Self::StorageSlot { key } => write!(f, "slot<{key}>"),
             Self::StorageWrite { key, value } => write!(f, "s_store({key}, {value})"),
             Self::Concat { values } => {
@@ -1097,7 +1127,62 @@ impl Display for SymbolicValueData {
                 offset,
                 size,
             } => write!(f, "sub_word({value}, {offset}, {size})"),
+            Self::Shifted { offset, value } => write!(f, "shifted({offset}, {value})"),
+            Self::Packed { elements } => {
+                write!(f, "packed(")?;
+                for (i, value) in elements.iter().enumerate() {
+                    write!(f, "{value}")?;
+                    if i + 1 < elements.len() {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ")")
+            }
         }
+    }
+}
+
+/// A representation of a span within a packed encoding.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct PackedSpan {
+    /// The position in the containing word at which the span begins.
+    pub offset: usize,
+
+    /// The size of the span within the containing word.
+    pub size: usize,
+
+    /// The value of the span.
+    pub value: BoxedVal,
+}
+impl PackedSpan {
+    /// Creates a span with a known `size` at `offset` represented by `value`.
+    #[must_use]
+    pub fn new(offset: usize, size: usize, value: BoxedVal) -> Self {
+        Self {
+            offset,
+            size,
+            value,
+        }
+    }
+
+    /// Transforms the [`Self::value`] within the span with the provided
+    /// `transform`.
+    ///
+    /// This has the same semantics as for [`SymbolicValueData::transform`].
+    #[must_use]
+    pub fn transform(self, transform: impl Fn(&SVD) -> Option<SVD> + Copy) -> Self {
+        let new_data = self.value.transform_data(transform);
+        Self {
+            offset: self.offset,
+            size:   self.size,
+            value:  new_data,
+        }
+    }
+}
+
+impl Display for PackedSpan {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "span({}, {}, {})", self.offset, self.size, self.value)
     }
 }
 
