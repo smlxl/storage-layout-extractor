@@ -5,7 +5,7 @@ use std::collections::{HashSet, VecDeque};
 
 use self::abi::U256Wrapper;
 use crate::{
-    constant::WORD_SIZE,
+    constant::BYTE_SIZE,
     error::{
         container::Locatable,
         unification::{Error, Errors, Result},
@@ -198,9 +198,11 @@ impl InferenceEngine {
             };
 
             let index: usize = value.into();
-            let (abi_type, defaulted) = self.abi_type_for(ty_var)?;
+            let abi_type = self.abi_type_for(ty_var)?;
 
-            layout.add(index, abi_type, defaulted);
+            // For now we add things with a constant offset of zero as we don't deal with
+            // sub-word access
+            layout.add(index, 0, abi_type);
         }
 
         Ok(layout)
@@ -215,7 +217,7 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// If something goes wrong in the computation of the [`AbiType`].
-    fn abi_type_for(&mut self, var: TypeVariable) -> Result<(AbiType, bool)> {
+    fn abi_type_for(&mut self, var: TypeVariable) -> Result<AbiType> {
         let mut seen_vars = HashSet::new();
         self.abi_type_for_impl(var, &mut seen_vars)
     }
@@ -231,102 +233,93 @@ impl InferenceEngine {
         &mut self,
         var: TypeVariable,
         seen_exprs: &mut HashSet<TypeExpression>,
-    ) -> Result<(AbiType, bool)> {
+    ) -> Result<AbiType> {
         let type_expr = self.type_of(var)?;
 
         // If we see the same type constructor again when iterating, the type is
         // infinite so we short-circuit
         if seen_exprs.contains(&type_expr) && type_expr.is_type_constructor() {
-            return Ok((AbiType::InfiniteType, false));
+            return Ok(AbiType::InfiniteType);
         }
+
         seen_exprs.insert(type_expr.clone());
 
-        let mut defaulted = false;
+        // Get the location in case an error needs to be raised
+        let location = self.state.value(var).unwrap().instruction_pointer;
         let abi_type: AbiType = match type_expr {
             TE::Any => AbiType::Any,
-            TE::Word {
-                width,
-                signed,
-                usage,
-            } => {
-                let signed = signed.unwrap_or_else(|| {
-                    defaulted = true;
-                    false
-                });
-
-                // And we default to the EVM's word size otherwise
-                let width = width.unwrap_or_else(|| {
-                    defaulted = true;
-                    WORD_SIZE
-                });
-
-                let size = if let Ok(v) = u16::try_from(width) {
-                    v
-                } else {
-                    let location = self.state.value(var).unwrap().instruction_pointer;
-                    Err(Error::OverSizedNumber {
-                        value: width as i128,
-                        width: 16,
-                    }
-                    .locate(location))?
-                };
-
-                let from_signed = |signed| {
-                    if signed {
-                        AbiType::Int { size }
-                    } else {
-                        AbiType::UInt { size }
-                    }
-                };
-
-                match usage {
-                    WordUse::Bool => AbiType::Bool,
-                    WordUse::Address => AbiType::Address,
-                    WordUse::Selector => AbiType::Selector,
-                    WordUse::Function => AbiType::Function,
-                    WordUse::None => from_signed(signed),
-                    WordUse::Bytes => {
-                        if let Ok(length) = u8::try_from(width / 32) {
-                            AbiType::Bytes { length }
-                        } else {
-                            let location = self.state.value(var).unwrap().instruction_pointer;
-                            Err(Error::OverSizedNumber {
-                                value: (width / 32) as i128,
-                                width: 8,
-                            })
-                            .locate(location)?
+            TE::Word { width, usage } => match usage {
+                WordUse::Bytes => AbiType::Bytes {
+                    length: width.map(|w| w / BYTE_SIZE),
+                },
+                WordUse::Numeric => AbiType::Number { size: width },
+                WordUse::UnsignedNumeric => AbiType::UInt { size: width },
+                WordUse::SignedNumeric => AbiType::Int { size: width },
+                WordUse::Bool => {
+                    if width != usage.size() {
+                        return Err(Error::InvalidInference {
+                            value:  type_expr,
+                            reason: "Bool inferred with incorrect width".into(),
                         }
+                        .locate(location)
+                        .into());
                     }
-                    WordUse::Conflict { .. } => {
-                        defaulted = true;
-                        from_signed(signed)
-                    }
+                    AbiType::Bool
                 }
-            }
+                WordUse::Address => {
+                    if width != usage.size() {
+                        return Err(Error::InvalidInference {
+                            value:  type_expr,
+                            reason: "Address inferred with incorrect width".into(),
+                        }
+                        .locate(location)
+                        .into());
+                    }
+                    AbiType::Address
+                }
+                WordUse::Selector => {
+                    if width != usage.size() {
+                        return Err(Error::InvalidInference {
+                            value:  type_expr,
+                            reason: "Selector inferred with incorrect width".into(),
+                        }
+                        .locate(location)
+                        .into());
+                    }
+                    AbiType::Selector
+                }
+                WordUse::Function => {
+                    if width != usage.size() {
+                        return Err(Error::InvalidInference {
+                            value:  type_expr,
+                            reason: "Function inferred with incorrect width".into(),
+                        }
+                        .locate(location)
+                        .into());
+                    }
+                    AbiType::Function
+                }
+            },
             TE::FixedArray { element, length } => {
-                let (tp, inner_defaulted) = self.abi_type_for_impl(element, seen_exprs)?;
-                defaulted = inner_defaulted;
+                let tp = self.abi_type_for_impl(element, seen_exprs)?;
                 AbiType::Array {
                     size: U256Wrapper(length),
                     tp:   Box::new(tp),
                 }
             }
             TE::Mapping { key, value } => {
-                let (key_tp, key_defaulted) = self.abi_type_for_impl(key, seen_exprs)?;
-                let (val_tp, val_defaulted) = self.abi_type_for_impl(value, seen_exprs)?;
-                defaulted = key_defaulted || val_defaulted;
+                let key_tp = self.abi_type_for_impl(key, seen_exprs)?;
+                let val_tp = self.abi_type_for_impl(value, seen_exprs)?;
                 AbiType::Mapping {
                     key_tp: Box::new(key_tp),
                     val_tp: Box::new(val_tp),
                 }
             }
             TE::DynamicArray { element } => {
-                let (tp, inner_defaulted) = self.abi_type_for_impl(element, seen_exprs)?;
-                defaulted = inner_defaulted;
+                let tp = self.abi_type_for_impl(element, seen_exprs)?;
                 AbiType::DynArray { tp: Box::new(tp) }
             }
             TE::Equal { id } => {
-                let location = self.state.value(var).unwrap().instruction_pointer;
                 return Err(Error::InvalidInference {
                     value:  TE::Equal { id },
                     reason: "Equalities cannot be converted into ABI types".into(),
@@ -334,18 +327,13 @@ impl InferenceEngine {
                 .locate(location)
                 .into());
             }
-            TE::Conflict {
-                left,
-                right,
-                reason,
-            } => AbiType::ConflictedType {
-                left: format!("{left:?}"),
-                right: format!("{right:?}"),
-                reason,
+            TE::Conflict { conflicts, reasons } => AbiType::ConflictedType {
+                reasons,
+                conflicts: conflicts.into_iter().map(|c| format!("{c:?}")).collect(),
             },
         };
 
-        Ok((abi_type, defaulted))
+        Ok(abi_type)
     }
 
     /// Gets the unified type for the provided `type_variable`.
@@ -606,7 +594,7 @@ pub mod test {
             first_slot.typ,
             AbiType::Mapping {
                 key_tp: Box::new(AbiType::Any),
-                val_tp: Box::new(AbiType::UInt { size: 256 }),
+                val_tp: Box::new(AbiType::Number { size: None }),
             }
         );
 

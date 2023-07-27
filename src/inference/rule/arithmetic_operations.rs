@@ -2,7 +2,7 @@
 //! operations.
 
 use crate::{
-    constant::WORD_SIZE,
+    constant::WORD_SIZE_BITS,
     error::unification::Result,
     inference::{expression::TE, rule::InferenceRule, state::InferenceState},
     vm::value::{BoxedVal, SVD},
@@ -19,10 +19,10 @@ impl InferenceRule for ArithmeticOperationRule {
             SVD::Add { left, right }
             | SVD::Multiply { left, right }
             | SVD::Subtract { left, right } => {
-                state.infer_for_many([value, left, right], TE::default_word());
+                state.infer_for_many([value, left, right], TE::numeric(None));
             }
             SVD::Divide { dividend, divisor } | SVD::Modulo { dividend, divisor } => {
-                state.infer_for_many([value, dividend, divisor], TE::default_word());
+                state.infer_for_many([value, dividend, divisor], TE::unsigned_word(None));
             }
             SVD::SignedDivide { dividend, divisor } | SVD::SignedModulo { dividend, divisor } => {
                 state.infer_for_many([value, dividend, divisor], TE::signed_word(None));
@@ -31,7 +31,7 @@ impl InferenceRule for ArithmeticOperationRule {
                 value: exp_val,
                 exponent,
             } => {
-                state.infer_for_many([value, exp_val, exponent], TE::default_word());
+                state.infer_for_many([value, exp_val, exponent], TE::numeric(None));
             }
             SVD::SignExtend {
                 value: extend_val,
@@ -44,7 +44,7 @@ impl InferenceRule for ArithmeticOperationRule {
                 let width = if let SVD::KnownData { value } = &size.data {
                     let width: usize = value.into();
 
-                    if width <= WORD_SIZE {
+                    if width <= WORD_SIZE_BITS {
                         Some(width)
                     } else {
                         None
@@ -93,9 +93,9 @@ mod test {
         ArithmeticOperationRule.infer(&add, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(left_ty).contains(&TE::default_word()));
-        assert!(state.inferences(right_ty).contains(&TE::default_word()));
-        assert!(state.inferences(add_ty).contains(&TE::default_word()));
+        assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(add_ty).contains(&TE::numeric(None)));
 
         Ok(())
     }
@@ -120,9 +120,9 @@ mod test {
         ArithmeticOperationRule.infer(&mul, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(left_ty).contains(&TE::default_word()));
-        assert!(state.inferences(right_ty).contains(&TE::default_word()));
-        assert!(state.inferences(mul_ty).contains(&TE::default_word()));
+        assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(mul_ty).contains(&TE::numeric(None)));
 
         Ok(())
     }
@@ -147,9 +147,9 @@ mod test {
         ArithmeticOperationRule.infer(&sub, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(left_ty).contains(&TE::default_word()));
-        assert!(state.inferences(right_ty).contains(&TE::default_word()));
-        assert!(state.inferences(sub_ty).contains(&TE::default_word()));
+        assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(sub_ty).contains(&TE::numeric(None)));
 
         Ok(())
     }
@@ -175,9 +175,9 @@ mod test {
         ArithmeticOperationRule.infer(&div, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(dividend_ty).contains(&TE::default_word()));
-        assert!(state.inferences(divisor_ty).contains(&TE::default_word()));
-        assert!(state.inferences(div_ty).contains(&TE::default_word()));
+        assert!(state.inferences(dividend_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(divisor_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(div_ty).contains(&TE::unsigned_word(None)));
 
         Ok(())
     }
@@ -231,9 +231,9 @@ mod test {
         ArithmeticOperationRule.infer(&modulo, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(dividend_ty).contains(&TE::default_word()));
-        assert!(state.inferences(divisor_ty).contains(&TE::default_word()));
-        assert!(state.inferences(div_ty).contains(&TE::default_word()));
+        assert!(state.inferences(dividend_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(divisor_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(div_ty).contains(&TE::unsigned_word(None)));
 
         Ok(())
     }
@@ -286,9 +286,9 @@ mod test {
         ArithmeticOperationRule.infer(&exp, &mut state)?;
 
         // Check we get the right equations
-        assert!(state.inferences(value_ty).contains(&TE::default_word()));
-        assert!(state.inferences(exponent_ty).contains(&TE::default_word()));
-        assert!(state.inferences(exp_ty).contains(&TE::default_word()));
+        assert!(state.inferences(value_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(exponent_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(exp_ty).contains(&TE::numeric(None)));
 
         Ok(())
     }

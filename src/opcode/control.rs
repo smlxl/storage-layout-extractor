@@ -293,7 +293,7 @@ impl Opcode for PC {
         // Construct the value and push it onto the stack
         let result = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownWord::from(instruction_pointer.to_le_bytes().to_vec()),
+            KnownWord::from_le(instruction_pointer),
             Provenance::ProgramCounter,
         );
         stack.push(result)?;
@@ -941,7 +941,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownWord::from(vec![0x03]), // Offset of JUMPDEST in the bytes above
+            KnownWord::from_le(0x03u32), // Offset of JUMPDEST in the bytes above
             Provenance::Synthetic,
         );
         let mut vm =
@@ -1006,7 +1006,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownWord::from(vec![0x04]), // Out of bounds
+            KnownWord::from_le(0x04u32), // Out of bounds
             Provenance::Synthetic,
         );
         let mut vm =
@@ -1041,7 +1041,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownWord::from(vec![0x03]), // The final INVALID in the bytes above
+            KnownWord::from_le(0x03u32), // The final INVALID in the bytes above
             Provenance::Synthetic,
         );
         let mut vm =
@@ -1071,7 +1071,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownWord::from(vec![0x02]), // Offset of JUMPDEST in the bytes above
+            KnownWord::from_le(0x02u32), // Offset of JUMPDEST in the bytes above
             Provenance::Synthetic,
         );
         let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
@@ -1124,7 +1124,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownWord::from(vec![0x04]), // OOB target
+            KnownWord::from_le(0x04u32), // OOB target
             Provenance::Synthetic,
         );
         let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
@@ -1162,7 +1162,7 @@ mod test {
         // Prepare the VM
         let immediate = SymbolicValue::new_known_value(
             0,
-            KnownWord::from(vec![0x02]), // Invalid jump target
+            KnownWord::from_le(0x02u32), // Invalid jump target
             Provenance::Synthetic,
         );
         let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
@@ -1201,7 +1201,7 @@ mod test {
         let value = stack.read(0)?;
         match &value.data {
             SymbolicValueData::KnownData { value, .. } => {
-                assert_eq!(value, &KnownWord::from(0x00u32.to_le_bytes().to_vec(),));
+                assert_eq!(value, &KnownWord::from_le(0x00u32));
             }
             _ => panic!("Invalid payload"),
         }

@@ -129,12 +129,10 @@ pub fn merge(left: TE, right: TE) -> Merge {
         (
             TE::Word {
                 width: width_l,
-                signed: signed_l,
                 usage: usage_l,
             },
             TE::Word {
                 width: width_r,
-                signed: signed_r,
                 usage: usage_r,
             },
         ) => {
@@ -153,35 +151,25 @@ pub fn merge(left: TE, right: TE) -> Merge {
                 (None, None) => None,
             };
 
-            let signed = match (signed_l, signed_r) {
-                (Some(l), Some(r)) if l == r => Some(*l),
-                (Some(_), Some(_)) => {
-                    return Merge::expression(TE::conflict(
-                        left,
-                        right,
-                        "Disagreeing numeric signedness",
-                    ));
-                }
-                (Some(l), _) => Some(*l),
-                (_, Some(r)) => Some(*r),
-                (None, None) => None,
+            // We need to merge the usages
+            let Some(usage) = usage_l.merge(*usage_r) else {
+                return Merge::expression(TE::conflict(left, right, "Conflicting word usages"));
             };
 
-            Merge::expression(TE::word(
-                width,
-                signed,
-                usage_l.clone().merge(usage_r.clone()),
-            ))
+            Merge::expression(TE::word(width, usage))
         }
 
         // To combine a word with a dynamic array we delegate
         (TE::Word { .. }, TE::DynamicArray { .. }) => merge(right, left),
 
         // They produce a dynamic array as long as the word is not signed
-        (TE::DynamicArray { .. }, TE::Word { signed, .. }) => Merge::expression(match signed {
-            Some(false) | None => left,
-            _ => TE::conflict(left, right, "An array cannot have signed length"),
-        }),
+        (TE::DynamicArray { .. }, TE::Word { usage, .. }) => {
+            Merge::expression(if usage.is_definitely_signed() {
+                TE::conflict(left, right, "Dynamic arrays cannot have signed length")
+            } else {
+                left
+            })
+        }
 
         // Dynamic arrays can combine with dynamic arrays
         (TE::DynamicArray { element: element_l }, TE::DynamicArray { element: element_r }) => {
@@ -237,7 +225,7 @@ pub fn merge(left: TE, right: TE) -> Merge {
         (_, TE::Any) => Merge::expression(left),
         (TE::Any, _) => Merge::expression(right),
 
-        // Nothing else can combine and be valid, so we error
+        // Nothing else can combine and be valid, so we return a typing conflict
         _ => Merge::expression(TE::conflict(left, right, "Incompatible inferences")),
     }
 }
@@ -323,7 +311,7 @@ mod test {
 
         // Set up some inferences
         let inference_1 = TE::eq(v_2_tv);
-        let inference_2 = TE::default_word();
+        let inference_2 = TE::bytes(None);
 
         // Check it does the right thing
         let result = panic::catch_unwind(|| merge(inference_1.clone(), inference_2.clone()));
@@ -341,8 +329,8 @@ mod test {
         let v_1_tv = state.register(v_1);
 
         // Set up some inferences
-        let inference_1 = TE::unsigned_word(Some(ADDRESS_WIDTH_BITS));
-        let inference_2 = TE::default_word();
+        let inference_1 = TE::bytes(Some(ADDRESS_WIDTH_BITS));
+        let inference_2 = TE::bytes(None);
         let inference_3 = TE::address();
         let inferences = vec![inference_1, inference_2, inference_3];
         let inference_permutations: Vec<Vec<_>> =
@@ -359,7 +347,7 @@ mod test {
             assert!(result.is_some());
             assert_eq!(
                 result.unwrap(),
-                TE::word(Some(ADDRESS_WIDTH_BITS), Some(false), WordUse::Address)
+                TE::word(Some(ADDRESS_WIDTH_BITS), WordUse::Address)
             );
         }
     }
@@ -373,8 +361,8 @@ mod test {
 
         // Set up some inferences
         let inference_1 = TE::signed_word(Some(64));
-        let inference_2 = TE::default_word();
-        let inference_3 = TE::bool();
+        let inference_2 = TE::bytes(None);
+        let inference_3 = TE::signed_word(None);
         let inferences = vec![inference_1, inference_2, inference_3];
         let inference_permutations: Vec<Vec<_>> =
             inferences.iter().permutations(inferences.len()).unique().collect();
@@ -388,10 +376,7 @@ mod test {
             let result = util::get_inference(v_1_tv, state.result());
 
             assert!(result.is_some());
-            assert_eq!(
-                result.unwrap(),
-                TE::word(Some(64), Some(true), WordUse::Bool)
-            );
+            assert_eq!(result.unwrap(), TE::word(Some(64), WordUse::SignedNumeric));
         }
     }
 
@@ -503,7 +488,7 @@ mod test {
         // Create some inferences and register them
         let array_inference_1 = TE::DynamicArray { element: elem_1_tv };
         let array_inference_2 = TE::DynamicArray { element: elem_2_tv };
-        let elem_inference_1 = TE::default_word();
+        let elem_inference_1 = TE::bytes(None);
         let elem_inference_2 = TE::signed_word(Some(64));
         state.infer(elem_1_tv, elem_inference_1);
         state.infer(elem_2_tv, elem_inference_2);
@@ -594,7 +579,7 @@ mod test {
             element: elem_2_tv,
             length:  input_len,
         };
-        let elem_inference_1 = TE::default_word();
+        let elem_inference_1 = TE::bytes(None);
         let elem_inference_2 = TE::signed_word(Some(64));
         state.infer(elem_1_tv, elem_inference_1);
         state.infer(elem_2_tv, elem_inference_2);
@@ -690,7 +675,7 @@ mod test {
             element: elem_2_tv,
             length:  U256::from(8u32),
         };
-        let elem_inference_1 = TE::default_word();
+        let elem_inference_1 = TE::bytes(None);
         let elem_inference_2 = TE::signed_word(Some(64));
         state.infer(elem_1_tv, elem_inference_1);
         state.infer(elem_2_tv, elem_inference_2);

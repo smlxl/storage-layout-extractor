@@ -2,7 +2,7 @@
 //! return values when creating new contracts.
 
 use crate::{
-    constant::WORD_SIZE,
+    constant::WORD_SIZE_BITS,
     inference::{expression::TE, rule::InferenceRule, state::InferenceState},
     vm::value::{BoxedVal, SVD},
 };
@@ -35,7 +35,7 @@ impl InferenceRule for CreateContractRule {
             } => {
                 state.infer_for(value, TE::address());
                 state.infer_for(create_val, TE::unsigned_word(None));
-                state.infer_for(salt, TE::bytes(Some(WORD_SIZE)));
+                state.infer_for(salt, TE::bytes(Some(WORD_SIZE_BITS)));
             }
             _ => (),
         }
@@ -47,7 +47,7 @@ impl InferenceRule for CreateContractRule {
 #[cfg(test)]
 mod test {
     use crate::{
-        constant::WORD_SIZE,
+        constant::WORD_SIZE_BITS,
         inference::{
             expression::TE,
             rule::{create::CreateContractRule, InferenceRule},
@@ -105,7 +105,7 @@ mod test {
 
         // Check that the equations are right
         assert!(state.inferences(value_tv).contains(&TE::unsigned_word(None)));
-        assert!(state.inferences(salt_tv).contains(&TE::bytes(Some(WORD_SIZE))));
+        assert!(state.inferences(salt_tv).contains(&TE::bytes(Some(WORD_SIZE_BITS))));
         assert!(state.inferences(data_tv).is_empty());
         assert!(state.inferences(create_tv).contains(&TE::address()));
 

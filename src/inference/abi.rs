@@ -25,13 +25,20 @@ pub enum AbiType {
     /// is a concrete container but not of what type(s).
     Any,
 
+    /// A number of a given `size` in bits, where, `8 < size <= 256 &&
+    /// size % 8 == 0`.
+    ///
+    /// This is emitted when the analyser knows that something has been used
+    /// numerically, but does not know whether it is concretely signed or not.
+    Number { size: Option<usize> },
+
     /// Unsigned integers of a given `size` in bits, where `8 < size <= 256 &&
     /// size % 8 == 0`.
-    UInt { size: u16 },
+    UInt { size: Option<usize> },
 
     /// Signed (two's complement) integers of a given `size` in bits, where `8 <
     /// size <= 256 && size % 8 == 0`.
-    Int { size: u16 },
+    Int { size: Option<usize> },
 
     /// Addresses, assumed equivalent to `UInt { size: 160 }` except for
     /// interpretation.
@@ -58,7 +65,7 @@ pub enum AbiType {
     },
 
     /// Byte arrays of a fixed `length`, where `0 < length <= 32`.
-    Bytes { length: u8 },
+    Bytes { length: Option<usize> },
 
     /// A dynamically-sized array containing elements of a type `tp`.
     DynArray {
@@ -86,7 +93,7 @@ pub enum AbiType {
     ///
     /// While the conflict is not usually useful itself, treating them as types
     /// ensures that we still complete unification as well as is possible.
-    ConflictedType { left: String, right: String, reason: String },
+    ConflictedType { conflicts: Vec<String>, reasons: Vec<String> },
 }
 
 /// The `U256Wrapper` is responsible for serializing the U256 type to JSON

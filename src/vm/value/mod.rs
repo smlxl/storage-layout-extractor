@@ -6,7 +6,6 @@ pub mod known;
 use std::fmt::{Display, Formatter};
 
 use derivative::Derivative;
-use ethnum::{I256, U256};
 use uuid::Uuid;
 
 use crate::vm::value::known::KnownWord;
@@ -154,9 +153,9 @@ impl SymbolicValue {
 
     /// Converts the payload into a VM word if possible.
     #[must_use]
-    pub fn as_word(&self) -> Option<U256> {
+    pub fn as_word(&self) -> Option<KnownWord> {
         match &self.data {
-            SymbolicValueData::KnownData { value } => Some(value.value()),
+            SymbolicValueData::KnownData { value } => Some(*value),
             _ => None,
         }
     }
@@ -431,8 +430,11 @@ pub enum SymbolicValueData {
     /// The value is an access to a dynamic array in `slot` at `index`.
     DynamicArrayAccess { slot: BoxedVal, index: BoxedVal },
 
-    /// An operation that masks `value` to by `mask`.
-    WordMask { value: BoxedVal, mask: usize },
+    /// An operation that masks `value` to construct a sub-word value.
+    ///
+    /// The sub-word value begins at `offset` (0-based in bits where 0 is the
+    /// LSB) in the overarching word, and with `size` (in bits).
+    SubWord { value: BoxedVal, offset: usize, size: usize },
 }
 
 impl SymbolicValueData {
@@ -440,14 +442,6 @@ impl SymbolicValueData {
     #[must_use]
     pub fn new_known(value: KnownWord) -> Self {
         SymbolicValueData::KnownData { value }
-    }
-
-    /// Constructs a new [`Self::KnownData`] wrapping `value`.
-    #[must_use]
-    fn known_from(value: U256) -> Self {
-        Self::KnownData {
-            value: value.into(),
-        }
     }
 
     /// Constructs a new [`Self::Value`] about which only its existence and
@@ -696,9 +690,14 @@ impl SymbolicValueData {
                     slot:  slot.transform_data(transform),
                     index: index.transform_data(transform),
                 },
-                Self::WordMask { value, mask } => Self::WordMask {
+                Self::SubWord {
+                    value,
+                    offset,
+                    size,
+                } => Self::SubWord {
                     value: value.transform_data(transform),
-                    mask,
+                    offset,
+                    size,
                 },
             },
         }
@@ -725,7 +724,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a + b),
+                        (Some(a), Some(b)) => SVD::new_known(a + b),
                         _ => SVD::Add { left, right },
                     })
                 }
@@ -733,7 +732,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a * b),
+                        (Some(a), Some(b)) => SVD::new_known(a * b),
                         _ => SVD::Add { left, right },
                     })
                 }
@@ -741,7 +740,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a - b),
+                        (Some(a), Some(b)) => SVD::new_known(a - b),
                         _ => SVD::Subtract { left, right },
                     })
                 }
@@ -749,7 +748,7 @@ impl SymbolicValueData {
                     let divisor = divisor.transform_data(constant_folder);
                     let dividend = dividend.transform_data(constant_folder);
                     Some(match (dividend.as_word(), divisor.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a / b),
+                        (Some(a), Some(b)) => SVD::new_known(a / b),
                         _ => SVD::Divide { dividend, divisor },
                     })
                 }
@@ -757,12 +756,7 @@ impl SymbolicValueData {
                     let divisor = divisor.transform_data(constant_folder);
                     let dividend = dividend.transform_data(constant_folder);
                     Some(match (dividend.as_word(), divisor.as_word()) {
-                        (Some(a), Some(b)) => {
-                            let a_signed = I256::from_le_bytes(a.to_le_bytes());
-                            let b_signed = I256::from_le_bytes(b.to_le_bytes());
-                            let result = a_signed / b_signed;
-                            SVD::known_from(U256::from_le_bytes(result.to_le_bytes()))
-                        }
+                        (Some(a), Some(b)) => SVD::new_known(a.signed_div(b)),
                         _ => SVD::SignedDivide { dividend, divisor },
                     })
                 }
@@ -770,7 +764,7 @@ impl SymbolicValueData {
                     let divisor = divisor.transform_data(constant_folder);
                     let dividend = dividend.transform_data(constant_folder);
                     Some(match (dividend.as_word(), divisor.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a % b),
+                        (Some(a), Some(b)) => SVD::new_known(a.modulo(b)),
                         _ => SVD::Modulo { dividend, divisor },
                     })
                 }
@@ -778,20 +772,15 @@ impl SymbolicValueData {
                     let divisor = divisor.transform_data(constant_folder);
                     let dividend = dividend.transform_data(constant_folder);
                     Some(match (dividend.as_word(), divisor.as_word()) {
-                        (Some(a), Some(b)) => {
-                            let a_signed = I256::from_le_bytes(a.to_le_bytes());
-                            let b_signed = I256::from_le_bytes(b.to_le_bytes());
-                            let result = a_signed % b_signed;
-                            SVD::known_from(U256::from_le_bytes(result.to_le_bytes()))
-                        }
-                        _ => SVD::SignedModulo { dividend, divisor },
+                        (Some(a), Some(b)) => SVD::new_known(a.signed_mod(b)),
+                        _ => SVD::SignedDivide { dividend, divisor },
                     })
                 }
                 SVD::Exp { value, exponent } => {
                     let value = value.transform_data(constant_folder);
                     let exponent = exponent.transform_data(constant_folder);
                     Some(match (value.as_word(), exponent.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a.pow(b.as_u32())),
+                        (Some(a), Some(b)) => SVD::new_known(a.exp(b)),
                         _ => SVD::Exp { value, exponent },
                     })
                 }
@@ -799,7 +788,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::new_known(KnownWord::from(a < b)),
+                        (Some(a), Some(b)) => SVD::new_known(a.lt(b)),
                         _ => SVD::LessThan { left, right },
                     })
                 }
@@ -807,7 +796,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::new_known(KnownWord::from(a > b)),
+                        (Some(a), Some(b)) => SVD::new_known(a.gt(b)),
                         _ => SVD::LessThan { left, right },
                     })
                 }
@@ -815,10 +804,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::new_known(KnownWord::from(
-                            I256::from_le_bytes(a.to_le_bytes())
-                                < I256::from_le_bytes(b.to_le_bytes()),
-                        )),
+                        (Some(a), Some(b)) => SVD::new_known(a.signed_lt(b)),
                         _ => SVD::LessThan { left, right },
                     })
                 }
@@ -826,10 +812,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::new_known(KnownWord::from(
-                            I256::from_le_bytes(a.to_le_bytes())
-                                > I256::from_le_bytes(b.to_le_bytes()),
-                        )),
+                        (Some(a), Some(b)) => SVD::new_known(a.signed_gt(b)),
                         _ => SVD::LessThan { left, right },
                     })
                 }
@@ -844,7 +827,7 @@ impl SymbolicValueData {
                 SVD::IsZero { number } => {
                     let number = number.transform_data(constant_folder);
                     Some(match number.as_word() {
-                        Some(a) => SVD::new_known(KnownWord::from(a == U256::from(0u8))),
+                        Some(a) => SVD::new_known(a.is_zero()),
                         _ => SVD::IsZero { number },
                     })
                 }
@@ -852,7 +835,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a & b),
+                        (Some(a), Some(b)) => SVD::new_known(a & b),
                         _ => SVD::And { left, right },
                     })
                 }
@@ -860,7 +843,7 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a | b),
+                        (Some(a), Some(b)) => SVD::new_known(a | b),
                         _ => SVD::Or { left, right },
                     })
                 }
@@ -868,14 +851,14 @@ impl SymbolicValueData {
                     let left = left.transform_data(constant_folder);
                     let right = right.transform_data(constant_folder);
                     Some(match (left.as_word(), right.as_word()) {
-                        (Some(a), Some(b)) => SVD::known_from(a ^ b),
+                        (Some(a), Some(b)) => SVD::new_known(a ^ b),
                         _ => SVD::Xor { left, right },
                     })
                 }
                 SVD::Not { value } => {
                     let value = value.transform_data(constant_folder);
                     Some(match value.as_word() {
-                        Some(a) => SVD::known_from(!a),
+                        Some(a) => SVD::new_known(!a),
                         _ => SVD::Not { value },
                     })
                 }
@@ -883,7 +866,7 @@ impl SymbolicValueData {
                     let shift = shift.transform_data(constant_folder);
                     let value = value.transform_data(constant_folder);
                     Some(match (shift.as_word(), value.as_word()) {
-                        (Some(s), Some(v)) => SVD::known_from(v << s),
+                        (Some(s), Some(v)) => SVD::new_known(v << s),
                         _ => SVD::LeftShift { shift, value },
                     })
                 }
@@ -891,7 +874,7 @@ impl SymbolicValueData {
                     let shift = shift.transform_data(constant_folder);
                     let value = value.transform_data(constant_folder);
                     Some(match (shift.as_word(), value.as_word()) {
-                        (Some(s), Some(v)) => SVD::known_from(v >> s),
+                        (Some(s), Some(v)) => SVD::new_known(v >> s),
                         _ => SVD::RightShift { shift, value },
                     })
                 }
@@ -899,10 +882,14 @@ impl SymbolicValueData {
                     let shift = shift.transform_data(constant_folder);
                     let value = value.transform_data(constant_folder);
                     Some(match (shift.as_word(), value.as_word()) {
-                        (Some(s), Some(v)) => SVD::known_from(v >> s),
+                        (Some(s), Some(v)) => SVD::new_known(v.sar(s)),
                         _ => SVD::RightShift { shift, value },
                     })
                 }
+                SVD::Concat { values } if values.len() == 1 => values
+                    .first()
+                    .cloned()
+                    .map(|v| v.transform_data(constant_folder).data),
                 _ => None,
             }
         }
@@ -999,12 +986,13 @@ impl SymbolicValueData {
             Self::Concat { values } => values.iter().collect(),
             Self::MappingAccess { slot, key } => vec![slot, key],
             Self::DynamicArrayAccess { slot, index } => vec![slot, index],
-            Self::WordMask { value, .. } => vec![value],
+            Self::SubWord { value, .. } => vec![value],
         }
     }
 }
 
 impl Display for SymbolicValueData {
+    #[allow(clippy::too_many_lines)] // No sense in splitting it up
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Value { id } => write!(f, "{id}"),
@@ -1104,7 +1092,11 @@ impl Display for SymbolicValueData {
             }
             Self::MappingAccess { slot, key } => write!(f, "mapping_ix<{slot}>[{key}]"),
             Self::DynamicArrayAccess { slot, index } => write!(f, "dynamic_array<{slot}>[{index}]"),
-            Self::WordMask { value, mask } => write!(f, "mask({value}, {mask})"),
+            Self::SubWord {
+                value,
+                offset,
+                size,
+            } => write!(f, "sub_word({value}, {offset}, {size})"),
         }
     }
 }
@@ -1528,7 +1520,7 @@ mod test {
             folded,
             SymbolicValue::new_known_value(
                 2,
-                KnownWord::from(!U256::from(1u8)),
+                KnownWord::from_le(!U256::from(1u8)),
                 Provenance::Synthetic
             )
         );
@@ -1568,7 +1560,7 @@ mod test {
 
         assert_eq!(
             folded,
-            SymbolicValue::new_known_value(2, KnownWord::from(0b11), Provenance::Synthetic)
+            SymbolicValue::new_known_value(2, KnownWord::from_le(0b11u32), Provenance::Synthetic)
         );
     }
 

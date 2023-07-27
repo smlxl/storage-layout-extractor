@@ -119,7 +119,7 @@ s_store(storage_slot(dynamic_array<storage_slot(base_slot)>[index]), value)
    
 equating
 - `d = dynamic_array<b>`
-- `f = word(unsigned, unknown width, unknown usage)`
+- `f = word(width = unknown, usage = UnsignedWord)`
 - `b = g`
 ```
 

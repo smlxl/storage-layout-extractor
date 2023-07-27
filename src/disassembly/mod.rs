@@ -110,9 +110,6 @@ impl<'a> TryFrom<&'a [u8]> for InstructionStream {
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         let instructions = Rc::new(disassembler::disassemble(value)?);
-        if instructions.len() > u32::MAX as usize {
-            return Err(Error::BytecodeTooLarge.locate(0));
-        }
         let result = Self { instructions };
 
         // An assertion that will be disabled in production builds, but a good sanity

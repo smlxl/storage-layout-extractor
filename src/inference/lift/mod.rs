@@ -4,9 +4,9 @@
 
 pub mod dynamic_array_access;
 pub mod mapping_access;
-pub mod mask_word;
 pub mod recognise_hashed_slots;
 pub mod storage_slots;
+pub mod sub_word;
 
 use std::{
     any::{Any, TypeId},
@@ -21,9 +21,9 @@ use crate::{
         lift::{
             dynamic_array_access::DynamicArrayAccess,
             mapping_access::MappingAccess,
-            mask_word::MaskWord,
             recognise_hashed_slots::StorageSlotHashes,
             storage_slots::StorageSlots,
+            sub_word::SubWordValue,
         },
         state::InferenceState,
     },
@@ -120,7 +120,7 @@ impl Default for LiftingPasses {
         Self {
             passes: vec![
                 StorageSlotHashes::new(),
-                MaskWord::new(),
+                SubWordValue::new(),
                 MappingAccess::new(),
                 DynamicArrayAccess::new(),
                 StorageSlots::new(),

@@ -3,7 +3,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::{
-    constant::WORD_SIZE,
+    constant::WORD_SIZE_BITS,
     vm::value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
 };
 
@@ -46,7 +46,7 @@ impl Memory {
         }
     }
 
-    /// Stores the provided `value` (of size [`WORD_SIZE`]) at the provided
+    /// Stores the provided `value` (of size [`WORD_SIZE_BITS`]) at the provided
     /// `offset` in the memory.
     ///
     /// This will overwrite any existing value at the provided `offset`.
@@ -302,7 +302,7 @@ impl MemStoreSize {
     pub fn bits_count(&self) -> usize {
         match self {
             MemStoreSize::Byte => 8,
-            MemStoreSize::Word => WORD_SIZE,
+            MemStoreSize::Word => WORD_SIZE_BITS,
         }
     }
 }

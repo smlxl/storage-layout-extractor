@@ -2,7 +2,7 @@
 //! opcodes.
 
 use crate::{
-    constant::WORD_SIZE,
+    constant::WORD_SIZE_BITS,
     inference::{expression::TE, rule::InferenceRule, state::InferenceState},
     vm::value::{BoxedVal, SVD},
 };
@@ -20,11 +20,11 @@ impl InferenceRule for HashRule {
     ) -> crate::error::unification::Result<()> {
         match &value.data {
             SVD::Sha3 { .. } => {
-                state.infer_for(value, TE::bytes(Some(WORD_SIZE)));
+                state.infer_for(value, TE::bytes(Some(WORD_SIZE_BITS)));
             }
             SVD::ExtCodeHash { address } => {
                 state.infer_for(address, TE::address());
-                state.infer_for(value, TE::bytes(Some(WORD_SIZE)));
+                state.infer_for(value, TE::bytes(Some(WORD_SIZE_BITS)));
             }
             _ => (),
         }
@@ -36,7 +36,7 @@ impl InferenceRule for HashRule {
 #[cfg(test)]
 mod test {
     use crate::{
-        constant::WORD_SIZE,
+        constant::WORD_SIZE_BITS,
         inference::{
             expression::TE,
             rule::{sha3::HashRule, InferenceRule},
@@ -64,7 +64,7 @@ mod test {
 
         // Check we get the correct equations
         assert!(state.inferences(value_tv).is_empty());
-        assert!(state.inferences(hash_tv).contains(&TE::bytes(Some(WORD_SIZE))));
+        assert!(state.inferences(hash_tv).contains(&TE::bytes(Some(WORD_SIZE_BITS))));
 
         Ok(())
     }
@@ -88,7 +88,7 @@ mod test {
 
         // Check we get the correct equations
         assert!(state.inferences(value_tv).contains(&TE::address()));
-        assert!(state.inferences(hash_tv).contains(&TE::bytes(Some(WORD_SIZE))));
+        assert!(state.inferences(hash_tv).contains(&TE::bytes(Some(WORD_SIZE_BITS))));
 
         Ok(())
     }

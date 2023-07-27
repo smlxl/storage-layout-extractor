@@ -582,17 +582,17 @@ impl Opcode for Byte {
         // Construct the constants
         let const_0x08 = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownWord::from(0x08u8.to_le_bytes().to_vec()),
+            KnownWord::from_le(0x08u8),
             Provenance::Bytecode,
         );
         let const_0xf8 = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownWord::from(0xf8u8.to_le_bytes().to_vec()),
+            KnownWord::from_le(0xf8u8),
             Provenance::Bytecode,
         );
         let const_0xff = SymbolicValue::new_known_value(
             instruction_pointer,
-            KnownWord::from(0xffu8.to_le_bytes().to_vec()),
+            KnownWord::from_le(0xffu8),
             Provenance::Bytecode,
         );
 
@@ -1142,7 +1142,7 @@ mod test {
                 // The right operand should be a constant 0xff
                 match &right.data {
                     SymbolicValueData::KnownData { value, .. } => {
-                        assert_eq!(value, &KnownWord::from(0xffu8.to_le_bytes().to_vec(),));
+                        assert_eq!(value, &KnownWord::from_le(0xffu8));
                     }
                     _ => panic!("Invalid payload"),
                 }
@@ -1164,10 +1164,7 @@ mod test {
                                 // The left operand is a constant 0xf8
                                 match &left.data {
                                     SymbolicValueData::KnownData { value, .. } => {
-                                        assert_eq!(
-                                            value,
-                                            &KnownWord::from(0xf8u8.to_le_bytes().to_vec(),)
-                                        );
+                                        assert_eq!(value, &KnownWord::from_le(0xf8u8));
                                     }
                                     _ => panic!("Invalid payload"),
                                 }
@@ -1183,10 +1180,7 @@ mod test {
                                         // The right is a constant 0x08
                                         match &right.data {
                                             SymbolicValueData::KnownData { value, .. } => {
-                                                assert_eq!(
-                                                    value,
-                                                    &KnownWord::from(0x08u8.to_le_bytes().to_vec())
-                                                );
+                                                assert_eq!(value, &KnownWord::from_le(0x08u8));
                                             }
                                             _ => panic!("Invalid payload"),
                                         }
