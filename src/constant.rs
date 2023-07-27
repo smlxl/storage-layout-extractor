@@ -44,13 +44,13 @@ pub const MAXIMUM_STACK_DEPTH: usize = 1024;
 pub const WORD_SIZE_BITS: usize = 256;
 
 /// The width of a byte on the EVM (and most other places) in bits.
-pub const BYTE_SIZE: usize = 8;
+pub const BYTE_SIZE_BITS: usize = 8;
 
 /// The width of a word on the EVM in bytes.
-pub const WORD_SIZE_BYTES: usize = WORD_SIZE_BITS / BYTE_SIZE;
+pub const WORD_SIZE_BYTES: usize = WORD_SIZE_BITS / BYTE_SIZE_BITS;
 
 /// The bit-width of a bool type.
-pub const BOOL_WIDTH_BITS: usize = BYTE_SIZE;
+pub const BOOL_WIDTH_BITS: usize = BYTE_SIZE_BITS;
 
 /// The bit-width of an address type.
 pub const ADDRESS_WIDTH_BITS: usize = 160;
@@ -72,7 +72,7 @@ pub const SOLIDITY_VALUE_TYPE_WIDTHS: [usize; WORD_SIZE_BYTES] = {
     let mut array: [usize; WORD_SIZE_BYTES] = [0; WORD_SIZE_BYTES];
     let mut counter = 0usize;
     while counter < WORD_SIZE_BYTES {
-        array[counter] = (counter + 1) * BYTE_SIZE;
+        array[counter] = (counter + 1) * BYTE_SIZE_BITS;
         counter += 1;
     }
     array

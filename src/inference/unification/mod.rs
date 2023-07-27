@@ -4,13 +4,17 @@
 //! re-use of the functionality elsewhere, and also enable easier testing
 //! without needing to spool up the entire unifier.
 
+pub mod correspondence;
 pub mod data;
+
 use std::collections::{HashSet, VecDeque};
 
+use itertools::Itertools;
+
 use crate::inference::{
-    expression::{InferenceSet, TypeExpression, TE},
+    expression::{InferenceSet, TypeExpression, WordUse, TE},
     state::{InferenceState, TypeVariable},
-    unification::data::DisjointSet,
+    unification::{correspondence::Correspondence, data::DisjointSet},
 };
 
 /// The concrete type of the [`DisjointSet`] data structure used for type
@@ -46,6 +50,7 @@ pub fn unify(state: &mut InferenceState) {
     loop {
         // Create the set of new equalities.
         let mut all_equalities: HashSet<Equality> = HashSet::new();
+        let mut all_judgements: HashSet<Judgement> = HashSet::new();
 
         // Create our stop condition.
         let mut made_progress = false;
@@ -68,9 +73,11 @@ pub fn unify(state: &mut InferenceState) {
                 let Merge {
                     expression,
                     equalities,
+                    judgements,
                 } = merge(current.clone(), expression);
                 current = expression;
                 all_equalities.extend(equalities);
+                all_judgements.extend(judgements);
             }
 
             // Finally, we have to update the forest's inferences for each type variable
@@ -81,6 +88,12 @@ pub fn unify(state: &mut InferenceState) {
         // the variables with their new associated inferences
         for Equality { left, right } in all_equalities {
             forest.union(&left, &right);
+        }
+
+        // When we get to the end of that loop, we need to add any new typing judgements
+        // to the state to continue computation
+        for Judgement { tv, expr } in all_judgements {
+            forest.add_data(&tv, InferenceSet::from([expr]));
         }
 
         // If we didn't make any progress at any point, then we end the loop as we are
@@ -174,7 +187,7 @@ pub fn merge(left: TE, right: TE) -> Merge {
         // Dynamic arrays can combine with dynamic arrays
         (TE::DynamicArray { element: element_l }, TE::DynamicArray { element: element_r }) => {
             let equalities = vec![Equality::new(*element_l, *element_r)];
-            Merge::new(left, equalities)
+            Merge::equalities(left, equalities)
         }
 
         // Fixed arrays can combine with fixed arrays
@@ -190,7 +203,7 @@ pub fn merge(left: TE, right: TE) -> Merge {
         ) => {
             if length_l == length_r {
                 let equalities = vec![Equality::new(*element_l, *element_r)];
-                Merge::new(left, equalities)
+                Merge::equalities(left, equalities)
             } else {
                 Merge::expression(TE::conflict(
                     left,
@@ -217,7 +230,72 @@ pub fn merge(left: TE, right: TE) -> Merge {
                 Equality::new(*key_l, *key_r),
                 Equality::new(*value_l, *value_r),
             ];
-            Merge::new(left, equalities)
+            Merge::equalities(left, equalities)
+        }
+
+        // Packed encodings can combine with packed encodings
+        (
+            TE::Packed {
+                types: types_l,
+                is_struct: is_struct_l,
+            },
+            TE::Packed {
+                types: types_r,
+                is_struct: is_struct_r,
+            },
+        ) => {
+            let result = Correspondence::new(
+                types_l.clone(),
+                types_r.clone(),
+                *is_struct_l || *is_struct_r,
+            )
+            .merge();
+
+            match result {
+                Some(m) => m,
+                None => {
+                    Merge::expression(TE::conflict(left, right, "Incompatible packed encodings"))
+                }
+            }
+        }
+
+        // Packed encodings can also combine with words
+        (TE::Word { .. }, TE::Packed { .. }) => merge(right, left),
+        (TE::Packed { types, .. }, TE::Word { width, usage }) => {
+            // We can only merge if the word is bytes
+            if *usage == WordUse::Bytes {
+                // Get the combined size of the packed encoding elements
+                let types: Vec<_> = types.iter().sorted_by_key(|span| span.offset).collect();
+                let start_point =
+                    types.first().expect("Packed encoding had no members").start_bit();
+                let end_point = types.last().expect("Packed encoding had no members").end_bit();
+                let total_size = end_point - start_point;
+
+                if let Some(w) = width {
+                    // If we know the width, total size must fit within it
+                    if total_size <= *w {
+                        // If it fits we return the packed encoding
+                        Merge::expression(left)
+                    } else {
+                        // If it doesn't fit we have a conflict
+                        Merge::expression(TE::conflict(
+                            left,
+                            right,
+                            "Incompatible sizes of packed encoding and bytes",
+                        ))
+                    }
+                } else {
+                    // If we do not know the width, we assume it will fit to
+                    // propagate evidence for later
+                    Merge::expression(left)
+                }
+            } else {
+                Merge::expression(TE::conflict(
+                    left,
+                    right,
+                    "Packed encodings cannot be merged with non-bytes words",
+                ))
+            }
         }
 
         // Everything can combine with `Any` to produce itself, as Any doesn't add information, so
@@ -240,28 +318,51 @@ pub struct Merge {
     /// Any new equalities to solve that were created as part of combining
     /// `left` and `right`.
     pub equalities: Vec<Equality>,
+
+    /// Any new typing judgements to be accounted for that are created as part
+    /// of combining `left` and `right`.
+    pub judgements: Vec<Judgement>,
 }
 
 impl Merge {
     /// Creates a new combine result from the provided `expression` and
     /// `equalities`.
     #[must_use]
-    pub fn new(expression: TypeExpression, equalities: Vec<Equality>) -> Self {
+    pub fn new(
+        expression: TypeExpression,
+        equalities: Vec<Equality>,
+        judgements: Vec<Judgement>,
+    ) -> Self {
         Self {
             expression,
             equalities,
+            judgements,
         }
     }
 
     /// Creates a new combine result from the provided `expression`, with no
-    /// equalities.
+    /// equalities or judgements.
     #[must_use]
     pub fn expression(expression: TypeExpression) -> Self {
         let equalities = Vec::new();
-        Self {
-            expression,
-            equalities,
-        }
+        let judgements = Vec::new();
+        Self::new(expression, equalities, judgements)
+    }
+
+    /// Creates a new combine result from the provided `expression` and
+    /// `equalities` but without any judgements.
+    #[must_use]
+    pub fn equalities(expression: TypeExpression, equalities: Vec<Equality>) -> Self {
+        let judgements = Vec::new();
+        Self::new(expression, equalities, judgements)
+    }
+
+    /// Creates a new combine result from the provided `expression` and
+    /// `judgements` but without any equalities.
+    #[must_use]
+    pub fn judgements(expression: TypeExpression, judgements: Vec<Judgement>) -> Self {
+        let equalities = Vec::new();
+        Self::new(expression, equalities, judgements)
     }
 }
 
@@ -280,6 +381,29 @@ impl Equality {
     }
 }
 
+/// A new judgement written out during the inference process.
+///
+/// This is distinct from [`Equality`] simply due to the fact that it is easier
+/// to process this way. Fundamentally, `Equality` is just `Judgement(left,
+/// TE::eq(right)`, and is
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Judgement {
+    /// The type variable to equate with `expr`.
+    pub tv: TypeVariable,
+
+    /// The type expression representing the new judgement.
+    pub expr: TypeExpression,
+}
+
+impl Judgement {
+    /// Creates a new judgement saying that the type variable `tv` has the type
+    /// given by `expr`.
+    #[must_use]
+    pub fn new(tv: TypeVariable, expr: TypeExpression) -> Self {
+        Self { tv, expr }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::panic;
@@ -290,7 +414,7 @@ mod test {
     use crate::{
         constant::ADDRESS_WIDTH_BITS,
         inference::{
-            expression::{WordUse, TE},
+            expression::{Span, WordUse, TE},
             state::InferenceState,
             unification::{merge, unify},
         },
@@ -871,6 +995,214 @@ mod test {
         unify(&mut state);
         let result = util::get_inference(value_tv, state.result());
         assert_eq!(result.unwrap(), inference);
+    }
+
+    #[test]
+    #[allow(clippy::similar_names)] // Intentional
+    fn can_infer_packed_with_packed() {
+        // Set up the state
+        let mut state = InferenceState::empty();
+        let elem_1 = SV::new_value(0, Provenance::Synthetic);
+        let elem_2 = SV::new_value(1, Provenance::Synthetic);
+        let elem_3 = SV::new_value(2, Provenance::Synthetic);
+        let elem_4 = SV::new_value(3, Provenance::Synthetic);
+        let packed_1 = SV::new_value(4, Provenance::Synthetic);
+        let packed_2 = SV::new_value(5, Provenance::Synthetic);
+
+        let [e1_tv, e2_tv, e3_tv, e4_tv, p1_tv, p2_tv] =
+            state.register_many([elem_1, elem_2, elem_3, elem_4, packed_1, packed_2]);
+
+        // Set up some inferences
+        //
+        // `p1_tv = packed(pos(e1_tv, 0, 64), pos(e2_tv, 64, 64))`
+        // `p2_tv = packed(pos(e3_tv, 0, 128), pos(e4_tv, 128, 128))`
+        // `p1_tv == p2_tv`
+        //
+        // These are compatible, and should be able to be combined
+        state.infer(e1_tv, TE::unsigned_word(Some(64)));
+        state.infer(e2_tv, TE::unsigned_word(Some(64)));
+        state.infer(
+            p1_tv,
+            TE::packed_of(vec![Span::new(e1_tv, 0, 64), Span::new(e2_tv, 64, 64)]),
+        );
+        state.infer(e3_tv, TE::bytes(Some(128)));
+        state.infer(e4_tv, TE::unsigned_word(Some(128)));
+        state.infer(
+            p2_tv,
+            TE::packed_of(vec![Span::new(e3_tv, 0, 128), Span::new(e4_tv, 128, 128)]),
+        );
+        state.infer(p1_tv, TE::eq(p2_tv));
+
+        // Check the result makes sense
+        unify(&mut state);
+        let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
+        assert_eq!(
+            p1_tv_type,
+            TE::packed_of(vec![Span::new(e3_tv, 0, 128), Span::new(e4_tv, 128, 128),])
+        );
+
+        let e3_tv_type = util::get_inference(e3_tv, state.result()).unwrap();
+        assert_eq!(
+            e3_tv_type,
+            TE::packed_of(vec![Span::new(e1_tv, 0, 64), Span::new(e2_tv, 64, 64)])
+        );
+    }
+
+    #[test]
+    #[allow(clippy::similar_names)] // Intentional
+    fn conflicts_if_packed_types_are_incompatible() {
+        // Set up the state
+        let mut state = InferenceState::empty();
+        let elem_1 = SV::new_value(0, Provenance::Synthetic);
+        let elem_2 = SV::new_value(1, Provenance::Synthetic);
+        let elem_3 = SV::new_value(2, Provenance::Synthetic);
+        let elem_4 = SV::new_value(3, Provenance::Synthetic);
+        let packed_1 = SV::new_value(4, Provenance::Synthetic);
+        let packed_2 = SV::new_value(5, Provenance::Synthetic);
+
+        let [e1_tv, e2_tv, e3_tv, e4_tv, p1_tv, p2_tv] =
+            state.register_many([elem_1, elem_2, elem_3, elem_4, packed_1, packed_2]);
+
+        // Set up some inferences
+        //
+        // `p1_tv = packed(pos(e1_tv, 0, 64), pos(e2_tv, 64, 128))`
+        // `p2_tv = packed(pos(e3_tv, 0, 128), pos(e4_tv, 128, 128))`
+        // `p1_tv == p2_tv`
+        //
+        // These are compatible, and should be able to be combined
+        state.infer(e1_tv, TE::unsigned_word(Some(64)));
+        state.infer(e2_tv, TE::unsigned_word(Some(128)));
+        state.infer(
+            p1_tv,
+            TE::packed_of(vec![Span::new(e1_tv, 0, 64), Span::new(e2_tv, 64, 128)]),
+        );
+        state.infer(e3_tv, TE::bytes(Some(128)));
+        state.infer(e4_tv, TE::unsigned_word(Some(128)));
+        state.infer(
+            p2_tv,
+            TE::packed_of(vec![Span::new(e3_tv, 0, 128), Span::new(e4_tv, 128, 128)]),
+        );
+        state.infer(p1_tv, TE::eq(p2_tv));
+
+        // Check the result makes sense
+        unify(&mut state);
+        let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
+        assert!(matches!(p1_tv_type, TE::Conflict { .. }));
+    }
+
+    #[test]
+    #[allow(clippy::similar_names)] // Intentional
+    fn can_infer_packed_with_bytes() {
+        // Set up the state
+        let mut state = InferenceState::empty();
+        let elem_1 = SV::new_value(0, Provenance::Synthetic);
+        let elem_2 = SV::new_value(1, Provenance::Synthetic);
+        let elem_3 = SV::new_value(2, Provenance::Synthetic);
+        let packed_1 = SV::new_value(3, Provenance::Synthetic);
+
+        let [e1_tv, e2_tv, e3_tv, p1_tv] = state.register_many([elem_1, elem_2, elem_3, packed_1]);
+
+        // Set up some inferences
+        //
+        // - e1_tv = uint64
+        // - e2_tv = int64
+        // - e3_tv = bytes16
+        // - p1_tv = packed(span(e1_tv, 0, 64), span(e2_tv, 64, 64))
+        // - p1_tv == e3_tv
+        state.infer(e1_tv, TE::unsigned_word(Some(64)));
+        state.infer(e2_tv, TE::signed_word(Some(64)));
+        state.infer(e3_tv, TE::bytes(Some(128)));
+        state.infer(
+            p1_tv,
+            TE::packed_of(vec![Span::new(e1_tv, 0, 64), Span::new(e2_tv, 64, 64)]),
+        );
+        state.infer(p1_tv, TE::eq(e3_tv));
+
+        // Run inference and check the result makes sense
+        unify(&mut state);
+
+        let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
+        assert_eq!(
+            p1_tv_type,
+            TE::packed_of(vec![Span::new(e1_tv, 0, 64), Span::new(e2_tv, 64, 64),])
+        );
+        let e3_tv_type = util::get_inference(e3_tv, state.result()).unwrap();
+        assert_eq!(e3_tv_type, p1_tv_type);
+    }
+
+    #[test]
+    #[allow(clippy::similar_names)] // Intentional
+    fn can_infer_packed_with_bytes_with_offset() {
+        // Set up the state
+        let mut state = InferenceState::empty();
+        let elem_1 = SV::new_value(0, Provenance::Synthetic);
+        let elem_2 = SV::new_value(1, Provenance::Synthetic);
+        let elem_3 = SV::new_value(2, Provenance::Synthetic);
+        let packed_1 = SV::new_value(3, Provenance::Synthetic);
+
+        let [e1_tv, e2_tv, e3_tv, p1_tv] = state.register_many([elem_1, elem_2, elem_3, packed_1]);
+
+        // Set up some inferences
+        //
+        // - e1_tv = uint32
+        // - e2_tv = int64
+        // - e3_tv = bytes16
+        // - p1_tv = packed(span(e1_tv, 32, 32), span(e2_tv, 64, 64))
+        // - p1_tv == e3_tv
+        state.infer(e1_tv, TE::unsigned_word(Some(32)));
+        state.infer(e2_tv, TE::signed_word(Some(64)));
+        state.infer(e3_tv, TE::bytes(Some(128)));
+        state.infer(
+            p1_tv,
+            TE::packed_of(vec![Span::new(e1_tv, 32, 32), Span::new(e2_tv, 64, 64)]),
+        );
+        state.infer(p1_tv, TE::eq(e3_tv));
+
+        // Run inference and check the result makes sense
+        unify(&mut state);
+
+        let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
+        assert_eq!(
+            p1_tv_type,
+            TE::packed_of(vec![Span::new(e1_tv, 32, 32), Span::new(e2_tv, 64, 64),])
+        );
+        let e3_tv_type = util::get_inference(e3_tv, state.result()).unwrap();
+        assert_eq!(e3_tv_type, p1_tv_type);
+    }
+
+    #[test]
+    #[allow(clippy::similar_names)] // Intentional
+    fn conflicts_if_packed_and_bytes_are_incompatible() {
+        // Set up the state
+        let mut state = InferenceState::empty();
+        let elem_1 = SV::new_value(0, Provenance::Synthetic);
+        let elem_2 = SV::new_value(1, Provenance::Synthetic);
+        let elem_3 = SV::new_value(2, Provenance::Synthetic);
+        let packed_1 = SV::new_value(3, Provenance::Synthetic);
+
+        let [e1_tv, e2_tv, e3_tv, p1_tv] = state.register_many([elem_1, elem_2, elem_3, packed_1]);
+
+        // Set up some inferences
+        //
+        // - e1_tv = uint32
+        // - e2_tv = int128
+        // - e3_tv = bytes16
+        // - p1_tv = packed(span(e1_tv, 32, 32), span(e2_tv, 64, 128))
+        // - p1_tv == e3_tv
+        state.infer(e1_tv, TE::unsigned_word(Some(32)));
+        state.infer(e2_tv, TE::signed_word(Some(128)));
+        state.infer(e3_tv, TE::bytes(Some(128)));
+        state.infer(
+            p1_tv,
+            TE::packed_of(vec![Span::new(e1_tv, 32, 32), Span::new(e2_tv, 64, 128)]),
+        );
+        state.infer(p1_tv, TE::eq(e3_tv));
+
+        // Run inference and check the result makes sense
+        unify(&mut state);
+
+        let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
+        assert!(matches!(p1_tv_type, TE::Conflict { .. }));
     }
 
     mod util {
