@@ -173,13 +173,6 @@ impl KnownWord {
         KnownWord::from_le(U256::from_ne_bytes(result.to_ne_bytes()))
     }
 
-    /// Performs unsigned modulo of two known words.
-    #[must_use]
-    pub fn modulo(self, rhs: Self) -> Self {
-        // The operation takes place in native endianness, which in our case is LE
-        KnownWord::from_le(self.value % rhs.value)
-    }
-
     /// Performs signed modulo of two known words.
     #[must_use]
     pub fn signed_mod(self, rhs: Self) -> Self {
@@ -305,6 +298,15 @@ impl std::ops::Div<KnownWord> for KnownWord {
     fn div(self, rhs: KnownWord) -> Self::Output {
         // The operation takes place in native endianness, which in our case is LE
         KnownWord::from_le(self.value / rhs.value)
+    }
+}
+
+impl std::ops::Rem<KnownWord> for KnownWord {
+    type Output = KnownWord;
+
+    /// Performs unsigned modulo of two known words.
+    fn rem(self, rhs: KnownWord) -> Self::Output {
+        KnownWord::from_le(self.value % rhs.value)
     }
 }
 
@@ -583,7 +585,7 @@ mod test {
         let left = KnownWord::from_le(0x7u32);
         let right = KnownWord::from_le(0x2u32);
 
-        assert_eq!(left.modulo(right), KnownWord::from_le(0x1u32));
+        assert_eq!(left % right, KnownWord::from_le(0x1u32));
     }
 
     #[test]

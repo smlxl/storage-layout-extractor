@@ -3,65 +3,32 @@
 //! encodings.
 #![cfg(test)]
 
+use storage_layout_analyzer::{inference::abi::AbiType, layout::StorageSlot};
+
 mod common;
 
 #[test]
 fn analyses_packed_encodings() -> anyhow::Result<()> {
-    // Set to true if you are debugging
-    let should_print = false;
-
     // Create the analyzer
     let contract_path = "./asset/PackedEncodings.json";
     let analyzer = common::new_analyzer_from(contract_path)?;
 
-    // Disassemble
-    let disassembled = analyzer.disassemble()?;
+    // Get the final storage layout for the input contract
+    let layout = analyzer.analyze()?;
 
-    // Prepare the VM
-    let execution_ready = disassembled.prepare_vm()?;
+    // We should see two 'slots'
+    assert_eq!(layout.slots().len(), 2);
 
-    // Execute the VM and display the stored values
-    let executed = execution_ready.execute()?;
-    let results = &executed.state().execution_result;
+    // Check that we see a slot 0 offset 0 containing bytes8
+    let expected_bytes_8 = AbiType::Bytes { length: Some(8) };
+    let expected_bytes_8_slot = StorageSlot::new(0, 0, expected_bytes_8);
+    assert!(layout.slots().contains(&expected_bytes_8_slot));
 
-    if should_print {
-        for (i, state) in results.states.iter().enumerate() {
-            if state.storage().keys().is_empty() {
-                println!("Skipping empty state {i}");
-                continue;
-            }
+    // Check that we see a slot 0 offset 64 containing bytes16
+    let expected_bytes_16 = AbiType::Bytes { length: Some(16) };
+    let expected_bytes_16_slot = StorageSlot::new(0, 64, expected_bytes_16);
+    assert!(layout.slots().contains(&expected_bytes_16_slot));
 
-            println!("=== State Number {i} ===");
-
-            let storage_keys = state.storage().keys();
-
-            for key in storage_keys {
-                println!("  ===== Slot =====");
-                println!("  KEY: {key}");
-
-                let generations = state.storage().generations(key).unwrap();
-
-                for gen in generations {
-                    println!("  VALUE: {gen}");
-                }
-            }
-
-            println!();
-        }
-    }
-
-    // Prepare the unifier
-    let unifier_read = executed.prepare_unifier();
-
-    // Perform unification
-    let unification_complete = unifier_read.infer()?;
-
-    // Get the final storage layout for the input contract and print it for
-    // debugging
-    let layout = unification_complete.layout();
-    if should_print {
-        dbg!(layout);
-    }
-
+    // All done
     Ok(())
 }

@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData, SVD};
+use crate::vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData, SV, SVD};
 
 /// A representation of the persistent storage of the symbolic virtual machine.
 ///
@@ -69,7 +69,7 @@ impl Storage {
     /// This is a best-effort analysis as we cannot guarantee knowing if there
     /// have been overwrites between adjacent slots.
     #[must_use]
-    pub fn load(&mut self, key: &BoxedVal) -> &BoxedVal {
+    pub fn load(&mut self, key: &BoxedVal) -> BoxedVal {
         // First we need to work out which of the maps to read from.
         let target_map = match key.data {
             SymbolicValueData::KnownData { .. } => &mut self.known_slots,
@@ -81,16 +81,37 @@ impl Storage {
         let entry = target_map.entry(key.clone()).or_insert_with(|| {
             // The instruction pointer is 0 here, as the uninitialized value was created
             // when the program started. It is _not_ synthetic.
+
             vec![SymbolicValue::new(
                 0,
-                SymbolicValueData::SLoad { key: key.clone() },
+                SymbolicValueData::UnwrittenStorageValue { key: key.clone() },
                 Provenance::NonWrittenStorage,
             )]
         });
 
-        entry
+        let most_recent = entry
             .last()
-            .expect("We already know there is at least one item in the vector")
+            .expect("We already know there is at least one item in the vector");
+
+        // We wrap the loaded value in an `SLoad` as long as it is not already wrapped
+        // in one, thereby letting us know at which point in the computation of the
+        // value tree the value was loaded from storage.
+        //
+        // Knowing this is very important in the context of deciding which portions of
+        // storage slots are not truly used, as they will contain near-direct loads from
+        // the same slot.
+        SV::new(
+            most_recent.instruction_pointer,
+            if let SVD::SLoad { .. } = &most_recent.data {
+                most_recent.data.clone()
+            } else {
+                SVD::SLoad {
+                    key:   key.clone(),
+                    value: most_recent.clone(),
+                }
+            },
+            most_recent.provenance,
+        )
     }
 
     /// Gets all of the stores that were made at the provided `key` during
@@ -203,7 +224,15 @@ impl Default for Storage {
 mod test {
     use crate::vm::{
         state::storage::Storage,
-        value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+        value::{
+            known::KnownWord,
+            BoxedVal,
+            Provenance,
+            SymbolicValue,
+            SymbolicValueData,
+            SV,
+            SVD,
+        },
     };
 
     /// Creates a new synthetic value for testing purposes.
@@ -221,39 +250,63 @@ mod test {
     #[test]
     fn can_store_word_to_storage() {
         let mut storage = Storage::new();
-        let key = new_synthetic_value(0);
-        let value = new_synthetic_value(1);
-        storage.store(key.clone(), value.clone());
+        let input_key = new_synthetic_value(0);
+        let input_value = new_synthetic_value(1);
+        storage.store(input_key.clone(), input_value.clone());
 
         assert_eq!(storage.entry_count(), 1);
-        assert_eq!(storage.load(&key), &value);
+        match &storage.load(&input_key).data {
+            SVD::SLoad { key, value } => {
+                assert_eq!(key, &input_key);
+                assert_eq!(value, &input_value);
+            }
+            _ => panic!("Incorrect payload"),
+        }
     }
 
     #[test]
     fn can_overwrite_word_in_storage() {
         let mut storage = Storage::new();
-        let key = new_synthetic_value(0);
+        let input_key = new_synthetic_value(0);
         let value_1 = new_synthetic_value(1);
         let value_2 = new_synthetic_value(2);
 
-        storage.store(key.clone(), value_1.clone());
+        storage.store(input_key.clone(), value_1.clone());
         assert_eq!(storage.entry_count(), 1);
-        assert_eq!(storage.load(&key), &value_1);
+        match &storage.load(&input_key).data {
+            SVD::SLoad { key, value } => {
+                assert_eq!(key, &input_key);
+                assert_eq!(value, &value_1);
+            }
+            _ => panic!("Incorrect payload"),
+        }
 
-        storage.store(key.clone(), value_2.clone());
+        storage.store(input_key.clone(), value_2.clone());
         assert_eq!(storage.entry_count(), 1);
-        assert_eq!(storage.load(&key), &value_2);
+        match &storage.load(&input_key).data {
+            SVD::SLoad { key, value } => {
+                assert_eq!(key, &input_key);
+                assert_eq!(value, &value_2);
+            }
+            _ => panic!("Incorrect payload"),
+        }
     }
 
     #[test]
     fn can_store_word_under_known_key() {
         let mut storage = Storage::new();
-        let key = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
-        let value = new_synthetic_value(1);
+        let input_key = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
+        let input_value = new_synthetic_value(1);
 
-        storage.store(key.clone(), value.clone());
+        storage.store(input_key.clone(), input_value.clone());
         assert_eq!(storage.entry_count(), 1);
-        assert_eq!(storage.load(&key), &value);
+        match &storage.load(&input_key).data {
+            SVD::SLoad { key, value } => {
+                assert_eq!(key, &input_key);
+                assert_eq!(value, &input_value);
+            }
+            _ => panic!("Incorrect payload"),
+        }
     }
 
     #[test]
@@ -262,26 +315,42 @@ mod test {
         let key_1 = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
         let key_2 = new_synthetic_value(1);
 
-        match &**storage.load(&key_1) {
+        match *storage.load(&key_1) {
             SymbolicValue {
-                data: SymbolicValueData::SLoad { key },
+                data: SymbolicValueData::SLoad { key, value },
                 provenance,
                 ..
             } => {
-                assert_eq!(key, &key_1);
-                assert_eq!(provenance, &Provenance::NonWrittenStorage);
+                assert_eq!(key, key_1);
+                assert_eq!(
+                    value,
+                    SV::new(
+                        0,
+                        SVD::UnwrittenStorageValue { key: key_1 },
+                        Provenance::NonWrittenStorage
+                    )
+                );
+                assert_eq!(provenance, Provenance::NonWrittenStorage);
             }
             _ => panic!("Test failure"),
         }
 
-        match &**storage.load(&key_2) {
+        match *storage.load(&key_2) {
             SymbolicValue {
-                data: SymbolicValueData::SLoad { key },
+                data: SymbolicValueData::SLoad { key, value },
                 provenance,
                 ..
             } => {
-                assert_eq!(key, &key_2);
-                assert_eq!(provenance, &Provenance::NonWrittenStorage);
+                assert_eq!(key, key_2);
+                assert_eq!(
+                    value,
+                    SV::new(
+                        0,
+                        SVD::UnwrittenStorageValue { key: key_2 },
+                        Provenance::NonWrittenStorage
+                    )
+                );
+                assert_eq!(provenance, Provenance::NonWrittenStorage);
             }
             _ => panic!("Test failure"),
         }

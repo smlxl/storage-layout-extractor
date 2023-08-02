@@ -19,7 +19,7 @@ readme = "README.md"
 # to let authors opt in to backwards-incompatible changes. Crates using one edition can interoperate with crates using
 # another edition, thereby ensuring that there's no ecosystem split.
 edition = "2021"
-rust-version = "1.70.0"
+rust-version = "1.71.0"
 
 # Prevent publishing by accident.
 publish = false
@@ -32,19 +32,19 @@ derivative = "2.2.0"
 downcast-rs = "1.2.0"
 ethnum = "1.3.2"
 hex = "0.4.3"
-itertools = "0.10.5"
-serde = { version = "1.0.163", features = ["derive"] }
+itertools = "0.11.0"
+serde = { version = "1.0.180", features = ["derive"] }
 sha3 = "0.10.8"
-thiserror = "1.0.40"
-uuid = { version = "1.3.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
+thiserror = "1.0.44"
+uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 
 # Dev dependencies.
 #
 # These are the dependencies required purely for internal development of the library such as testing or benchmarking.
 [dev-dependencies]
-anyhow = { version = "1.0.71", features = ["backtrace"] }
+anyhow = { version = "1.0.72", features = ["backtrace"] }
 rand = "0.8.5"
-serde_json = "1.0.96"
+serde_json = "1.0.104"
 
 # Profiles specify the build settings for different kinds of build.
 #
@@ -63,7 +63,7 @@ incremental = true      # Ensure that incremental builds are enabled for dev. Th
 # Configuration for release builds
 [profile.release]
 opt-level = 3            # Compile with all of the optimisations in production builds. This is the default.
-debug = 1                # Include just line tables in release builds.
+debug = true             # Include full debug information in release builds.
 debug-assertions = false # Disable in release builds for speed. This is the default.
 overflow-checks = true   # Keep overflow checks in production builds.
 lto = "thin"             # Thin LTO performs cross-crate LTO while not bloating the build time too much.

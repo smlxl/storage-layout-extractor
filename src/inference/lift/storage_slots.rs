@@ -75,7 +75,7 @@ impl Lift for StorageSlots {
                         slot,
                     })
                 }
-                SVD::SLoad { key } => {
+                SVD::SLoad { key, value } => {
                     let data = match &key.data {
                         SVD::StorageSlot { .. } => key.data.clone(),
                         _ => SVD::StorageSlot {
@@ -83,7 +83,10 @@ impl Lift for StorageSlots {
                         },
                     };
                     let slot = SymbolicValue::new(key.instruction_pointer, data, key.provenance);
-                    Some(SVD::SLoad { key: slot })
+                    Some(SVD::SLoad {
+                        key:   slot,
+                        value: value.clone().transform_data(insert_storage_accesses),
+                    })
                 }
                 _ => None,
             }
@@ -356,10 +359,12 @@ mod test {
     #[test]
     fn wraps_slots_in_s_loads() -> anyhow::Result<()> {
         let input_key = SV::new_value(0, Provenance::Synthetic);
+        let input_value = SV::new_value(0, Provenance::Synthetic);
         let s_load = SV::new_synthetic(
             1,
             SVD::SLoad {
-                key: input_key.clone(),
+                key:   input_key.clone(),
+                value: input_value.clone(),
             },
         );
 
@@ -367,12 +372,15 @@ mod test {
         let result = StorageSlots.run(s_load, &state)?;
 
         match result.data {
-            SVD::SLoad { key } => match key.data {
-                SVD::StorageSlot { key } => {
-                    assert_eq!(key, input_key);
+            SVD::SLoad { key, value } => {
+                assert_eq!(value, input_value);
+                match key.data {
+                    SVD::StorageSlot { key } => {
+                        assert_eq!(key, input_key);
+                    }
+                    _ => panic!("Incorrect payload"),
                 }
-                _ => panic!("Incorrect payload"),
-            },
+            }
             _ => panic!("Incorrect payload"),
         }
 

@@ -19,7 +19,7 @@ Getting set up with this project is pretty simple.
    git clone https://github.com/smlxlio/storage-layout-analyzer.git
    ```
 
-   If you _do_ want to contribute, we recommend cloning over SSH:
+   If you _do_ want to contribute directly to the tree, we recommend cloning over SSH:
 
    ```shell
    git clone git@github.com:smlxlio/storage-layout-analyzer.git
