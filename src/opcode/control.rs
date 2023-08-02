@@ -201,25 +201,25 @@ pub struct JumpI;
 impl Opcode for JumpI {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the arguments
+        let instruction_pointer = vm.instruction_pointer()?;
         let counter = vm.stack_handle()?.pop()?;
         let condition = vm.stack_handle()?.pop()?;
 
-        // We want to store that the condition was indeed a condition, even if the jump
-        // target is invalid
-        let condition = SymbolicValue::new_from_execution(
-            vm.instruction_pointer()?,
-            SymbolicValueData::Condition { value: condition },
-        );
+        // We want to store that the condition existed, even if the jump target is
+        // invalid, so we record it in the buffer of otherwise-lost values
         vm.state()?.record_value(condition);
 
         // In `solc` compiled code, the top of the stack at jump time is a non-computed
         // immediate, allowing us to actually alter the program counter
         match util::validate_jump_destination(&counter, vm) {
             Ok(target) => {
-                // If we do have a valid jump target, we need to fork off an execution thread so
-                // that both branches can be executed. Note that the `VM` will step from the
-                // target, but as it is a JUMPDEST no-op this is fine.
-                vm.fork_current_thread(target)?;
+                // We only want to fork up to the provided limit, so we check if we can first
+                if vm.jump_targets_mut().fork_to(instruction_pointer, target)? {
+                    // If we do have a valid jump target, we need to fork off an execution thread so
+                    // that both branches can be executed. Note that the `VM` will step from the
+                    // target, but as it is a JUMPDEST no-op this is fine.
+                    vm.fork_current_thread(target)?;
+                }
 
                 // Done, so return ok, leaving the current thread in the same position as it
                 // needs to be stepped by the `VM`
@@ -1065,7 +1065,7 @@ mod test {
     #[test]
     fn valid_conditional_jump_continues_execution() -> anyhow::Result<()> {
         // Prepare the instruction stream, as it actually does matter this time
-        let bytes: Vec<u8> = bytecode![control::Jump, control::PC, control::JumpDest, control::PC];
+        let bytes: Vec<u8> = bytecode![control::JumpI, control::PC, control::JumpDest, control::PC];
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
@@ -1107,10 +1107,7 @@ mod test {
         );
 
         // Check that we stored the condition in the auxiliary buffer
-        assert_eq!(
-            vm.state()?.recorded_values()[0].data,
-            SymbolicValueData::Condition { value: cond }
-        );
+        assert_eq!(vm.state()?.recorded_values()[0], cond);
 
         Ok(())
     }

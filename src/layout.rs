@@ -17,6 +17,9 @@ impl StorageLayout {
     pub fn add(&mut self, index: usize, offset: usize, typ: AbiType) {
         let slot = StorageSlot::new(index, offset, typ);
         self.slots.push(slot);
+
+        // Keep them sorted by slot index with ties broken by slot offset
+        self.slots.sort_by_key(|s| (s.index, s.offset));
     }
 
     /// Gets the storage slots that make up this layout.

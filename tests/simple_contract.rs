@@ -10,7 +10,7 @@ mod common;
 fn analyses_simple_contract() -> anyhow::Result<()> {
     // Create the analyzer
     let contract_path = "./asset/SimpleContract.json";
-    let analyzer = common::new_analyzer_from(contract_path)?;
+    let analyzer = common::new_analyzer_from_path(contract_path)?;
 
     // Get the final storage layout for the input contract
     let layout = analyzer.analyze()?;

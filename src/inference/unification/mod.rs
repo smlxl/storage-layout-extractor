@@ -134,9 +134,13 @@ pub fn merge(left: TE, right: TE) -> Merge {
             right.clone()
         ),
 
-        // Combining a conflict with anything is just the conflict
-        (TE::Conflict { .. }, _) => Merge::expression(left),
-        (_, TE::Conflict { .. }) => Merge::expression(right),
+        // Combining a conflict with anything is another conflict that propagates information
+        (TE::Conflict { .. }, _) => {
+            Merge::expression(left.conflict_with(right, "Conflicts always conflict"))
+        }
+        (_, TE::Conflict { .. }) => {
+            Merge::expression(right.conflict_with(left, "Conflicts always conflict"))
+        }
 
         // Combining words with words is complex
         (
