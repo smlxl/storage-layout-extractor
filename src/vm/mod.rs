@@ -8,7 +8,11 @@ pub mod value;
 use std::collections::VecDeque;
 
 use crate::{
-    constant::{BLOCK_GAS_LIMIT, DEFAULT_ITERATIONS_PER_OPCODE},
+    constant::{
+        BLOCK_GAS_LIMIT,
+        DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT,
+        DEFAULT_ITERATIONS_PER_OPCODE,
+    },
     disassembly::{ExecutionThread, InstructionStream},
     error::{
         container::Locatable,
@@ -16,6 +20,7 @@ use crate::{
     },
     opcode::DynOpcode,
     vm::{
+        data::JumpTargets,
         state::{stack::LocatedStackHandle, VMState},
         thread::VMThread,
         value::BoxedVal,
@@ -28,6 +33,10 @@ use crate::{
 pub struct VM {
     /// The instructions that are being executed by this virtual machine.
     instructions: InstructionStream,
+
+    /// Global tracking for jump target information, allowing global bounding of
+    /// how many times each target is conditionally jumped to.
+    jump_targets: JumpTargets,
 
     /// The queue of execution threads that will be taken when executing the
     /// provided `instructions`.
@@ -69,9 +78,14 @@ impl VM {
             .len()
             .try_into()
             .unwrap_or_else(|_| panic!("Instruction length should not exceed {}", u32::MAX));
-        let initial_state = VMState::new_at_start(instructions_len, config.iterations_per_opcode);
+        let initial_state =
+            VMState::new_at_start(instructions_len, config.maximum_iterations_per_opcode);
         let initial_instruction_thread = instructions.new_thread(0)?;
         let initial_thread = VMThread::new(initial_state, initial_instruction_thread);
+        let jump_targets = JumpTargets::new(
+            instructions.new_thread(0)?,
+            config.maximum_forks_per_fork_target,
+        );
 
         // Set up the data for the VM.
         let mut thread_queue = VecDeque::new();
@@ -82,6 +96,7 @@ impl VM {
 
         Ok(Self {
             instructions,
+            jump_targets,
             thread_queue,
             stored_states,
             config,
@@ -110,6 +125,20 @@ impl VM {
     /// stored state information for as far as execution proceeded.
     pub fn execute(&mut self) -> std::result::Result<(), Errors> {
         while let Ok(instruction) = self.current_instruction() {
+            // We have to mark as being visited beforehand, so this is reflected in any
+            // state bifurcations
+            let instruction_pointer = self
+                .thread_queue
+                .front_mut()
+                .expect("We already know a thread is present")
+                .instructions_mut()
+                .instruction_pointer();
+            let current_thread = self.current_thread_mut()?;
+            current_thread
+                .state_mut()
+                .visited_instructions_mut()
+                .mark_visited(instruction_pointer)?;
+
             let result = instruction.execute(self);
             match result {
                 Ok(_) => {
@@ -163,33 +192,25 @@ impl VM {
             return Err(Error::InvalidStep.locate(self.instructions_len()));
         }
 
-        // Safe to unwrap
         let instruction_pointer = self
             .thread_queue
             .front_mut()
             .expect("We already know a thread is present")
             .instructions_mut()
             .instruction_pointer();
-
-        // Here we need to mark the current opcode as visited. It is a programmer bug if
-        // a non-existent opcode is asked about here, so the error is immediately
-        // forwarded.
         let instructions_len = self.instructions_len();
         let current_thread = self.current_thread_mut()?;
-        current_thread
-            .state_mut()
-            .visited_instructions_mut()
-            .mark_visited(instruction_pointer)?;
-
         let next_offset = instruction_pointer + 1;
 
+        let oob_instruction = next_offset >= instructions_len;
         // It is a programmer bug if a non-existent opcode is asked about here, so the
         // error is immediately forwarded.
-        let no_valid_next = next_offset >= instructions_len
+        let exceeded_iteration_limit = oob_instruction
             || current_thread
                 .state()
                 .visited_instructions()
                 .at_visit_limit(next_offset)?;
+
         let is_out_of_gas = self
             .thread_queue
             .front_mut()
@@ -198,7 +219,7 @@ impl VM {
             > self.config.gas_limit;
         let should_die = self.current_thread_killed;
 
-        if no_valid_next || is_out_of_gas || should_die {
+        if exceeded_iteration_limit || is_out_of_gas || should_die {
             // In this case we are at the end of this thread, so we need to collect it and
             // move on by removing it from the queue. We already know that the queue isn't
             // empty, so it's safe to `unwrap`.
@@ -270,6 +291,18 @@ impl VM {
     /// Returns [`Err`] if there is no current thread.
     pub fn execution_thread_mut(&mut self) -> Result<&mut ExecutionThread> {
         self.current_thread_mut().map(VMThread::instructions_mut)
+    }
+
+    /// Gets the current tracking for jump target visits.
+    #[must_use]
+    pub fn jump_targets(&self) -> &JumpTargets {
+        &self.jump_targets
+    }
+
+    /// Gets the current tracking for jump target visits.
+    #[must_use]
+    pub fn jump_targets_mut(&mut self) -> &mut JumpTargets {
+        &mut self.jump_targets
     }
 
     /// Gets the current value of the instruction pointer for the thread that is
@@ -443,19 +476,33 @@ pub struct Config {
     /// Defaults to [`BLOCK_GAS_LIMIT`].
     gas_limit: usize,
 
-    /// The number of times that the virtual machine will visit each opcode.
+    /// The maximum number of times that the virtual machine will visit each
+    /// opcode.
+    ///
+    /// This limit is enforced _per-thread_ in the virtual machine.
     ///
     /// Defaults to [`DEFAULT_ITERATIONS_PER_OPCODE`].
-    iterations_per_opcode: usize,
+    maximum_iterations_per_opcode: usize,
+
+    /// The maximum number of times that the virtual machine will fork from any
+    /// conditional jump to a given jump target.
+    ///
+    /// This limit is enforced globally to prevent exponential blowup of threads
+    /// when symbolically executing the bytecode.
+    ///
+    /// Defaults to [`DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT`].
+    maximum_forks_per_fork_target: usize,
 }
 
 impl Default for Config {
     fn default() -> Self {
         let gas_limit = BLOCK_GAS_LIMIT;
-        let iterations_per_opcode = DEFAULT_ITERATIONS_PER_OPCODE;
+        let maximum_iterations_per_opcode = DEFAULT_ITERATIONS_PER_OPCODE;
+        let maximum_forks_per_fork_target = DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT;
         Self {
             gas_limit,
-            iterations_per_opcode,
+            maximum_iterations_per_opcode,
+            maximum_forks_per_fork_target,
         }
     }
 }

@@ -61,8 +61,13 @@ pub const SELECTOR_WIDTH_BITS: usize = 32;
 /// The bit-width of a function type.
 pub const FUNCTION_WIDTH_BITS: usize = ADDRESS_WIDTH_BITS + SELECTOR_WIDTH_BITS;
 
-/// The default number of times that the virtual machine will visit each opcode.
+/// The default maximum number of times that the virtual machine will visit each
+/// opcode.
 pub const DEFAULT_ITERATIONS_PER_OPCODE: usize = 10;
+
+/// The default maximum number of times that the virtual machine will fork
+/// during a conditional jump to a given jump target.
+pub const DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT: usize = 50;
 
 /// The valid widths in bits of value types in solidity.
 ///

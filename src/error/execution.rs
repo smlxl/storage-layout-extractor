@@ -40,6 +40,12 @@ pub enum Error {
 
     #[error("Gas limit exceeded")]
     GasLimitExceeded,
+
+    #[error("The instruction at {pointer} is not a JUMPDEST")]
+    NotJumpTarget { pointer: u32 },
+
+    #[error("The instruction at {pointer} is not a JUMPI")]
+    NotJumpSource { pointer: u32 },
 }
 
 /// Make it possible to attach locations to these errors.

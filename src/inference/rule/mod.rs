@@ -6,7 +6,6 @@ pub mod arithmetic_operations;
 pub mod bit_shifts;
 pub mod boolean_operations;
 pub mod call_data;
-pub mod condition;
 pub mod create;
 pub mod dynamic_array_write;
 pub mod environment_opcodes;
@@ -40,7 +39,6 @@ use crate::{
             bit_shifts::BitShiftRule,
             boolean_operations::BooleanOpsRule,
             call_data::CallDataRule,
-            condition::ConditionRule,
             create::CreateContractRule,
             dynamic_array_write::DynamicArrayWriteRule,
             environment_opcodes::EnvironmentCodesRule,
@@ -142,7 +140,6 @@ impl Default for InferenceRules {
         rules.add(BitShiftRule);
         rules.add(BooleanOpsRule);
         rules.add(CallDataRule);
-        rules.add(ConditionRule);
         rules.add(CreateContractRule);
         rules.add(DynamicArrayWriteRule);
         rules.add(EnvironmentCodesRule);

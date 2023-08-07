@@ -166,7 +166,7 @@ impl KnownWord {
         // before performing the operation using `{to,from}_ne_bytes`
         let left_signed = I256::from_ne_bytes(self.value.to_ne_bytes());
         let right_signed = I256::from_ne_bytes(rhs.value.to_ne_bytes());
-        let result = left_signed / right_signed;
+        let result = left_signed.wrapping_div(right_signed);
 
         // To convert it back internally we need to perform direct conversion of the
         // byte pattern, using native endianness
@@ -175,12 +175,12 @@ impl KnownWord {
 
     /// Performs signed modulo of two known words.
     #[must_use]
-    pub fn signed_mod(self, rhs: Self) -> Self {
+    pub fn signed_rem(self, rhs: Self) -> Self {
         // In order to get signed behaviour we reinterpret the byte patterns into I256
         // before performing the operation using `{to,from}_ne_bytes`
         let left_signed = I256::from_ne_bytes(self.value.to_ne_bytes());
         let right_signed = I256::from_ne_bytes(rhs.value.to_ne_bytes());
-        let result = left_signed % right_signed;
+        let result = left_signed.wrapping_rem(right_signed);
 
         // To convert it back internally we need to perform direct conversion of the
         // byte pattern, using native endianness
@@ -191,7 +191,7 @@ impl KnownWord {
     #[must_use]
     pub fn exp(self, rhs: Self) -> Self {
         // The operation takes place in native endianness, which in our case is LE
-        KnownWord::from_le(self.value.pow(rhs.value.as_u32()))
+        KnownWord::from_le(self.value.wrapping_pow(rhs.value.as_u32()))
     }
 
     /// Computes less-than of two known words.
@@ -267,7 +267,7 @@ impl std::ops::Add<KnownWord> for KnownWord {
     /// Performs addition of two known words.
     fn add(self, rhs: KnownWord) -> Self::Output {
         // The operation takes place in native endianness, which in our case is LE
-        KnownWord::from_le(self.value + rhs.value)
+        KnownWord::from_le(self.value.wrapping_add(rhs.value))
     }
 }
 
@@ -277,7 +277,7 @@ impl std::ops::Mul<KnownWord> for KnownWord {
     /// Performs multiplication of two known words.
     fn mul(self, rhs: KnownWord) -> Self::Output {
         // The operation takes place in native endianness, which in our case is LE
-        KnownWord::from_le(self.value * rhs.value)
+        KnownWord::from_le(self.value.wrapping_mul(rhs.value))
     }
 }
 
@@ -287,7 +287,7 @@ impl std::ops::Sub<KnownWord> for KnownWord {
     /// Performs subtraction of two known words.
     fn sub(self, rhs: KnownWord) -> Self::Output {
         // The operation takes place in native endianness, which in our case is LE
-        KnownWord::from_le(self.value - rhs.value)
+        KnownWord::from_le(self.value.wrapping_sub(rhs.value))
     }
 }
 
@@ -297,7 +297,7 @@ impl std::ops::Div<KnownWord> for KnownWord {
     /// Performs unsigned division of two known words.
     fn div(self, rhs: KnownWord) -> Self::Output {
         // The operation takes place in native endianness, which in our case is LE
-        KnownWord::from_le(self.value / rhs.value)
+        KnownWord::from_le(self.value.wrapping_div(rhs.value))
     }
 }
 
@@ -306,7 +306,7 @@ impl std::ops::Rem<KnownWord> for KnownWord {
 
     /// Performs unsigned modulo of two known words.
     fn rem(self, rhs: KnownWord) -> Self::Output {
-        KnownWord::from_le(self.value % rhs.value)
+        KnownWord::from_le(self.value.wrapping_rem(rhs.value))
     }
 }
 
@@ -596,7 +596,7 @@ mod test {
         let result_int = I256::from(-2i16).to_le();
         let result = KnownWord::from_le_bytes(result_int.to_le_bytes());
 
-        assert_eq!(left.signed_mod(right), result);
+        assert_eq!(left.signed_rem(right), result);
     }
 
     #[test]

@@ -11,7 +11,7 @@ mod common;
 fn analyses_packed_encodings() -> anyhow::Result<()> {
     // Create the analyzer
     let contract_path = "./asset/PackedEncodings.json";
-    let analyzer = common::new_analyzer_from(contract_path)?;
+    let analyzer = common::new_analyzer_from_path(contract_path)?;
 
     // Get the final storage layout for the input contract
     let layout = analyzer.analyze()?;

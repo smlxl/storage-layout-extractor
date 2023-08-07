@@ -408,9 +408,6 @@ pub enum SymbolicValueData {
     /// The revert. Does not stay on the stack but is stored nevertheless.
     Revert { data: BoxedVal },
 
-    /// A value that was used as the input to a conditional.
-    Condition { value: BoxedVal },
-
     /// The value read from storage that has not been written to at the time of
     /// loading during the course of execution in the virtual machine.
     UnwrittenStorageValue { key: BoxedVal },
@@ -681,9 +678,6 @@ impl SymbolicValueData {
                 Self::Revert { data } => Self::Revert {
                     data: data.transform_data(transform),
                 },
-                Self::Condition { value } => Self::Condition {
-                    value: value.transform_data(transform),
-                },
                 Self::UnwrittenStorageValue { key } => Self::UnwrittenStorageValue {
                     key: key.transform_data(transform),
                 },
@@ -798,7 +792,7 @@ impl SymbolicValueData {
                     let divisor = divisor.transform_data(constant_folder);
                     let dividend = dividend.transform_data(constant_folder);
                     Some(match (dividend.as_word(), divisor.as_word()) {
-                        (Some(a), Some(b)) => SVD::new_known(a.signed_mod(b)),
+                        (Some(a), Some(b)) => SVD::new_known(a.signed_rem(b)),
                         _ => SVD::SignedDivide { dividend, divisor },
                     })
                 }
@@ -1005,7 +999,6 @@ impl SymbolicValueData {
             Self::ReturnData { offset, size } => vec![offset, size],
             Self::Return { data } => vec![data],
             Self::Revert { data } => vec![data],
-            Self::Condition { value } => vec![value],
             Self::UnwrittenStorageValue { key } => vec![key],
             Self::SLoad { key, value } => vec![key, value],
             Self::StorageSlot { key } => vec![key],
@@ -1105,7 +1098,6 @@ impl Display for SymbolicValueData {
             }
             Self::Return { data } => write!(f, "return({data})"),
             Self::Revert { data } => write!(f, "revert({data})"),
-            Self::Condition { value } => write!(f, "bool({value})"),
             Self::UnwrittenStorageValue { key } => write!(f, "uninit_storage({key})"),
             Self::SLoad { key, value } => write!(f, "s_load({key}, {value})"),
             Self::StorageSlot { key } => write!(f, "slot<{key}>"),
