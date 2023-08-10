@@ -125,10 +125,10 @@ impl<'de> Deserialize<'de> for U256Wrapper {
 pub struct StructElement {
     // The offset for the element.
     pub offset: usize,
-    
+
     // The type of the element.
     #[serde(rename = "type")]
-    pub typ:    Box<AbiType>,
+    pub typ: Box<AbiType>,
 }
 
 impl StructElement {
