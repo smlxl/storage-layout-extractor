@@ -123,9 +123,11 @@ impl<'de> Deserialize<'de> for U256Wrapper {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct StructElement {
-    offset: usize,
+    // The offset for the `StructElement`
+    pub offset: usize,
+    // The type of the `StructElement`
     #[serde(rename = "type")]
-    typ:    Box<AbiType>,
+    pub typ:    Box<AbiType>,
 }
 
 impl StructElement {
