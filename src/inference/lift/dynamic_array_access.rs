@@ -3,7 +3,7 @@
 
 use crate::{
     inference::{lift::Lift, state::InferenceState},
-    vm::value::{BoxedVal, SV, SVD},
+    vm::value::{RuntimeBoxedVal, RSV, RSVD},
 };
 
 /// This pass detects and lifts expressions that perform dynamic array accesses
@@ -40,41 +40,41 @@ impl DynamicArrayAccess {
 impl Lift for DynamicArrayAccess {
     fn run(
         &mut self,
-        value: BoxedVal,
+        value: RuntimeBoxedVal,
         _state: &InferenceState,
-    ) -> crate::error::unification::Result<BoxedVal> {
-        fn lift_dyn_array_accesses(value: &SVD) -> Option<SVD> {
-            let SVD::StorageWrite { key, value } = &value else {
+    ) -> crate::error::unification::Result<RuntimeBoxedVal> {
+        fn lift_dyn_array_accesses(value: &RSVD) -> Option<RSVD> {
+            let RSVD::StorageWrite { key, value } = &value else {
                 return None;
             };
-            let SVD::Add { left, right } = &key.data else {
+            let RSVD::Add { left, right } = &key.data else {
                 return None;
             };
 
             // Important to check if either side of the addition is the hash
-            let data = if let SVD::Sha3 { data } = &left.data {
+            let data = if let RSVD::Sha3 { data } = &left.data {
                 data
-            } else if let SVD::Sha3 { data } = &right.data {
+            } else if let RSVD::Sha3 { data } = &right.data {
                 data
             } else {
                 return None;
             }
             .clone()
             .constant_fold();
-            let SVD::KnownData { .. } = &data.data else {
+            let RSVD::KnownData { .. } = &data.data else {
                 return None;
             };
 
-            let access = SV::new(
+            let access = RSV::new(
                 key.instruction_pointer,
-                SVD::DynamicArrayAccess {
+                RSVD::DynamicArrayAccess {
                     slot:  data.transform_data(lift_dyn_array_accesses),
                     index: right.clone().transform_data(lift_dyn_array_accesses),
                 },
                 key.provenance,
             );
 
-            let value = SVD::StorageWrite {
+            let value = RSVD::StorageWrite {
                 key:   access,
                 value: value.clone(),
             };
@@ -93,32 +93,32 @@ mod test {
             lift::{dynamic_array_access::DynamicArrayAccess, Lift},
             state::InferenceState,
         },
-        vm::value::{known::KnownWord, Provenance, SV, SVD},
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD},
     };
 
     #[test]
     fn lifts_dyn_array_accesses() -> anyhow::Result<()> {
-        let input_value = SV::new_value(0, Provenance::Synthetic);
-        let input_index = SV::new_value(1, Provenance::Synthetic);
-        let input_slot = SV::new_known_value(3, KnownWord::from(3), Provenance::Synthetic);
-        let hash = SV::new(
+        let input_value = RSV::new_value(0, Provenance::Synthetic);
+        let input_index = RSV::new_value(1, Provenance::Synthetic);
+        let input_slot = RSV::new_known_value(3, KnownWord::from(3), Provenance::Synthetic);
+        let hash = RSV::new(
             2,
-            SVD::Sha3 {
+            RSVD::Sha3 {
                 data: input_slot.clone(),
             },
             Provenance::Synthetic,
         );
-        let add = SV::new(
+        let add = RSV::new(
             3,
-            SVD::Add {
+            RSVD::Add {
                 left:  hash,
                 right: input_index.clone(),
             },
             Provenance::Synthetic,
         );
-        let store = SV::new(
+        let store = RSV::new(
             4,
-            SVD::StorageWrite {
+            RSVD::StorageWrite {
                 key:   add,
                 value: input_value.clone(),
             },
@@ -131,11 +131,11 @@ mod test {
 
         // Inspect the result
         match result.data {
-            SVD::StorageWrite { key, value } => {
+            RSVD::StorageWrite { key, value } => {
                 assert_eq!(value, input_value);
 
                 match key.data {
-                    SVD::DynamicArrayAccess { slot, index } => {
+                    RSVD::DynamicArrayAccess { slot, index } => {
                         assert_eq!(index, input_index);
                         assert_eq!(slot, input_slot);
                     }

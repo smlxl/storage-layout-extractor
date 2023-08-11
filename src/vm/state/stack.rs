@@ -7,7 +7,7 @@ use crate::{
         container::Locatable,
         execution::{Error, Result},
     },
-    vm::value::BoxedVal,
+    vm::value::RuntimeBoxedVal,
 };
 
 /// The representation of the symbolic virtual machine's stack.
@@ -25,7 +25,7 @@ use crate::{
 /// [`crate::vm::value::SymbolicValue`]s instead of words.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Stack {
-    data: Vec<BoxedVal>,
+    data: Vec<RuntimeBoxedVal>,
 }
 
 impl Stack {
@@ -41,7 +41,7 @@ impl Stack {
     /// # Errors
     ///
     /// If the stack cannot grow to accommodate the requested `data`.
-    pub fn push(&mut self, data: BoxedVal) -> StackResult<()> {
+    pub fn push(&mut self, data: RuntimeBoxedVal) -> StackResult<()> {
         if self.data.len() + 1 > MAXIMUM_STACK_DEPTH {
             return Err(Error::StackDepthExceeded {
                 requested: self.data.len() + 1,
@@ -56,7 +56,7 @@ impl Stack {
     /// # Errors
     ///
     /// If the stack has no item to pop.
-    pub fn pop(&mut self) -> StackResult<BoxedVal> {
+    pub fn pop(&mut self) -> StackResult<RuntimeBoxedVal> {
         self.data.pop().ok_or(Error::NoSuchStackFrame { depth: 0 })
     }
 
@@ -65,7 +65,7 @@ impl Stack {
     /// # Errors
     ///
     /// If `depth` does not exist in the stack.
-    pub fn read(&self, depth: u32) -> StackResult<&BoxedVal> {
+    pub fn read(&self, depth: u32) -> StackResult<&RuntimeBoxedVal> {
         self.check_frame_at(depth)?;
 
         // This is a safe unsigned subtraction as `check_frame_at will have returned
@@ -170,12 +170,12 @@ impl Stack {
     /// Gets all of the values that are registered in the virtual machine stack
     /// at the time of calling.
     #[must_use]
-    pub fn all_values(&self) -> Vec<BoxedVal> {
+    pub fn all_values(&self) -> Vec<RuntimeBoxedVal> {
         self.data.clone()
     }
 }
 
-impl From<Stack> for Vec<BoxedVal> {
+impl From<Stack> for Vec<RuntimeBoxedVal> {
     fn from(value: Stack) -> Self {
         value.data
     }
@@ -202,7 +202,7 @@ impl<'a> LocatedStackHandle<'a> {
     /// # Errors
     ///
     /// If the stack cannot grow to accommodate the requested `data`.
-    pub fn push(&mut self, data: BoxedVal) -> Result<()> {
+    pub fn push(&mut self, data: RuntimeBoxedVal) -> Result<()> {
         self.stack.push(data).locate(self.instruction_pointer)
     }
 
@@ -211,7 +211,7 @@ impl<'a> LocatedStackHandle<'a> {
     /// # Errors
     ///
     /// If the stack has no item to pop.
-    pub fn pop(&mut self) -> Result<BoxedVal> {
+    pub fn pop(&mut self) -> Result<RuntimeBoxedVal> {
         self.stack.pop().locate(self.instruction_pointer)
     }
 
@@ -220,7 +220,7 @@ impl<'a> LocatedStackHandle<'a> {
     /// # Errors
     ///
     /// If `depth` does not exist in the stack.
-    pub fn read(&self, depth: u32) -> Result<&BoxedVal> {
+    pub fn read(&self, depth: u32) -> Result<&RuntimeBoxedVal> {
         self.stack.read(depth).locate(self.instruction_pointer)
     }
 
@@ -256,14 +256,14 @@ mod test {
         constant::MAXIMUM_STACK_DEPTH,
         vm::{
             state::stack::Stack,
-            value::{BoxedVal, Provenance, SymbolicValue},
+            value::{Provenance, RuntimeBoxedVal, RSV},
         },
     };
 
     /// Creates a new synthetic value for testing purposes.
     #[allow(clippy::unnecessary_box_returns)] // We use boxes everywhere during execution
-    fn new_synthetic_value(instruction_pointer: u32) -> BoxedVal {
-        SymbolicValue::new_value(instruction_pointer, Provenance::Synthetic)
+    fn new_synthetic_value(instruction_pointer: u32) -> RuntimeBoxedVal {
+        RSV::new_value(instruction_pointer, Provenance::Synthetic)
     }
 
     /// Constructs a new stack with `item_count` unknown items pushed onto it.

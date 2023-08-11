@@ -6,8 +6,9 @@ use itertools::Itertools;
 use crate::{
     constant::WORD_SIZE_BITS,
     inference::{lift::Lift, state::InferenceState},
-    vm::value::{BoxedVal, SVD},
+    vm::value::{RuntimeBoxedVal, SVD},
 };
+use crate::vm::value::RSVD;
 
 /// This pass detects and folds expressions that mask word-size values where the
 /// masks are recursively constant.
@@ -52,7 +53,7 @@ impl SubWordValue {
     ///
     /// This function assumes that `data` is the potential mask to inspect.
     #[must_use]
-    pub fn get_region(data: &SVD) -> Option<SubWord> {
+    pub fn get_region(data: &RSVD) -> Option<SubWord> {
         // The word to pull the mask details out of
         let SVD::KnownData { value } = data.clone().constant_fold() else {
             // If it does not fold to a constant we cannot actually work out the details of
@@ -81,16 +82,54 @@ impl SubWordValue {
 
         Some(SubWord::new(offset, size))
     }
+
+    #[must_use]
+    pub fn get_shift(value: &RuntimeBoxedVal) -> (&RuntimeBoxedVal, usize) {
+        match &value.data {
+            RSVD::RightShift { value, .. } => match value.clone().constant_fold().data {
+                RSVD::KnownData { value: shift } => (&value, shift.into()),
+                _ => (&value, 0),
+            },
+            RSVD::Divide { dividend, divisor } => match &divisor.data {
+                RSVD::Exp {
+                    value: base,
+                    exponent: exp,
+                } => match (&base.data, &exp.data) {
+                    (RSVD::KnownData { value: base }, RSVD::KnownData { value: exp }) => {
+                        if usize::from(base) == 2 {
+                            (&dividend, usize::from(exp))
+                        } else {
+                            (&value, 0)
+                        }
+                    }
+                    _ => (&value, 0),
+                },
+                RSVD::LeftShift { value: base, shift } => {
+                    println!("this triggered {:?} {:?}", base.data, shift.data);
+                    match (&base.data, &shift.data) {
+                        (RSVD::KnownData { value: base }, RSVD::KnownData { value: shift })
+                            if usize::from(base) == 1 =>
+                        {
+                            (&dividend, shift.into())
+                        }
+                        _ => (&value, 0),
+                    }
+                }
+                _ => (&value, 0),
+            },
+            _ => (&value, 0),
+        }
+    }
 }
 
 impl Lift for SubWordValue {
     fn run(
         &mut self,
-        value: BoxedVal,
+        value: RuntimeBoxedVal,
         _state: &InferenceState,
-    ) -> crate::error::unification::Result<BoxedVal> {
+    ) -> crate::error::unification::Result<RuntimeBoxedVal> {
         /// Inserts any sub word accesses that it can find.
-        fn insert_sub_words(data: &SVD) -> Option<SVD> {
+        fn insert_sub_words(data: &RSVD) -> Option<RSVD> {
             // At the top level it must be an 'and'
             let SVD::And { left, right } = data else {
                 return None;
@@ -100,17 +139,28 @@ impl Lift for SubWordValue {
             // sides
             let (value, SubWord { offset, length }) =
                 if let Some(word) = SubWordValue::get_region(&left.data) {
-                    (right.clone().transform_data(insert_sub_words), word)
+                    (right, word)
                 } else if let Some(word) = SubWordValue::get_region(&right.data) {
-                    (left.clone().transform_data(insert_sub_words), word)
+                    (left, word)
                 } else {
                     return None;
                 };
+            let (value, shift) = SubWordValue::get_shift(&value);
+            let value = value.clone().transform_data(insert_sub_words);
+
+            let value = match value.data {
+                RSVD::SubWord {
+                    offset: i_ofs,
+                    size: i_sz,
+                    value: i_val,
+                } if offset == i_ofs && length == i_sz => i_val,
+                _ => value,
+            };
 
             // If we find a word, we can easily construct the return data
             let payload = SVD::SubWord {
                 value,
-                offset,
+                offset: offset + shift,
                 size: length,
             };
             Some(payload)
@@ -216,7 +266,7 @@ mod test {
         let subtract = SV::new_synthetic(
             3,
             SVD::Subtract {
-                left:  shift,
+                left: shift,
                 right: one,
             },
         );
@@ -257,7 +307,7 @@ mod test {
         let mask = SV::new_synthetic(
             3,
             SVD::Subtract {
-                left:  shift,
+                left: shift,
                 right: one,
             },
         );
@@ -269,14 +319,14 @@ mod test {
         let mask_on_left = SV::new_synthetic(
             5,
             SVD::And {
-                left:  mask.clone(),
+                left: mask.clone(),
                 right: input_value.clone(),
             },
         );
         let mask_on_right = SV::new_synthetic(
             5,
             SVD::And {
-                left:  input_value.clone(),
+                left: input_value.clone(),
                 right: mask,
             },
         );
@@ -306,7 +356,7 @@ mod test {
     }
 
     #[test]
-    fn resolves_word_masks_recursively() -> anyhow::Result<()> {
+    fn collapses_directly_identical_masks() -> anyhow::Result<()> {
         // Construct the mask value itself (lowest 192 bits of the word)
         let shift_amount =
             SV::new_known_value(0, KnownWord::from_le(0xc0u32), Provenance::Synthetic);
@@ -321,7 +371,7 @@ mod test {
         let mask = SV::new_synthetic(
             3,
             SVD::Subtract {
-                left:  shift,
+                left: shift,
                 right: one,
             },
         );
@@ -331,7 +381,7 @@ mod test {
         let mask_operation = SV::new_synthetic(
             5,
             SVD::And {
-                left:  mask.clone(),
+                left: mask.clone(),
                 right: input_value.clone(),
             },
         );
@@ -340,14 +390,14 @@ mod test {
         let recurse_on_left = SV::new_synthetic(
             6,
             SVD::And {
-                left:  mask_operation.clone(),
+                left: mask_operation.clone(),
                 right: mask.clone(),
             },
         );
         let recurse_on_right = SV::new_synthetic(
             7,
             SVD::And {
-                left:  mask,
+                left: mask,
                 right: mask_operation,
             },
         );
@@ -368,19 +418,7 @@ mod test {
             } => {
                 assert_eq!(offset, 0);
                 assert_eq!(size, 192);
-
-                match value.data {
-                    SVD::SubWord {
-                        value,
-                        offset,
-                        size,
-                    } => {
-                        assert_eq!(offset, 0);
-                        assert_eq!(size, 192);
-                        assert_eq!(value, input_value);
-                    }
-                    _ => panic!("Incorrect payload"),
-                }
+                assert_eq!(value, input_value);
             }
             _ => panic!("Incorrect payload"),
         }

@@ -4,7 +4,10 @@
 //! It is intentionally kept separate from the [`crate::inference::state`] to
 //! ensure that you cannot create new type variables for it.
 
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    fmt::{Display, Formatter},
+};
 
 use ethnum::U256;
 use itertools::Itertools;
@@ -213,6 +216,49 @@ impl TypeExpression {
     }
 }
 
+impl Display for TypeExpression {
+    /// A pretty printer for typing expressions.
+    ///
+    /// For full details, please use the debug implementation instead. This is
+    /// meant for higher-level observation and reasoning, and as such does not
+    /// print full type variable identifiers, or the details of conflicted
+    /// types.
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Any => write!(f, "Any"),
+            Self::Equal { id } => write!(f, "Eq<{id}>"),
+            Self::Word { width, usage } => {
+                if let Some(width) = width {
+                    write!(f, "Word<{usage}, {width}>")
+                } else {
+                    write!(f, "Word<{usage}, ???>")
+                }
+            }
+            Self::FixedArray { element, length } => write!(f, "Array<{element}>[{length}]"),
+            Self::Mapping { key, value } => write!(f, "Mapping<{key}, {value}>"),
+            Self::DynamicArray { element } => write!(f, "Array<{element}>"),
+            Self::Packed { types, is_struct } => {
+                if *is_struct {
+                    write!(f, "Struct(")?;
+                } else {
+                    write!(f, "Packed(")?;
+                }
+
+                for (i, typ) in types.iter().enumerate() {
+                    write!(f, "{typ}")?;
+
+                    if i + 1 != types.len() {
+                        write!(f, ", ")?
+                    }
+                }
+
+                write!(f, ")")
+            }
+            Self::Conflict { .. } => write!(f, "Conflicted"),
+        }
+    }
+}
+
 /// A set of typing judgements.
 pub type InferenceSet = HashSet<TypeExpression>;
 
@@ -298,6 +344,22 @@ impl Default for WordUse {
     }
 }
 
+impl Display for WordUse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            Self::Address => "address",
+            Self::Bool => "bool",
+            Self::Function => "function",
+            Self::Bytes => "bytes",
+            Self::Selector => "selector",
+            Self::Numeric => "number",
+            Self::UnsignedNumeric => "unsigned",
+            Self::SignedNumeric => "signed",
+        };
+        write!(f, "{str}")
+    }
+}
+
 /// A representation of a type being at a specific position _inside_ an EVM
 /// word.
 ///
@@ -380,6 +442,12 @@ impl Span {
     #[must_use]
     pub fn end_byte(&self) -> usize {
         self.end_bit() / BYTE_SIZE_BITS
+    }
+}
+
+impl Display for Span {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "span({}, {}, {})", self.offset, self.size, self.typ)
     }
 }
 

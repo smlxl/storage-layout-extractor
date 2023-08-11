@@ -5,7 +5,7 @@ use crate::{
     error::disassembly,
     opcode::{ExecuteResult, Opcode},
     vm::{
-        value::{BoxedVal, SymbolicValue, SymbolicValueData},
+        value::{RuntimeBoxedVal, RSV, RSVD},
         VM,
     },
 };
@@ -49,10 +49,7 @@ impl Opcode for Sha3 {
         let data = memory.load_slice(&offset, &size, instruction_pointer);
 
         // Build the result and push it onto the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Sha3 { data },
-        );
+        let result = RSV::new_from_execution(instruction_pointer, RSVD::Sha3 { data });
         vm.stack_handle()?.push(result)?;
 
         // Done, so return ok
@@ -98,10 +95,7 @@ impl Opcode for Address {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Address,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::Address))?;
 
         // Done, so return ok
         Ok(())
@@ -154,9 +148,9 @@ impl Opcode for Balance {
         let address = stack.pop()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
+        stack.push(RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Balance { address },
+            RSVD::Balance { address },
         ))?;
 
         // Done, so return ok
@@ -206,10 +200,7 @@ impl Opcode for Origin {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Origin,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::Origin))?;
 
         // Done, so return ok
         Ok(())
@@ -258,10 +249,7 @@ impl Opcode for Caller {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Caller,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::Caller))?;
 
         // Done, so return ok
         Ok(())
@@ -310,9 +298,9 @@ impl Opcode for CallValue {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
+        stack.push(RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::CallValue,
+            RSVD::CallValue,
         ))?;
 
         // Done, so return ok
@@ -362,10 +350,7 @@ impl Opcode for GasPrice {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::GasPrice,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::GasPrice))?;
 
         // Done, so return ok
         Ok(())
@@ -421,9 +406,9 @@ impl Opcode for ExtCodeHash {
         let address = stack.pop()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
+        stack.push(RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::ExtCodeHash { address },
+            RSVD::ExtCodeHash { address },
         ))?;
 
         // Done, so return ok
@@ -480,9 +465,9 @@ impl Opcode for BlockHash {
         let block_number = stack.pop()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
+        stack.push(RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::BlockHash { block_number },
+            RSVD::BlockHash { block_number },
         ))?;
 
         // Done, so return ok
@@ -532,10 +517,7 @@ impl Opcode for CoinBase {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::CoinBase,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::CoinBase))?;
 
         // Done, so return ok
         Ok(())
@@ -584,9 +566,9 @@ impl Opcode for Timestamp {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
+        stack.push(RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::BlockTimestamp,
+            RSVD::BlockTimestamp,
         ))?;
 
         // Done, so return ok
@@ -632,9 +614,9 @@ impl Opcode for Number {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
+        stack.push(RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::BlockNumber,
+            RSVD::BlockNumber,
         ))?;
 
         // Done, so return ok
@@ -680,9 +662,9 @@ impl Opcode for Prevrandao {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
+        stack.push(RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Prevrandao,
+            RSVD::Prevrandao,
         ))?;
 
         // Done, so return ok
@@ -728,10 +710,7 @@ impl Opcode for GasLimit {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::GasLimit,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::GasLimit))?;
 
         // Done, so return ok
         Ok(())
@@ -777,10 +756,7 @@ impl Opcode for ChainId {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::ChainId,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::ChainId))?;
 
         // Done, so return ok
         Ok(())
@@ -830,9 +806,9 @@ impl Opcode for SelfBalance {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
+        stack.push(RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::SelfBalance,
+            RSVD::SelfBalance,
         ))?;
 
         // Done, so return ok
@@ -882,10 +858,7 @@ impl Opcode for BaseFee {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::BaseFee,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::BaseFee))?;
 
         // Done, so return ok
         Ok(())
@@ -935,10 +908,7 @@ impl Opcode for Gas {
         let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Gas,
-        ))?;
+        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::Gas))?;
 
         // Done, so return ok
         Ok(())
@@ -1021,7 +991,7 @@ impl Opcode for LogN {
         // Get the arguments
         let offset = stack.pop()?;
         let size = stack.pop()?;
-        let mut topics: Vec<BoxedVal> = Vec::new();
+        let mut topics: Vec<RuntimeBoxedVal> = Vec::new();
         let upper_bound = u32::from(self.n()) + 2;
         for _ in 2..upper_bound {
             topics.push(stack.pop()?);
@@ -1034,10 +1004,7 @@ impl Opcode for LogN {
             .load_slice(&offset, &size, instruction_pointer);
 
         // Build the log call
-        let log = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Log { data, topics },
-        );
+        let log = RSV::new_from_execution(instruction_pointer, RSVD::Log { data, topics });
 
         // Write it to the log buffer
         vm.state()?.log_value(log);
@@ -1119,10 +1086,7 @@ impl Opcode for Create {
             .load_slice(&offset, &size, instruction_pointer);
 
         // Construct the intermediate and push it onto the stack
-        let address = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Create { value, data },
-        );
+        let address = RSV::new_from_execution(instruction_pointer, RSVD::Create { value, data });
         vm.stack_handle()?.push(address)?;
 
         // Done, so return ok
@@ -1205,10 +1169,8 @@ impl Opcode for Create2 {
             .load_slice(&offset, &size, instruction_pointer);
 
         // Construct the intermediate and push it onto the stack
-        let address = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Create2 { value, salt, data },
-        );
+        let address =
+            RSV::new_from_execution(instruction_pointer, RSVD::Create2 { value, salt, data });
         vm.stack_handle()?.push(address)?;
 
         // Done, so return ok
@@ -1263,10 +1225,7 @@ impl Opcode for SelfDestruct {
         let target = stack.pop()?;
 
         // Construct the result
-        let destroy = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::SelfDestruct { target },
-        );
+        let destroy = RSV::new_from_execution(instruction_pointer, RSVD::SelfDestruct { target });
 
         // Store it in the recorded values store, as otherwise it would be dropped and
         // we would lose info
@@ -1297,15 +1256,15 @@ impl Opcode for SelfDestruct {
 mod test {
     use crate::{
         opcode::{environment, test_util as util, Opcode},
-        vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+        vm::value::{Provenance, RuntimeBoxedVal, RSV, RSVD},
     };
 
     #[test]
     fn sha_3_modifies_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let stored_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let stored_value = RSV::new_synthetic(1, RSVD::new_value());
+        let input_size = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![input_size, input_offset.clone()])?;
         vm.state()?.memory_mut().store(input_offset, stored_value.clone());
 
@@ -1319,7 +1278,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Sha3 { data } => {
+            RSVD::Sha3 { data } => {
                 assert_eq!(data, &stored_value);
             }
             _ => panic!("Invalid payload"),
@@ -1342,7 +1301,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::Address);
+        assert_eq!(result.data, RSVD::Address);
 
         Ok(())
     }
@@ -1350,7 +1309,7 @@ mod test {
     #[test]
     fn balance_modifies_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_address = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![input_address.clone()])?;
 
         // Prepare and run the opcode
@@ -1363,7 +1322,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Balance { address } => {
+            RSVD::Balance { address } => {
                 assert_eq!(address, &input_address);
             }
             _ => panic!("Invalid payload"),
@@ -1386,7 +1345,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::Origin);
+        assert_eq!(result.data, RSVD::Origin);
 
         Ok(())
     }
@@ -1405,7 +1364,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::Caller);
+        assert_eq!(result.data, RSVD::Caller);
 
         Ok(())
     }
@@ -1424,7 +1383,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::CallValue);
+        assert_eq!(result.data, RSVD::CallValue);
 
         Ok(())
     }
@@ -1443,7 +1402,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::GasPrice);
+        assert_eq!(result.data, RSVD::GasPrice);
 
         Ok(())
     }
@@ -1451,7 +1410,7 @@ mod test {
     #[test]
     fn ext_code_hash_modifies_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_address = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![input_address.clone()])?;
 
         // Prepare and run the opcode
@@ -1464,7 +1423,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::ExtCodeHash { address } => {
+            RSVD::ExtCodeHash { address } => {
                 assert_eq!(address, &input_address);
             }
             _ => panic!("Invalid payload"),
@@ -1476,7 +1435,7 @@ mod test {
     #[test]
     fn block_hash_modifies_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_block_number = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_block_number = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![input_block_number.clone()])?;
 
         // Prepare and run the opcode
@@ -1489,7 +1448,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::BlockHash { block_number } => {
+            RSVD::BlockHash { block_number } => {
                 assert_eq!(block_number, &input_block_number);
             }
             _ => panic!("Invalid payload"),
@@ -1512,7 +1471,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::CoinBase);
+        assert_eq!(result.data, RSVD::CoinBase);
 
         Ok(())
     }
@@ -1531,7 +1490,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::BlockTimestamp);
+        assert_eq!(result.data, RSVD::BlockTimestamp);
 
         Ok(())
     }
@@ -1550,7 +1509,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::BlockNumber);
+        assert_eq!(result.data, RSVD::BlockNumber);
 
         Ok(())
     }
@@ -1569,7 +1528,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::Prevrandao);
+        assert_eq!(result.data, RSVD::Prevrandao);
 
         Ok(())
     }
@@ -1588,7 +1547,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::GasLimit);
+        assert_eq!(result.data, RSVD::GasLimit);
 
         Ok(())
     }
@@ -1607,7 +1566,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::ChainId);
+        assert_eq!(result.data, RSVD::ChainId);
 
         Ok(())
     }
@@ -1626,7 +1585,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::SelfBalance);
+        assert_eq!(result.data, RSVD::SelfBalance);
 
         Ok(())
     }
@@ -1645,7 +1604,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::BaseFee);
+        assert_eq!(result.data, RSVD::BaseFee);
 
         Ok(())
     }
@@ -1664,7 +1623,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, SymbolicValueData::Gas);
+        assert_eq!(result.data, RSVD::Gas);
 
         Ok(())
     }
@@ -1674,13 +1633,13 @@ mod test {
         // We want to test all sizes of log
         for topic_count in 0..=4 {
             // Construct the stack
-            let mut topics: Vec<BoxedVal> = vec![];
-            let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-            let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-            let stored_data = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+            let mut topics: Vec<RuntimeBoxedVal> = vec![];
+            let input_offset = RSV::new_synthetic(0, RSVD::new_value());
+            let input_size = RSV::new_synthetic(1, RSVD::new_value());
+            let stored_data = RSV::new_synthetic(2, RSVD::new_value());
 
             for i in 0..u32::from(topic_count) {
-                let value = SymbolicValue::new_synthetic(3 + i, SymbolicValueData::new_value());
+                let value = RSV::new_synthetic(3 + i, RSVD::new_value());
                 topics.push(value);
             }
 
@@ -1704,7 +1663,7 @@ mod test {
             let log_message = &state.logged_values()[0];
             assert_eq!(log_message.provenance, Provenance::Execution);
             match &log_message.data {
-                SymbolicValueData::Log { data, topics } => {
+                RSVD::Log { data, topics } => {
                     assert_eq!(data, &stored_data);
                     assert_eq!(topics, topics);
                 }
@@ -1722,10 +1681,10 @@ mod test {
     #[test]
     fn create_modifies_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_offset = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
-        let input_data = SymbolicValue::new_synthetic(3, SymbolicValueData::new_value());
+        let input_value = RSV::new_synthetic(0, RSVD::new_value());
+        let input_offset = RSV::new_synthetic(1, RSVD::new_value());
+        let input_size = RSV::new_synthetic(2, RSVD::new_value());
+        let input_data = RSV::new_synthetic(3, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_size,
             input_offset.clone(),
@@ -1743,7 +1702,7 @@ mod test {
         let address = stack.read(0)?;
         assert_eq!(address.provenance, Provenance::Execution);
         match &address.data {
-            SymbolicValueData::Create { value, data } => {
+            RSVD::Create { value, data } => {
                 assert_eq!(value, &input_value);
                 assert_eq!(data, &input_data);
             }
@@ -1756,11 +1715,11 @@ mod test {
     #[test]
     fn create_2_modifies_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_offset = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
-        let input_salt = SymbolicValue::new_synthetic(3, SymbolicValueData::new_value());
-        let input_data = SymbolicValue::new_synthetic(3, SymbolicValueData::new_value());
+        let input_value = RSV::new_synthetic(0, RSVD::new_value());
+        let input_offset = RSV::new_synthetic(1, RSVD::new_value());
+        let input_size = RSV::new_synthetic(2, RSVD::new_value());
+        let input_salt = RSV::new_synthetic(3, RSVD::new_value());
+        let input_data = RSV::new_synthetic(3, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_salt.clone(),
             input_size,
@@ -1779,7 +1738,7 @@ mod test {
         let address = stack.read(0)?;
         assert_eq!(address.provenance, Provenance::Execution);
         match &address.data {
-            SymbolicValueData::Create2 { value, salt, data } => {
+            RSVD::Create2 { value, salt, data } => {
                 assert_eq!(value, &input_value);
                 assert_eq!(salt, &input_salt);
                 assert_eq!(data, &input_data);
@@ -1793,7 +1752,7 @@ mod test {
     #[test]
     fn self_destruct_modifies_stack_and_records_value() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_address = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![input_address.clone()])?;
 
         // Prepare and run the opcode
@@ -1810,7 +1769,7 @@ mod test {
         let value = &state.recorded_values()[0];
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
-            SymbolicValueData::SelfDestruct { target } => {
+            RSVD::SelfDestruct { target } => {
                 assert_eq!(target, &input_address);
             }
             _ => panic!("Invalid payload"),

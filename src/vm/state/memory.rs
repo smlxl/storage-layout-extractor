@@ -4,7 +4,7 @@ use std::{collections::HashMap, hash::Hash};
 
 use crate::{
     constant::WORD_SIZE_BITS,
-    vm::value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+    vm::value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
 };
 
 /// A representation of the transient memory of the symbolic virtual machine.
@@ -31,7 +31,7 @@ pub struct Memory {
 
     /// Stores at locations that are described by a symbolic value that cannot
     /// be treated specially.
-    symbolic_offsets: HashMap<BoxedVal, Vec<MemStore>>,
+    symbolic_offsets: HashMap<RuntimeBoxedVal, Vec<MemStore>>,
 }
 
 impl Memory {
@@ -57,7 +57,7 @@ impl Memory {
     /// these. Implementation of the `MLOAD` and `MSTORE*` opcodes may want to
     /// account for sub-word writes by dissecting the arguments to this
     /// function.
-    pub fn store(&mut self, offset: BoxedVal, value: BoxedVal) {
+    pub fn store(&mut self, offset: RuntimeBoxedVal, value: RuntimeBoxedVal) {
         self.store_with_size(offset, value, MemStoreSize::Word);
     }
 
@@ -72,7 +72,7 @@ impl Memory {
     /// these. Implementation of the `MLOAD` and `MSTORE*` opcodes may want to
     /// account for sub-word writes by dissecting the arguments to this
     /// function.
-    pub fn store_8(&mut self, offset: BoxedVal, value: BoxedVal) {
+    pub fn store_8(&mut self, offset: RuntimeBoxedVal, value: RuntimeBoxedVal) {
         self.store_with_size(offset, value, MemStoreSize::Byte);
     }
 
@@ -86,11 +86,16 @@ impl Memory {
     /// account for sub-word writes by dissecting the arguments to this
     /// function.
     #[allow(clippy::boxed_local)] // We use boxes everywhere for API simplicity.
-    fn store_with_size(&mut self, offset: BoxedVal, value: BoxedVal, size: MemStoreSize) {
+    fn store_with_size(
+        &mut self,
+        offset: RuntimeBoxedVal,
+        value: RuntimeBoxedVal,
+        size: MemStoreSize,
+    ) {
         let offset = offset.constant_fold();
         let store_value = MemStore { data: value, size };
         let entry = match &offset.data {
-            SymbolicValueData::KnownData { value } => {
+            RSVD::KnownData { value } => {
                 self.constant_offsets.entry(value.into()).or_insert(vec![])
             }
             _ => self.symbolic_offsets.entry(offset).or_insert(vec![]),
@@ -110,10 +115,10 @@ impl Memory {
     /// This is a best-effort analysis as we cannot guarantee knowing if there
     /// have been overwrites between adjacent slots.
     #[must_use]
-    pub fn load(&mut self, offset: &BoxedVal) -> BoxedVal {
+    pub fn load(&mut self, offset: &RuntimeBoxedVal) -> RuntimeBoxedVal {
         let offset = offset.clone().constant_fold();
         match offset.data {
-            SymbolicValueData::KnownData { value } => {
+            RSVD::KnownData { value } => {
                 Self::get_or_initialize(&mut self.constant_offsets, &value.into()).clone()
             }
             _ => Self::get_or_initialize(&mut self.symbolic_offsets, &offset).clone(),
@@ -136,13 +141,13 @@ impl Memory {
     #[must_use]
     pub fn load_slice(
         &mut self,
-        offset: &BoxedVal,
-        size: &BoxedVal,
+        offset: &RuntimeBoxedVal,
+        size: &RuntimeBoxedVal,
         instruction_pointer: u32,
-    ) -> BoxedVal {
+    ) -> RuntimeBoxedVal {
         let offset = offset.clone().constant_fold();
         match &offset.data {
-            SymbolicValueData::KnownData { value } => match Self::decompose_size(size) {
+            RSVD::KnownData { value } => match Self::decompose_size(size) {
                 Some(size) => {
                     let offset: usize = value.into();
                     let mut values = vec![];
@@ -155,9 +160,9 @@ impl Memory {
                         );
                     }
 
-                    SymbolicValue::new(
+                    RSV::new(
                         instruction_pointer,
-                        SymbolicValueData::Concat { values },
+                        RSVD::Concat { values },
                         Provenance::Synthetic,
                     )
                 }
@@ -178,9 +183,9 @@ impl Memory {
     /// Determines whether the size is concrete, returning the concrete read
     /// size if so, and [`None`] otherwise.
     #[must_use]
-    fn decompose_size(size: &BoxedVal) -> Option<usize> {
+    fn decompose_size(size: &RuntimeBoxedVal) -> Option<usize> {
         match &size.data {
-            SymbolicValueData::KnownData { value } => Some(value.into()),
+            RSVD::KnownData { value } => Some(value.into()),
             _ => None,
         }
     }
@@ -189,18 +194,17 @@ impl Memory {
     /// initializing the read memory to all zeroes if it has not previously been
     /// written.
     #[must_use]
-    fn get_or_initialize<'a, K>(map: &'a mut HashMap<K, Vec<MemStore>>, key: &'a K) -> &'a BoxedVal
+    fn get_or_initialize<'a, K>(
+        map: &'a mut HashMap<K, Vec<MemStore>>,
+        key: &'a K,
+    ) -> &'a RuntimeBoxedVal
     where
         K: Clone + Eq + Hash + PartialEq,
     {
         let entry = map.entry(key.clone()).or_insert_with(|| {
             // The instruction pointer is 0 here, as the uninitialized value was created
             // when the program started.
-            let data = SymbolicValue::new_known_value(
-                0,
-                KnownWord::zero(),
-                Provenance::UninitializedMemory,
-            );
+            let data = RSV::new_known_value(0, KnownWord::zero(), Provenance::UninitializedMemory);
 
             vec![MemStore {
                 data,
@@ -219,7 +223,7 @@ impl Memory {
     /// Returns [`Some`] for offsets that have seen at least one write, and
     /// otherwise returns [`None`].
     #[must_use]
-    pub fn generations(&self, offset: &BoxedVal) -> Option<Vec<&BoxedVal>> {
+    pub fn generations(&self, offset: &RuntimeBoxedVal) -> Option<Vec<&RuntimeBoxedVal>> {
         self.symbolic_offsets
             .get(offset)
             .map(|stores| stores.iter().map(|store| &store.data).collect())
@@ -230,7 +234,7 @@ impl Memory {
     ///
     /// This functionality exists primarily for introspection.
     #[must_use]
-    pub fn query_store_size(&self, offset: &BoxedVal) -> Option<MemStoreSize> {
+    pub fn query_store_size(&self, offset: &RuntimeBoxedVal) -> Option<MemStoreSize> {
         self.symbolic_offsets
             .get(offset)
             .and_then(|generations| generations.first())
@@ -254,14 +258,14 @@ impl Memory {
 
     /// Gets the offsets in memory that have been written to.
     #[must_use]
-    pub fn offsets(&self) -> Vec<&BoxedVal> {
+    pub fn offsets(&self) -> Vec<&RuntimeBoxedVal> {
         self.symbolic_offsets.keys().collect()
     }
 
     /// Gets all of the values that are registered in the virtual machine memory
     /// at the time of calling.
     #[must_use]
-    pub fn all_values(&self) -> Vec<BoxedVal> {
+    pub fn all_values(&self) -> Vec<RuntimeBoxedVal> {
         let mut values = Vec::new();
         self.constant_offsets
             .values()
@@ -284,7 +288,7 @@ impl Default for Memory {
 /// The data that actually gets stored into memory.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct MemStore {
-    data: BoxedVal,
+    data: RuntimeBoxedVal,
     size: MemStoreSize,
 }
 
@@ -311,13 +315,13 @@ impl MemStoreSize {
 mod test {
     use crate::vm::{
         state::memory::{MemStoreSize, Memory},
-        value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+        value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
     };
 
     /// Creates a new synthetic value for testing purposes.
     #[allow(clippy::unnecessary_box_returns)] // We use boxes everywhere during execution
-    fn new_synthetic_value(instruction_pointer: u32) -> BoxedVal {
-        SymbolicValue::new_value(instruction_pointer, Provenance::Synthetic)
+    fn new_synthetic_value(instruction_pointer: u32) -> RuntimeBoxedVal {
+        RSV::new_value(instruction_pointer, Provenance::Synthetic)
     }
 
     #[test]
@@ -409,8 +413,8 @@ mod test {
         assert_eq!(loaded.instruction_pointer, 0);
 
         match *loaded {
-            SymbolicValue {
-                data: SymbolicValueData::KnownData { value, .. },
+            RSV {
+                data: RSVD::KnownData { value, .. },
                 provenance,
                 ..
             } => {
@@ -426,12 +430,12 @@ mod test {
         let mut memory = Memory::new();
         let zero = KnownWord::zero();
         let thirty_two = KnownWord::from(32);
-        let offset_1 = SymbolicValue::new_known_value(0, zero, Provenance::Synthetic);
+        let offset_1 = RSV::new_known_value(0, zero, Provenance::Synthetic);
         let value_1 = new_synthetic_value(1);
-        let offset_2 = SymbolicValue::new_known_value(1, thirty_two, Provenance::Synthetic);
+        let offset_2 = RSV::new_known_value(1, thirty_two, Provenance::Synthetic);
         let value_2 = new_synthetic_value(3);
         let sixty_four = KnownWord::from(64);
-        let bytes_64 = SymbolicValue::new_known_value(4, sixty_four, Provenance::Synthetic);
+        let bytes_64 = RSV::new_known_value(4, sixty_four, Provenance::Synthetic);
 
         // Store under known offsets
         memory.store(offset_1.clone(), value_1.clone());
@@ -440,7 +444,7 @@ mod test {
         // Read it back
         let result = memory.load_slice(&offset_1, &bytes_64, 5);
         match &result.data {
-            SymbolicValueData::Concat { values } => {
+            RSVD::Concat { values } => {
                 assert_eq!(values, &vec![value_1, value_2]);
             }
             _ => panic!("Invalid payload"),
@@ -451,7 +455,7 @@ mod test {
     fn can_load_word_at_known_offset_with_symbolic_size() {
         let mut memory = Memory::new();
         let zero = KnownWord::zero();
-        let offset = SymbolicValue::new_known_value(0, zero, Provenance::Synthetic);
+        let offset = RSV::new_known_value(0, zero, Provenance::Synthetic);
         let value = new_synthetic_value(1);
         let size = new_synthetic_value(2);
 
@@ -486,30 +490,30 @@ mod test {
         let mut memory = Memory::new();
         let left = new_synthetic_value(0);
         let right = new_synthetic_value(1);
-        let sum = SymbolicValue::new_synthetic(
+        let sum = RSV::new_synthetic(
             2,
-            SymbolicValueData::Add {
+            RSVD::Add {
                 left:  left.clone(),
                 right: right.clone(),
             },
         );
-        let prod = SymbolicValue::new_synthetic(
+        let prod = RSV::new_synthetic(
             3,
-            SymbolicValueData::Multiply {
+            RSVD::Multiply {
                 left:  left.clone(),
                 right: right.clone(),
             },
         );
-        let sub = SymbolicValue::new_synthetic(
+        let sub = RSV::new_synthetic(
             4,
-            SymbolicValueData::Subtract {
+            RSVD::Subtract {
                 left:  left.clone(),
                 right: right.clone(),
             },
         );
-        let div = SymbolicValue::new_synthetic(
+        let div = RSV::new_synthetic(
             5,
-            SymbolicValueData::Divide {
+            RSVD::Divide {
                 dividend: left,
                 divisor:  right,
             },

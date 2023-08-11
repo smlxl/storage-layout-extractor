@@ -9,7 +9,7 @@ use crate::{
         expression::{InferenceSet, TypeExpression},
         state::TypeVariable,
     },
-    vm::value::BoxedVal,
+    vm::value::TCBoxedVal,
 };
 
 /// Errors that occur during unification and type inference process in the
@@ -17,7 +17,7 @@ use crate::{
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
     #[error("Invalid tree {value:?} encountered during unification: {reason}")]
-    InvalidTree { value: BoxedVal, reason: String },
+    InvalidTree { value: TCBoxedVal, reason: String },
 
     #[error("Invalid typing expression {value:?} encountered during unification: {reason}")]
     InvalidInference { value: TypeExpression, reason: String },

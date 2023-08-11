@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData, SV, SVD};
+use crate::vm::value::{Provenance, RuntimeBoxedVal, RSV, RSVD};
 
 /// A representation of the persistent storage of the symbolic virtual machine.
 ///
@@ -25,10 +25,10 @@ use crate::vm::value::{BoxedVal, Provenance, SymbolicValue, SymbolicValueData, S
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Storage {
     /// Many storage writes are in the form of a known slot index.
-    known_slots: HashMap<BoxedVal, Vec<BoxedVal>>,
+    known_slots: HashMap<RuntimeBoxedVal, Vec<RuntimeBoxedVal>>,
 
     /// Others use symbolic values as offsets.
-    symbolic_slots: HashMap<BoxedVal, Vec<BoxedVal>>,
+    symbolic_slots: HashMap<RuntimeBoxedVal, Vec<RuntimeBoxedVal>>,
 }
 
 impl Storage {
@@ -47,9 +47,9 @@ impl Storage {
     /// overwriting any existing value at that key.
     ///
     /// The `value` is treated as being 256 bits wide.
-    pub fn store(&mut self, key: BoxedVal, value: BoxedVal) {
+    pub fn store(&mut self, key: RuntimeBoxedVal, value: RuntimeBoxedVal) {
         let target_map = match key.data {
-            SymbolicValueData::KnownData { .. } => &mut self.known_slots,
+            RSVD::KnownData { .. } => &mut self.known_slots,
             _ => &mut self.symbolic_slots,
         };
         let entry = target_map.entry(key).or_insert(vec![]);
@@ -69,10 +69,10 @@ impl Storage {
     /// This is a best-effort analysis as we cannot guarantee knowing if there
     /// have been overwrites between adjacent slots.
     #[must_use]
-    pub fn load(&mut self, key: &BoxedVal) -> BoxedVal {
+    pub fn load(&mut self, key: &RuntimeBoxedVal) -> RuntimeBoxedVal {
         // First we need to work out which of the maps to read from.
         let target_map = match key.data {
-            SymbolicValueData::KnownData { .. } => &mut self.known_slots,
+            RSVD::KnownData { .. } => &mut self.known_slots,
             _ => &mut self.symbolic_slots,
         };
 
@@ -82,9 +82,9 @@ impl Storage {
             // The instruction pointer is 0 here, as the uninitialized value was created
             // when the program started. It is _not_ synthetic.
 
-            vec![SymbolicValue::new(
+            vec![RSV::new(
                 0,
-                SymbolicValueData::UnwrittenStorageValue { key: key.clone() },
+                RSVD::UnwrittenStorageValue { key: key.clone() },
                 Provenance::NonWrittenStorage,
             )]
         });
@@ -100,12 +100,12 @@ impl Storage {
         // Knowing this is very important in the context of deciding which portions of
         // storage slots are not truly used, as they will contain near-direct loads from
         // the same slot.
-        SV::new(
+        RSV::new(
             most_recent.instruction_pointer,
-            if let SVD::SLoad { .. } = &most_recent.data {
+            if let RSVD::SLoad { .. } = &most_recent.data {
                 most_recent.data.clone()
             } else {
-                SVD::SLoad {
+                RSVD::SLoad {
                     key:   key.clone(),
                     value: most_recent.clone(),
                 }
@@ -120,9 +120,9 @@ impl Storage {
     /// Returns [`Some`] for keys that have seen at least one write, and
     /// otherwise returns [`None`].
     #[must_use]
-    pub fn generations(&self, key: &BoxedVal) -> Option<Vec<&BoxedVal>> {
+    pub fn generations(&self, key: &RuntimeBoxedVal) -> Option<Vec<&RuntimeBoxedVal>> {
         let target_map = match key.data {
-            SymbolicValueData::KnownData { .. } => &self.known_slots,
+            RSVD::KnownData { .. } => &self.known_slots,
             _ => &self.symbolic_slots,
         };
 
@@ -137,9 +137,9 @@ impl Storage {
 
     /// Gets the slot keys for this storage that have been written to.
     #[must_use]
-    pub fn keys(&self) -> Vec<&BoxedVal> {
-        let mut known_keys: Vec<&BoxedVal> = self.known_slots.keys().collect();
-        let symbolic_keys: Vec<&BoxedVal> = self.symbolic_slots.keys().collect();
+    pub fn keys(&self) -> Vec<&RuntimeBoxedVal> {
+        let mut known_keys: Vec<&RuntimeBoxedVal> = self.known_slots.keys().collect();
+        let symbolic_keys: Vec<&RuntimeBoxedVal> = self.symbolic_slots.keys().collect();
 
         known_keys.extend(symbolic_keys.into_iter());
 
@@ -149,7 +149,7 @@ impl Storage {
     /// Gets all of the values that are registered in the virtual machine stack
     /// at the time of calling.
     #[must_use]
-    pub fn all_values(&self) -> Vec<BoxedVal> {
+    pub fn all_values(&self) -> Vec<RuntimeBoxedVal> {
         let mut values = Vec::new();
         values.extend(self.known_slots.keys().cloned());
         self.known_slots
@@ -169,42 +169,42 @@ impl Storage {
     /// into [`SVD::StorageWrite`] of `(key, value)`, allowing for easier
     /// analysis later.
     #[must_use]
-    pub fn stores_as_values(&self) -> Vec<BoxedVal> {
-        let mut known_writes: Vec<BoxedVal> = self
+    pub fn stores_as_values(&self) -> Vec<RuntimeBoxedVal> {
+        let mut known_writes: Vec<RuntimeBoxedVal> = self
             .known_slots
             .iter()
             .flat_map(|(k, vs)| {
                 vs.iter()
                     .map(|v| {
-                        SymbolicValue::new(
+                        RSV::new(
                             v.instruction_pointer,
-                            SVD::StorageWrite {
+                            RSVD::StorageWrite {
                                 key:   k.clone(),
                                 value: v.clone(),
                             },
                             v.provenance,
                         )
                     })
-                    .collect::<Vec<BoxedVal>>()
+                    .collect::<Vec<RuntimeBoxedVal>>()
             })
             .collect();
 
-        let symbolic_writes: Vec<BoxedVal> = self
+        let symbolic_writes: Vec<RuntimeBoxedVal> = self
             .symbolic_slots
             .iter()
             .flat_map(|(k, vs)| {
                 vs.iter()
                     .map(|v| {
-                        SymbolicValue::new(
+                        RSV::new(
                             v.instruction_pointer,
-                            SVD::StorageWrite {
+                            RSVD::StorageWrite {
                                 key:   k.clone(),
                                 value: v.clone(),
                             },
                             v.provenance,
                         )
                     })
-                    .collect::<Vec<BoxedVal>>()
+                    .collect::<Vec<RuntimeBoxedVal>>()
             })
             .collect();
 
@@ -224,21 +224,13 @@ impl Default for Storage {
 mod test {
     use crate::vm::{
         state::storage::Storage,
-        value::{
-            known::KnownWord,
-            BoxedVal,
-            Provenance,
-            SymbolicValue,
-            SymbolicValueData,
-            SV,
-            SVD,
-        },
+        value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
     };
 
     /// Creates a new synthetic value for testing purposes.
     #[allow(clippy::unnecessary_box_returns)] // We use boxes everywhere during execution
-    fn new_synthetic_value(instruction_pointer: u32) -> BoxedVal {
-        SymbolicValue::new_value(instruction_pointer, Provenance::Synthetic)
+    fn new_synthetic_value(instruction_pointer: u32) -> RuntimeBoxedVal {
+        RSV::new_value(instruction_pointer, Provenance::Synthetic)
     }
 
     #[test]
@@ -256,7 +248,7 @@ mod test {
 
         assert_eq!(storage.entry_count(), 1);
         match &storage.load(&input_key).data {
-            SVD::SLoad { key, value } => {
+            RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
             }
@@ -274,7 +266,7 @@ mod test {
         storage.store(input_key.clone(), value_1.clone());
         assert_eq!(storage.entry_count(), 1);
         match &storage.load(&input_key).data {
-            SVD::SLoad { key, value } => {
+            RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &value_1);
             }
@@ -284,7 +276,7 @@ mod test {
         storage.store(input_key.clone(), value_2.clone());
         assert_eq!(storage.entry_count(), 1);
         match &storage.load(&input_key).data {
-            SVD::SLoad { key, value } => {
+            RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &value_2);
             }
@@ -295,13 +287,13 @@ mod test {
     #[test]
     fn can_store_word_under_known_key() {
         let mut storage = Storage::new();
-        let input_key = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
+        let input_key = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
         let input_value = new_synthetic_value(1);
 
         storage.store(input_key.clone(), input_value.clone());
         assert_eq!(storage.entry_count(), 1);
         match &storage.load(&input_key).data {
-            SVD::SLoad { key, value } => {
+            RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
             }
@@ -312,21 +304,21 @@ mod test {
     #[test]
     fn can_get_zero_if_slot_never_written() {
         let mut storage = Storage::new();
-        let key_1 = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
+        let key_1 = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
         let key_2 = new_synthetic_value(1);
 
         match *storage.load(&key_1) {
-            SymbolicValue {
-                data: SymbolicValueData::SLoad { key, value },
+            RSV {
+                data: RSVD::SLoad { key, value },
                 provenance,
                 ..
             } => {
                 assert_eq!(key, key_1);
                 assert_eq!(
                     value,
-                    SV::new(
+                    RSV::new(
                         0,
-                        SVD::UnwrittenStorageValue { key: key_1 },
+                        RSVD::UnwrittenStorageValue { key: key_1 },
                         Provenance::NonWrittenStorage
                     )
                 );
@@ -336,17 +328,17 @@ mod test {
         }
 
         match *storage.load(&key_2) {
-            SymbolicValue {
-                data: SymbolicValueData::SLoad { key, value },
+            RSV {
+                data: RSVD::SLoad { key, value },
                 provenance,
                 ..
             } => {
                 assert_eq!(key, key_2);
                 assert_eq!(
                     value,
-                    SV::new(
+                    RSV::new(
                         0,
-                        SVD::UnwrittenStorageValue { key: key_2 },
+                        RSVD::UnwrittenStorageValue { key: key_2 },
                         Provenance::NonWrittenStorage
                     )
                 );
@@ -359,7 +351,7 @@ mod test {
     #[test]
     fn can_get_all_keys() {
         let mut storage = Storage::new();
-        let key_1 = SymbolicValue::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
+        let key_1 = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
         let key_2 = new_synthetic_value(1);
         let value = new_synthetic_value(2);
         storage.store(key_1.clone(), value.clone());

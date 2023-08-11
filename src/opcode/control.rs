@@ -4,7 +4,7 @@ use crate::{
     error::execution,
     opcode::{util, ExecuteResult, Opcode},
     vm::{
-        value::{known::KnownWord, BoxedVal, Provenance, SymbolicValue, SymbolicValueData},
+        value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
         VM,
     },
 };
@@ -291,7 +291,7 @@ impl Opcode for PC {
         let mut stack = vm.stack_handle()?;
 
         // Construct the value and push it onto the stack
-        let result = SymbolicValue::new_known_value(
+        let result = RSV::new_known_value(
             instruction_pointer,
             KnownWord::from_le(instruction_pointer),
             Provenance::ProgramCounter,
@@ -354,39 +354,43 @@ impl Opcode for JumpDest {
 
 /// Stores the return data from an external message call for `ret_size` at
 /// `ret_offset`.
-fn store_return_data(ret_size: &BoxedVal, ret_offset: &BoxedVal, vm: &mut VM) -> ExecuteResult {
+fn store_return_data(
+    ret_size: &RuntimeBoxedVal,
+    ret_offset: &RuntimeBoxedVal,
+    vm: &mut VM,
+) -> ExecuteResult {
     let instruction_pointer = vm.instruction_pointer()?;
     let memory = vm.state()?.memory_mut();
     let ret_size = ret_size.clone().constant_fold();
 
-    if let SymbolicValueData::KnownData { value } = ret_size.data {
-        let num_32 = SymbolicValue::new_known_value(
+    if let RSVD::KnownData { value } = ret_size.data {
+        let num_32 = RSV::new_known_value(
             instruction_pointer,
             KnownWord::from(32),
             Provenance::Execution,
         );
         let actual_size: usize = value.into();
         for internal_offset in (0..actual_size).step_by(32) {
-            let to_add_to_offset = SymbolicValue::new_known_value(
+            let to_add_to_offset = RSV::new_known_value(
                 instruction_pointer,
                 KnownWord::from(internal_offset),
                 Provenance::Execution,
             );
-            let dest_offset = SymbolicValue::new_from_execution(
+            let dest_offset = RSV::new_from_execution(
                 instruction_pointer,
-                SymbolicValueData::Add {
+                RSVD::Add {
                     left:  ret_offset.clone().constant_fold(),
                     right: to_add_to_offset.clone(),
                 },
             );
             // Offsets in the _return data_ start at zero.
-            let src_offset = SymbolicValue::new_from_execution(
+            let src_offset = RSV::new_from_execution(
                 instruction_pointer,
-                SymbolicValueData::new_known(KnownWord::from(internal_offset)),
+                RSVD::new_known(KnownWord::from(internal_offset)),
             );
-            let value = SymbolicValue::new_from_execution(
+            let value = RSV::new_from_execution(
                 instruction_pointer,
-                SymbolicValueData::ReturnData {
+                RSVD::ReturnData {
                     offset: src_offset,
                     size:   num_32.clone(),
                 },
@@ -394,7 +398,7 @@ fn store_return_data(ret_size: &BoxedVal, ret_offset: &BoxedVal, vm: &mut VM) ->
             memory.store(dest_offset, value);
         }
     } else {
-        let ret_value = SymbolicValue::new_value(instruction_pointer, Provenance::MessageCall);
+        let ret_value = RSV::new_value(instruction_pointer, Provenance::MessageCall);
         vm.state()?.memory_mut().store(ret_offset.clone(), ret_value);
     }
 
@@ -460,9 +464,9 @@ impl Opcode for Call {
         store_return_data(&ret_size, &ret_offset, vm)?;
 
         // Create the value representing the call
-        let call_return = SymbolicValue::new_from_execution(
+        let call_return = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::CallWithValue {
+            RSVD::CallWithValue {
                 gas,
                 address,
                 value,
@@ -616,9 +620,9 @@ impl Opcode for DelegateCall {
         store_return_data(&ret_size, &ret_offset, vm)?;
 
         // Create the value representing the call
-        let call_return = SymbolicValue::new_from_execution(
+        let call_return = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::CallWithoutValue {
+            RSVD::CallWithoutValue {
                 gas,
                 address,
                 argument_data,
@@ -756,10 +760,7 @@ impl Opcode for Return {
             .state()?
             .memory_mut()
             .load_slice(&offset, &size, instruction_pointer);
-        let return_val = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Return { data },
-        );
+        let return_val = RSV::new_from_execution(instruction_pointer, RSVD::Return { data });
         vm.state()?.record_value(return_val);
 
         // Now end execution
@@ -826,10 +827,7 @@ impl Opcode for Revert {
             .state()?
             .memory_mut()
             .load_slice(&offset, &size, instruction_pointer);
-        let return_val = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Revert { data },
-        );
+        let return_val = RSV::new_from_execution(instruction_pointer, RSVD::Revert { data });
         vm.state()?.record_value(return_val);
 
         // Now end execution
@@ -894,7 +892,7 @@ mod test {
         disassembly::InstructionStream,
         error::execution,
         opcode::{control, macros::bytecode, test_util as util, Opcode},
-        vm::value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD},
     };
 
     #[test]
@@ -939,7 +937,7 @@ mod test {
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
-        let immediate = SymbolicValue::new_known_value(
+        let immediate = RSV::new_known_value(
             0,
             KnownWord::from_le(0x03u32), // Offset of JUMPDEST in the bytes above
             Provenance::Synthetic,
@@ -972,7 +970,7 @@ mod test {
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
-        let immediate = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let immediate = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm =
             util::new_vm_with_instructions_and_values_on_stack(instructions, vec![immediate])?;
 
@@ -1004,7 +1002,7 @@ mod test {
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
-        let immediate = SymbolicValue::new_known_value(
+        let immediate = RSV::new_known_value(
             0,
             KnownWord::from_le(0x04u32), // Out of bounds
             Provenance::Synthetic,
@@ -1039,7 +1037,7 @@ mod test {
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
-        let immediate = SymbolicValue::new_known_value(
+        let immediate = RSV::new_known_value(
             0,
             KnownWord::from_le(0x03u32), // The final INVALID in the bytes above
             Provenance::Synthetic,
@@ -1069,12 +1067,12 @@ mod test {
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
-        let immediate = SymbolicValue::new_known_value(
+        let immediate = RSV::new_known_value(
             0,
             KnownWord::from_le(0x02u32), // Offset of JUMPDEST in the bytes above
             Provenance::Synthetic,
         );
-        let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let cond = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_instructions_and_values_on_stack(
             instructions,
             vec![cond.clone(), immediate],
@@ -1119,12 +1117,12 @@ mod test {
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
-        let immediate = SymbolicValue::new_known_value(
+        let immediate = RSV::new_known_value(
             0,
             KnownWord::from_le(0x04u32), // OOB target
             Provenance::Synthetic,
         );
-        let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let cond = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_instructions_and_values_on_stack(
             instructions,
             vec![cond, immediate],
@@ -1157,12 +1155,12 @@ mod test {
         let instructions = InstructionStream::try_from(bytes.as_slice())?;
 
         // Prepare the VM
-        let immediate = SymbolicValue::new_known_value(
+        let immediate = RSV::new_known_value(
             0,
             KnownWord::from_le(0x02u32), // Invalid jump target
             Provenance::Synthetic,
         );
-        let cond = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let cond = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_instructions_and_values_on_stack(
             instructions,
             vec![cond, immediate],
@@ -1197,7 +1195,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         match &value.data {
-            SymbolicValueData::KnownData { value, .. } => {
+            RSVD::KnownData { value, .. } => {
                 assert_eq!(value, &KnownWord::from_le(0x00u32));
             }
             _ => panic!("Invalid payload"),
@@ -1225,14 +1223,14 @@ mod test {
     #[test]
     fn call_manipulates_stack_and_memory() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_gas = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_arg_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_arg_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_ret_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_ret_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_data = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_gas = RSV::new_synthetic(0, RSVD::new_value());
+        let input_address = RSV::new_synthetic(0, RSVD::new_value());
+        let input_value = RSV::new_synthetic(0, RSVD::new_value());
+        let input_arg_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_arg_size = RSV::new_synthetic(0, RSVD::new_value());
+        let input_ret_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_ret_size = RSV::new_synthetic(0, RSVD::new_value());
+        let input_data = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_ret_size.clone(),
             input_ret_offset.clone(),
@@ -1256,7 +1254,7 @@ mod test {
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
-            SymbolicValueData::CallWithValue {
+            RSVD::CallWithValue {
                 gas,
                 address,
                 value,
@@ -1287,13 +1285,13 @@ mod test {
     #[test]
     fn delegate_call_manipulates_stack_and_memory() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_gas = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_arg_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_arg_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_ret_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_ret_size = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_data = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let input_gas = RSV::new_synthetic(0, RSVD::new_value());
+        let input_address = RSV::new_synthetic(0, RSVD::new_value());
+        let input_arg_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_arg_size = RSV::new_synthetic(0, RSVD::new_value());
+        let input_ret_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_ret_size = RSV::new_synthetic(0, RSVD::new_value());
+        let input_data = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_ret_size.clone(),
             input_ret_offset.clone(),
@@ -1316,7 +1314,7 @@ mod test {
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
-            SymbolicValueData::CallWithoutValue {
+            RSVD::CallWithoutValue {
                 gas,
                 address,
                 argument_data,
@@ -1345,9 +1343,9 @@ mod test {
     #[test]
     fn return_stores_data_and_ends_execution() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let revert_data = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let input_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_size = RSV::new_synthetic(1, RSVD::new_value());
+        let revert_data = RSV::new_synthetic(2, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![input_size, input_offset.clone()])?;
         vm.state()?.memory_mut().store(input_offset, revert_data.clone());
 
@@ -1362,7 +1360,7 @@ mod test {
         let value = &vm.state()?.recorded_values()[0];
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
-            SymbolicValueData::Return { data } => {
+            RSVD::Return { data } => {
                 assert_eq!(data, &revert_data);
             }
             _ => panic!("Invalid payload"),
@@ -1374,9 +1372,9 @@ mod test {
     #[test]
     fn revert_stores_data_and_ends_execution() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let revert_data = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let input_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_size = RSV::new_synthetic(1, RSVD::new_value());
+        let revert_data = RSV::new_synthetic(2, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![input_size, input_offset.clone()])?;
         vm.state()?.memory_mut().store(input_offset, revert_data.clone());
 
@@ -1391,7 +1389,7 @@ mod test {
         let value = &vm.state()?.recorded_values()[0];
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
-            SymbolicValueData::Revert { data } => {
+            RSVD::Revert { data } => {
                 assert_eq!(data, &revert_data);
             }
             _ => panic!("Invalid payload"),

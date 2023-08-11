@@ -8,7 +8,7 @@ pub mod storage;
 use crate::vm::{
     data::VisitedOpcodes,
     state::{memory::Memory, stack::Stack, storage::Storage},
-    value::BoxedVal,
+    value::RuntimeBoxedVal,
 };
 
 /// The state representation for the [`super::VM`].
@@ -33,10 +33,10 @@ pub struct VMState {
 
     /// A container for values that would otherwise be dropped but that might
     /// still be useful when it comes to later analysis.
-    recorded_values: Vec<BoxedVal>,
+    recorded_values: Vec<RuntimeBoxedVal>,
 
     /// Values that were logged to the EVM's logging subsystem.
-    logged_values: Vec<BoxedVal>,
+    logged_values: Vec<RuntimeBoxedVal>,
 
     /// The set of opcodes (by their index in `instructions`) that have been
     /// executed by the virtual machine on this thread.
@@ -132,28 +132,28 @@ impl VMState {
     /// Records the provided `value` so that it is available for later analysis
     /// even if it is no longer accounted for in one of the VM's working
     /// memories.
-    pub fn record_value(&mut self, value: BoxedVal) {
+    pub fn record_value(&mut self, value: RuntimeBoxedVal) {
         self.recorded_values.push(value);
     }
 
     /// Gets the values that have been recorded to be available for analysis
     /// though not stored in the VM's working memories.
     #[must_use]
-    pub fn recorded_values(&self) -> &[BoxedVal] {
+    pub fn recorded_values(&self) -> &[RuntimeBoxedVal] {
         self.recorded_values.as_slice()
     }
 
     /// Records the provided `value` so that it is available for later analysis
     /// even if it is no longer accounted for in one of the VM's working
     /// memories.
-    pub fn log_value(&mut self, value: BoxedVal) {
+    pub fn log_value(&mut self, value: RuntimeBoxedVal) {
         self.logged_values.push(value);
     }
 
     /// Gets the values that have been recorded to be available for analysis
     /// though not stored in the VM's working memories.
     #[must_use]
-    pub fn logged_values(&self) -> &[BoxedVal] {
+    pub fn logged_values(&self) -> &[RuntimeBoxedVal] {
         self.logged_values.as_slice()
     }
 
@@ -180,7 +180,7 @@ impl VMState {
     /// Gets all of the values that are registered in the virtual machine state
     /// at the time of calling.
     #[must_use]
-    pub fn all_values(&self) -> Vec<BoxedVal> {
+    pub fn all_values(&self) -> Vec<RuntimeBoxedVal> {
         let mut values = Vec::new();
         values.extend(self.stack.all_values());
         values.extend(self.memory.all_values());
@@ -198,7 +198,7 @@ mod test {
         constant::DEFAULT_ITERATIONS_PER_OPCODE,
         vm::{
             state::VMState,
-            value::{SymbolicValue, SymbolicValueData},
+            value::{RSV, RSVD},
         },
     };
 
@@ -211,7 +211,7 @@ mod test {
     #[test]
     fn can_record_symbolic_value() {
         let mut state = VMState::new_at_start(20, DEFAULT_ITERATIONS_PER_OPCODE);
-        let value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let value = RSV::new_synthetic(0, RSVD::new_value());
         state.record_value(value.clone());
 
         let values = state.recorded_values();
@@ -221,7 +221,7 @@ mod test {
 
     #[test]
     fn can_fork_state() -> anyhow::Result<()> {
-        let value = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let value = RSV::new_synthetic(0, RSVD::new_value());
         let state = VMState::new_at_start(200, DEFAULT_ITERATIONS_PER_OPCODE);
         let mut forked_state = state.fork(78);
 

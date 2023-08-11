@@ -3,7 +3,7 @@
 use crate::{
     opcode::{ExecuteResult, Opcode},
     vm::{
-        value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
+        value::{known::KnownWord, Provenance, RSV, RSVD},
         VM,
     },
 };
@@ -35,10 +35,8 @@ impl Opcode for Lt {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::LessThan { left: a, right: b },
-        );
+        let result =
+            RSV::new_from_execution(instruction_pointer, RSVD::LessThan { left: a, right: b });
         stack.push(result)?;
 
         // Done, so return ok
@@ -89,10 +87,8 @@ impl Opcode for Gt {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::GreaterThan { left: a, right: b },
-        );
+        let result =
+            RSV::new_from_execution(instruction_pointer, RSVD::GreaterThan { left: a, right: b });
         stack.push(result)?;
 
         // Done, so return ok
@@ -144,9 +140,9 @@ impl Opcode for SLt {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::SignedLessThan { left: a, right: b },
+            RSVD::SignedLessThan { left: a, right: b },
         );
         stack.push(result)?;
 
@@ -199,9 +195,9 @@ impl Opcode for SGt {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::SignedGreaterThan { left: a, right: b },
+            RSVD::SignedGreaterThan { left: a, right: b },
         );
         stack.push(result)?;
 
@@ -253,10 +249,8 @@ impl Opcode for Eq {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Equals { left: a, right: b },
-        );
+        let result =
+            RSV::new_from_execution(instruction_pointer, RSVD::Equals { left: a, right: b });
         stack.push(result)?;
 
         // Done, so return ok
@@ -305,10 +299,7 @@ impl Opcode for IsZero {
         let number = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::IsZero { number },
-        );
+        let result = RSV::new_from_execution(instruction_pointer, RSVD::IsZero { number });
         stack.push(result)?;
 
         // Done, so return ok
@@ -359,10 +350,7 @@ impl Opcode for And {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::And { left: a, right: b },
-        );
+        let result = RSV::new_from_execution(instruction_pointer, RSVD::And { left: a, right: b });
         stack.push(result)?;
 
         // Done, so return ok
@@ -413,10 +401,7 @@ impl Opcode for Or {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Or { left: a, right: b },
-        );
+        let result = RSV::new_from_execution(instruction_pointer, RSVD::Or { left: a, right: b });
         stack.push(result)?;
 
         // Done, so return ok
@@ -467,10 +452,7 @@ impl Opcode for Xor {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Xor { left: a, right: b },
-        );
+        let result = RSV::new_from_execution(instruction_pointer, RSVD::Xor { left: a, right: b });
         stack.push(result)?;
 
         // Done, so return ok
@@ -519,10 +501,7 @@ impl Opcode for Not {
         let value = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Not { value },
-        );
+        let result = RSV::new_from_execution(instruction_pointer, RSVD::Not { value });
         stack.push(result)?;
 
         // Done, so return ok
@@ -580,44 +559,42 @@ impl Opcode for Byte {
         let value = stack.pop()?;
 
         // Construct the constants
-        let const_0x08 = SymbolicValue::new_known_value(
+        let const_0x08 = RSV::new_known_value(
             instruction_pointer,
             KnownWord::from_le(0x08u8),
             Provenance::Bytecode,
         );
-        let const_0xf8 = SymbolicValue::new_known_value(
+        let const_0xf8 = RSV::new_known_value(
             instruction_pointer,
             KnownWord::from_le(0xf8u8),
             Provenance::Bytecode,
         );
-        let const_0xff = SymbolicValue::new_known_value(
+        let const_0xff = RSV::new_known_value(
             instruction_pointer,
             KnownWord::from_le(0xffu8),
             Provenance::Bytecode,
         );
 
         // Construct the intermediates
-        let offset_times_0x08 = SymbolicValue::new_from_execution(
+        let offset_times_0x08 = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Multiply {
+            RSVD::Multiply {
                 left:  offset,
                 right: const_0x08,
             },
         );
-        let shift = SymbolicValue::new_from_execution(
+        let shift = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Subtract {
+            RSVD::Subtract {
                 left:  const_0xf8,
                 right: offset_times_0x08,
             },
         );
-        let shifted = SymbolicValue::new_from_execution(
+        let shifted =
+            RSV::new_from_execution(instruction_pointer, RSVD::RightShift { value, shift });
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::RightShift { value, shift },
-        );
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::And {
+            RSVD::And {
                 left:  shifted,
                 right: const_0xff,
             },
@@ -681,10 +658,7 @@ impl Opcode for Shl {
         let value = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::LeftShift { shift, value },
-        );
+        let result = RSV::new_from_execution(instruction_pointer, RSVD::LeftShift { shift, value });
         stack.push(result)?;
 
         // Done, so return ok
@@ -743,10 +717,8 @@ impl Opcode for Shr {
         let value = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::RightShift { shift, value },
-        );
+        let result =
+            RSV::new_from_execution(instruction_pointer, RSVD::RightShift { shift, value });
         stack.push(result)?;
 
         // Done, so return ok
@@ -807,9 +779,9 @@ impl Opcode for Sar {
         let value = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = SymbolicValue::new_from_execution(
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::ArithmeticRightShift { shift, value },
+            RSVD::ArithmeticRightShift { shift, value },
         );
         stack.push(result)?;
 
@@ -838,14 +810,14 @@ impl Opcode for Sar {
 mod test {
     use crate::{
         opcode::{logic, test_util as util, Opcode},
-        vm::value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD},
     };
 
     #[test]
     fn lt_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -859,7 +831,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::LessThan { left, right } => {
+            RSVD::LessThan { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -872,8 +844,8 @@ mod test {
     #[test]
     fn gt_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -887,7 +859,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::GreaterThan { left, right } => {
+            RSVD::GreaterThan { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -900,8 +872,8 @@ mod test {
     #[test]
     fn s_lt_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -915,7 +887,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::SignedLessThan { left, right } => {
+            RSVD::SignedLessThan { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -928,8 +900,8 @@ mod test {
     #[test]
     fn s_gt_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -943,7 +915,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::SignedGreaterThan { left, right } => {
+            RSVD::SignedGreaterThan { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -956,8 +928,8 @@ mod test {
     #[test]
     fn eq_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -971,7 +943,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Equals { left, right } => {
+            RSVD::Equals { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -984,7 +956,7 @@ mod test {
     #[test]
     fn is_zero_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let operand = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let operand = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![operand.clone()])?;
 
         // Prepare and run the opcode
@@ -997,7 +969,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::IsZero { number } => {
+            RSVD::IsZero { number } => {
                 assert_eq!(number, &operand);
             }
             _ => panic!("Incorrect payload"),
@@ -1009,8 +981,8 @@ mod test {
     #[test]
     fn and_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -1024,7 +996,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::And { left, right } => {
+            RSVD::And { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -1037,8 +1009,8 @@ mod test {
     #[test]
     fn or_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -1052,7 +1024,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Or { left, right } => {
+            RSVD::Or { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -1065,8 +1037,8 @@ mod test {
     #[test]
     fn xor_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -1080,7 +1052,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Xor { left, right } => {
+            RSVD::Xor { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -1093,7 +1065,7 @@ mod test {
     #[test]
     fn not_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let operand = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let operand = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![operand.clone()])?;
 
         // Prepare and run the opcode
@@ -1106,7 +1078,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::Not { value } => {
+            RSVD::Not { value } => {
                 assert_eq!(value, &operand);
             }
             _ => panic!("Incorrect payload"),
@@ -1118,8 +1090,8 @@ mod test {
     #[test]
     fn byte_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_value = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_value.clone(), input_offset.clone()])?;
 
@@ -1135,13 +1107,13 @@ mod test {
 
         // At the top level the value should be a logical conjunction
         match &result.data {
-            SymbolicValueData::And { left, right } => {
+            RSVD::And { left, right } => {
                 assert_eq!(left.provenance, Provenance::Execution);
                 assert_eq!(right.provenance, Provenance::Bytecode);
 
                 // The right operand should be a constant 0xff
                 match &right.data {
-                    SymbolicValueData::KnownData { value, .. } => {
+                    RSVD::KnownData { value, .. } => {
                         assert_eq!(value, &KnownWord::from_le(0xffu8));
                     }
                     _ => panic!("Invalid payload"),
@@ -1149,7 +1121,7 @@ mod test {
 
                 // The left operand should be an unsigned right shift
                 match &left.data {
-                    SymbolicValueData::RightShift { value, shift } => {
+                    RSVD::RightShift { value, shift } => {
                         assert_eq!(shift.provenance, Provenance::Execution);
 
                         // The value should come from the inputs
@@ -1157,13 +1129,13 @@ mod test {
 
                         // The shift size is computed
                         match &shift.data {
-                            SymbolicValueData::Subtract { left, right } => {
+                            RSVD::Subtract { left, right } => {
                                 assert_eq!(left.provenance, Provenance::Bytecode);
                                 assert_eq!(right.provenance, Provenance::Execution);
 
                                 // The left operand is a constant 0xf8
                                 match &left.data {
-                                    SymbolicValueData::KnownData { value, .. } => {
+                                    RSVD::KnownData { value, .. } => {
                                         assert_eq!(value, &KnownWord::from_le(0xf8u8));
                                     }
                                     _ => panic!("Invalid payload"),
@@ -1171,7 +1143,7 @@ mod test {
 
                                 // The right operand is computed
                                 match &right.data {
-                                    SymbolicValueData::Multiply { left, right } => {
+                                    RSVD::Multiply { left, right } => {
                                         assert_eq!(right.provenance, Provenance::Bytecode);
 
                                         // The left is the input offset
@@ -1179,7 +1151,7 @@ mod test {
 
                                         // The right is a constant 0x08
                                         match &right.data {
-                                            SymbolicValueData::KnownData { value, .. } => {
+                                            RSVD::KnownData { value, .. } => {
                                                 assert_eq!(value, &KnownWord::from_le(0x08u8));
                                             }
                                             _ => panic!("Invalid payload"),
@@ -1203,8 +1175,8 @@ mod test {
     #[test]
     fn shl_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -1218,7 +1190,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::LeftShift { shift, value } => {
+            RSVD::LeftShift { shift, value } => {
                 assert_eq!(shift, &input_left);
                 assert_eq!(value, &input_right);
             }
@@ -1231,8 +1203,8 @@ mod test {
     #[test]
     fn shr_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -1246,7 +1218,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::RightShift { shift, value } => {
+            RSVD::RightShift { shift, value } => {
                 assert_eq!(shift, &input_left);
                 assert_eq!(value, &input_right);
             }
@@ -1259,8 +1231,8 @@ mod test {
     #[test]
     fn sar_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -1274,7 +1246,7 @@ mod test {
         let result = stack.read(0)?;
         assert_eq!(result.provenance, Provenance::Execution);
         match &result.data {
-            SymbolicValueData::ArithmeticRightShift { shift, value } => {
+            RSVD::ArithmeticRightShift { shift, value } => {
                 assert_eq!(shift, &input_left);
                 assert_eq!(value, &input_right);
             }

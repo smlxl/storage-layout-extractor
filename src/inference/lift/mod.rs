@@ -31,7 +31,7 @@ use crate::{
         },
         state::InferenceState,
     },
-    vm::value::BoxedVal,
+    vm::value::RuntimeBoxedVal,
 };
 
 /// A trait representing processes for _introducing_ higher-level constructs
@@ -50,7 +50,7 @@ where
     /// # Errors
     ///
     /// Returns [`Err`] if something goes wrong with the lifting process.
-    fn run(&mut self, value: BoxedVal, state: &InferenceState) -> Result<BoxedVal>;
+    fn run(&mut self, value: RuntimeBoxedVal, state: &InferenceState) -> Result<RuntimeBoxedVal>;
 }
 
 /// A container for an ordered set of lifting passes that will be run in
@@ -110,7 +110,11 @@ impl LiftingPasses {
     /// # Errors
     ///
     /// Returns [`Err`] if any of the passes error.
-    pub fn run(&mut self, mut value: BoxedVal, state: &InferenceState) -> Result<BoxedVal> {
+    pub fn run(
+        &mut self,
+        mut value: RuntimeBoxedVal,
+        state: &InferenceState,
+    ) -> Result<RuntimeBoxedVal> {
         for pass in &mut self.passes {
             value = pass.run(value, state)?;
         }
