@@ -266,6 +266,11 @@ pub fn merge(left: TE, right: TE) -> Merge {
         // Packed encodings can also combine with words
         (TE::Word { .. }, TE::Packed { .. }) => merge(right, left),
         (TE::Packed { types, .. }, TE::Word { width, usage }) => {
+            // If we have no spans, things are just the word
+            if types.is_empty() {
+                return Merge::expression(right);
+            }
+
             // We can only merge if the word is bytes
             if *usage == WordUse::Bytes {
                 // Get the combined size of the packed encoding elements

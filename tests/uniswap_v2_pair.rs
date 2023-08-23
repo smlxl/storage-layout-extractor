@@ -17,55 +17,123 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // Get the final storage layout for the input contract
     let layout = analyzer.analyze()?;
 
-    // We should see 16 slots (while there are 16 slots we should actually see 18
-    // entries due to packing)
+    // We should see 18 entries as we output packing in slots as separate slots, but
+    // we only see 17 due to not seeing part of a packed.
     assert_eq!(layout.slots().len(), 17);
 
     // For the ones we can infer to a non-conflict, let's make sure we keep getting
     // them 'right'
 
-    // Slot 0 is inferred to be Any
+    // `uint256` but we infer `any`
     assert!(layout.slots().contains(&StorageSlot::new(0, 0, AbiType::Any)));
 
-    // Slot 3 is Any
+    // `mapping(address => uint)`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        1,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Address),
+            value_type: Box::new(AbiType::UInt { size: None }),
+        },
+    )));
+
+    // `mapping(address => mapping(address => uint256))`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        2,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Address),
+            value_type: Box::new(AbiType::Mapping {
+                key_type:   Box::new(AbiType::Address),
+                value_type: Box::new(AbiType::UInt { size: Some(256) }),
+            }),
+        }
+    )));
+
+    // `bytes32` but we infer `any`
     assert!(layout.slots().contains(&StorageSlot::new(3, 0, AbiType::Any)));
 
-    // Slot 9 is a number
+    // `mapping(address => number)`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        4,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Address),
+            value_type: Box::new(AbiType::Number { size: None }),
+        }
+    )));
+
+    // `address` but we infer `any`
+    assert!(layout.slots().contains(&StorageSlot::new(5, 0, AbiType::Any)));
+
+    // `address` but `bytes20` is the best we do now
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(6, 0, AbiType::Bytes { length: Some(20) }))
+    );
+
+    // `address` but `bytes20` is the best we do now
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(7, 0, AbiType::Bytes { length: Some(20) }))
+    );
+
+    // `(uint112, uint112)`, but we infer `bytes28`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(8, 0, AbiType::Bytes { length: Some(28) }))
+    );
+
+    // `uint32`, but we infer `bytes4`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        8,
+        224,
+        AbiType::Bytes { length: Some(4) }
+    )));
+
+    // `uint256`, but we infer `number`
     assert!(
         layout
             .slots()
             .contains(&StorageSlot::new(9, 0, AbiType::Number { size: None }))
     );
 
-    // Slot 10 is a number
+    // `uint256`, but we infer `number`
     assert!(
         layout
             .slots()
             .contains(&StorageSlot::new(10, 0, AbiType::Number { size: None }))
     );
 
-    // Slot 12 is a uint256
+    // `uint256`, but we infer `any`
+    assert!(layout.slots().contains(&StorageSlot::new(11, 0, AbiType::Any)));
+
+    // `uint256`
     assert!(
         layout
             .slots()
             .contains(&StorageSlot::new(12, 0, AbiType::UInt { size: Some(256) }))
     );
 
-    // Slot 13 is a uint256
+    // `uint256`
     assert!(
         layout
             .slots()
             .contains(&StorageSlot::new(13, 0, AbiType::UInt { size: Some(256) }))
     );
 
-    // Slot 14 is a uint256
+    // `uint256`
     assert!(
         layout
             .slots()
             .contains(&StorageSlot::new(14, 0, AbiType::UInt { size: Some(256) }))
     );
 
-    // TODO Add the remaining slots as they stop being conflicts
+    // `uint256`, but we infer `any`
+    assert!(layout.slots().contains(&StorageSlot::new(15, 0, AbiType::Any)));
 
     Ok(())
 }
