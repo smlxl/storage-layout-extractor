@@ -248,7 +248,7 @@ impl Display for TypeExpression {
                     write!(f, "{typ}")?;
 
                     if i + 1 != types.len() {
-                        write!(f, ", ")?
+                        write!(f, ", ")?;
                     }
                 }
 

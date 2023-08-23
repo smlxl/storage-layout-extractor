@@ -82,22 +82,35 @@ impl InferenceState {
         self.var_unchecked(&returned_val)
     }
 
+    /// Checks if `value` has a stable type.
+    ///
+    /// A stable type is one that should not change based on occurrence if the
+    /// structure of the value is the same.
+    ///
+    /// # Performance
+    ///
+    /// TODO Improve performance here.
+    ///
+    /// Currently this function is called inside [`Self::register_internal`]
+    /// which results in quadratic traversal of values during registration.
+    ///
+    /// Instead, the data returned by this function could become part of the
+    /// return value of _that_ function, making traversal linear again.
+    #[must_use]
     fn is_stable_typed(value: &RuntimeBoxedVal) -> bool {
         match &value.data {
-            RSVD::StorageSlot { .. } => true,
-            RSVD::Value { .. } => true,
-            RSVD::CallData { .. } => true,
+            RSVD::StorageSlot { .. } | RSVD::Value { .. } | RSVD::CallData { .. } => true,
             _ => value.children().into_iter().any(Self::is_stable_typed),
         }
     }
 
     /// The implementation of `register` that instead returns boxed values
     /// internally to make it easier to recursively register nodes in the tree.
+    #[allow(clippy::too_many_lines)] // The method would see no benefit from being split up.
+    #[allow(clippy::unnecessary_box_returns)] // We always pass these around boxed.
     #[must_use]
     fn register_internal(&mut self, value: RuntimeBoxedVal) -> TCBoxedVal {
         // Storage slots need specialised handling
-        // TODO this could be a return value from this method to avoid quadratic
-        //   traversal
         let is_stable = Self::is_stable_typed(&value);
         let val_clone = value.clone();
         if is_stable {
@@ -606,7 +619,7 @@ impl InferenceState {
     /// state.
     #[must_use]
     pub fn variables(&self) -> Vec<TypeVariable> {
-        self.inferences.keys().cloned().collect()
+        self.inferences.keys().copied().collect()
     }
 
     /// Gets the pairs of `(type_var, value)` from the state of the unifier.

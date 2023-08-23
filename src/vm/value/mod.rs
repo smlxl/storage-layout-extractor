@@ -225,6 +225,7 @@ impl TCSV {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    #[must_use]
     pub fn new(
         instruction_pointer: u32,
         data: TCSVD,
@@ -233,8 +234,8 @@ impl TCSV {
     ) -> Box<Self> {
         Box::new(Self {
             instruction_pointer,
-            data,
             provenance,
+            data,
             aux_data,
         })
     }

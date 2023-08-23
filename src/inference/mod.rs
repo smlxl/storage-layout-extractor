@@ -204,6 +204,11 @@ impl InferenceEngine {
 
     /// Iterates over all of the type variables, and where packed encodings
     /// should be structs it hoists them to be structs.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if inferences cannot be retrieved for any given type
+    /// variable.
     pub fn hoist_structs(&mut self) -> Result<()> {
         for ty_var in self.state.variables() {
             let inference = self.type_of(ty_var)?;

@@ -31,7 +31,7 @@ pub fn print_state(state: &InferenceState) {
 ///
 /// Note that this is recursive, but will not follow cycles in inferences.
 pub fn print_tv(ty: TypeVariable, state: &InferenceState) {
-    print_tv_impl(ty, state, 0, &mut HashSet::new())
+    print_tv_impl(ty, state, 0, &mut HashSet::new());
 }
 
 /// The implementation of the debug printer for an individual type
@@ -56,25 +56,20 @@ fn print_tv_impl(
         println!("{half_indent}= {inf}");
         match inf {
             TE::Equal { id } => {
-                if !seen.contains(&id) {
+                if !seen.contains(id) {
                     print_tv_impl(*id, state, next_indent_level, seen);
                 }
             }
-            TE::FixedArray { element, .. } => {
-                if !seen.contains(&element) {
-                    print_tv_impl(*element, state, next_indent_level, seen);
-                }
-            }
             TE::Mapping { key, value } => {
-                if !seen.contains(&key) {
+                if !seen.contains(key) {
                     print_tv_impl(*key, state, next_indent_level, seen);
                 }
-                if !seen.contains(&value) {
+                if !seen.contains(value) {
                     print_tv_impl(*value, state, next_indent_level, seen);
                 }
             }
-            TE::DynamicArray { element } => {
-                if !seen.contains(&element) {
+            TE::FixedArray { element, .. } | TE::DynamicArray { element } => {
+                if !seen.contains(element) {
                     print_tv_impl(*element, state, next_indent_level, seen);
                 }
             }
