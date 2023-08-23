@@ -3,8 +3,9 @@
 
 use crate::{
     constant::BYTE_SIZE_BITS,
+    error::unification::Result,
     inference::{expression::TE, rule::InferenceRule, state::InferenceState},
-    vm::value::{known::KnownWord, BoxedVal, SVD},
+    vm::value::{known::KnownWord, TCBoxedVal, TCSVD},
 };
 
 /// This rule creates equations as described below for expressions of the
@@ -26,17 +27,13 @@ use crate::{
 pub struct CallDataRule;
 
 impl InferenceRule for CallDataRule {
-    fn infer(
-        &self,
-        value: &BoxedVal,
-        state: &mut InferenceState,
-    ) -> crate::error::unification::Result<()> {
-        let SVD::CallData { size, .. } = &value.data else {
+    fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
+        let TCSVD::CallData { size, .. } = &value.data else {
             return Ok(());
         };
 
         // If we can make the size into a constant we can work with it
-        let SVD::KnownData { value: byte_size } = size.data.clone().constant_fold() else {
+        let TCSVD::KnownData { value: byte_size } = size.data.clone().constant_fold() else {
             return Ok(());
         };
 
@@ -58,15 +55,15 @@ mod test {
             rule::{call_data::CallDataRule, InferenceRule},
             state::InferenceState,
         },
-        vm::value::{known::KnownWord, Provenance, SV, SVD},
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD},
     };
 
     #[test]
     fn writes_no_inferences_for_non_constant_sizes() -> anyhow::Result<()> {
         // Create the values to run inference on
-        let offset = SV::new_value(0, Provenance::Synthetic);
-        let size = SV::new_value(1, Provenance::Synthetic);
-        let call_data = SV::new_synthetic(2, SVD::call_data(offset.clone(), size.clone()));
+        let offset = RSV::new_value(0, Provenance::Synthetic);
+        let size = RSV::new_value(1, Provenance::Synthetic);
+        let call_data = RSV::new_synthetic(2, RSVD::call_data(offset.clone(), size.clone()));
 
         // Register them in the state
         let mut state = InferenceState::empty();
@@ -74,7 +71,8 @@ mod test {
             state.register_many([offset, size, call_data.clone()]);
 
         // Run the inference rule
-        CallDataRule.infer(&call_data, &mut state)?;
+        let tc_input = state.value_unchecked(call_data_tv).clone();
+        CallDataRule.infer(&tc_input, &mut state)?;
 
         // Check that we end up with no equations
         assert!(state.inferences(offset_tv).is_empty());
@@ -87,9 +85,9 @@ mod test {
     #[test]
     fn writes_inferences_for_constant_sizes() -> anyhow::Result<()> {
         // Create the values to run inference on
-        let offset = SV::new_value(0, Provenance::Synthetic);
-        let size = SV::new_known_value(1, KnownWord::from_le(16u32), Provenance::Synthetic);
-        let call_data = SV::new_synthetic(2, SVD::call_data(offset.clone(), size.clone()));
+        let offset = RSV::new_value(0, Provenance::Synthetic);
+        let size = RSV::new_known_value(1, KnownWord::from_le(16u32), Provenance::Synthetic);
+        let call_data = RSV::new_synthetic(2, RSVD::call_data(offset.clone(), size.clone()));
 
         // Register them in the state
         let mut state = InferenceState::empty();
@@ -97,7 +95,8 @@ mod test {
             state.register_many([offset, size, call_data.clone()]);
 
         // Run the inference rule
-        CallDataRule.infer(&call_data, &mut state)?;
+        let tc_input = state.value_unchecked(call_data_tv).clone();
+        CallDataRule.infer(&tc_input, &mut state)?;
 
         // Check that we end up with no equations
         assert!(state.inferences(offset_tv).is_empty());
@@ -115,17 +114,17 @@ mod test {
     #[test]
     fn writes_inferences_when_size_needs_folding() -> anyhow::Result<()> {
         // Create the values to run inference on
-        let offset = SV::new_value(0, Provenance::Synthetic);
-        let left_val = SV::new_known_value(1, KnownWord::from_le(7u32), Provenance::Synthetic);
-        let right_val = SV::new_known_value(2, KnownWord::from_le(9u32), Provenance::Synthetic);
-        let size = SV::new_synthetic(
+        let offset = RSV::new_value(0, Provenance::Synthetic);
+        let left_val = RSV::new_known_value(1, KnownWord::from_le(7u32), Provenance::Synthetic);
+        let right_val = RSV::new_known_value(2, KnownWord::from_le(9u32), Provenance::Synthetic);
+        let size = RSV::new_synthetic(
             3,
-            SVD::Add {
+            RSVD::Add {
                 left:  left_val.clone(),
                 right: right_val.clone(),
             },
         );
-        let call_data = SV::new_synthetic(4, SVD::call_data(offset.clone(), size.clone()));
+        let call_data = RSV::new_synthetic(4, RSVD::call_data(offset.clone(), size.clone()));
 
         // Register them in the state
         let mut state = InferenceState::empty();
@@ -133,7 +132,8 @@ mod test {
             state.register_many([offset, left_val, right_val, size, call_data.clone()]);
 
         // Run the inference rule
-        CallDataRule.infer(&call_data, &mut state)?;
+        let tc_input = state.value_unchecked(call_data_tv).clone();
+        CallDataRule.infer(&tc_input, &mut state)?;
 
         // Check that we end up with no equations
         assert!(state.inferences(offset_tv).is_empty());

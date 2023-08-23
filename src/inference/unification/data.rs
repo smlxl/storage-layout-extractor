@@ -91,7 +91,8 @@ where
         self.data.get(&root)
     }
 
-    /// Sets the provided auxiliary `data` for `value`, replacing
+    /// Sets the provided auxiliary `data` for `value`, replacing any existing
+    /// data for that value.
     pub fn set_data(&mut self, value: &Value, data: Data) {
         let root = self.find(value);
         self.data.insert(root, data);

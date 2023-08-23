@@ -8,7 +8,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{
     inference::{lift::Lift, state::InferenceState},
-    vm::value::{known::KnownWord, BoxedVal, SV, SVD},
+    vm::value::{known::KnownWord, RuntimeBoxedVal, RSV, RSVD},
 };
 
 /// The number of storage indices for which hashes will be generated (and hence
@@ -66,26 +66,26 @@ impl StorageSlotHashes {
 impl Lift for StorageSlotHashes {
     fn run(
         &mut self,
-        value: BoxedVal,
+        value: RuntimeBoxedVal,
         _state: &InferenceState,
-    ) -> crate::error::unification::Result<BoxedVal> {
+    ) -> crate::error::unification::Result<RuntimeBoxedVal> {
         let hashes = &self.hashes;
         let value_clone = value.clone();
-        let lift_hashes = |input_value: &SVD| {
-            let SVD::KnownData { value: known_value } = input_value else {
+        let lift_hashes = |input_value: &RSVD| {
+            let RSVD::KnownData { value: known_value } = input_value else {
                 return None;
             };
 
             // Now we can look up the hash we found, and convert it to the `Sha3` of a known
             // value if it is one.
             if let Some(slot_index) = hashes.get_by_left(&known_value.value_le()) {
-                let data = SV::new_known_value(
+                let data = RSV::new_known_value(
                     value_clone.instruction_pointer,
                     KnownWord::from(*slot_index),
                     value_clone.provenance,
                 );
 
-                Some(SVD::Sha3 { data })
+                Some(RSVD::Sha3 { data })
             } else {
                 None
             }
@@ -102,7 +102,7 @@ mod test {
             lift::{recognise_hashed_slots::StorageSlotHashes, Lift},
             state::InferenceState,
         },
-        vm::value::{known::KnownWord, Provenance, SV, SVD},
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD},
     };
 
     #[test]
@@ -133,7 +133,7 @@ mod test {
         let word = KnownWord::from_le(util::expected_hash_from_be_hex_string(
             "c2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b",
         ));
-        let value = SV::new_known_value(0, word, Provenance::Synthetic);
+        let value = RSV::new_known_value(0, word, Provenance::Synthetic);
 
         // Run the pass
         let state = InferenceState::empty();
@@ -141,8 +141,8 @@ mod test {
 
         // Check the structure
         match result.data {
-            SVD::Sha3 { data } => match data.data {
-                SVD::KnownData { value } => {
+            RSVD::Sha3 { data } => match data.data {
+                RSVD::KnownData { value } => {
                     assert_eq!(value, KnownWord::from(3));
                 }
 

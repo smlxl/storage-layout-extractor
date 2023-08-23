@@ -3,7 +3,7 @@
 use crate::{
     opcode::{ExecuteResult, Opcode},
     vm::{
-        value::{SymbolicValue, SymbolicValueData},
+        value::{RSV, RSVD},
         VM,
     },
 };
@@ -35,10 +35,7 @@ impl Opcode for Add {
         let b = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Add { left: a, right: b },
-        );
+        let result = RSV::new_from_execution(instruction_pointer, RSVD::Add { left: a, right: b });
 
         // Push it onto the stack
         stack.push(result)?;
@@ -91,10 +88,8 @@ impl Opcode for Mul {
         let b = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Multiply { left: a, right: b },
-        );
+        let result =
+            RSV::new_from_execution(instruction_pointer, RSVD::Multiply { left: a, right: b });
 
         // Push it onto the stack
         stack.push(result)?;
@@ -147,10 +142,8 @@ impl Opcode for Sub {
         let b = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Subtract { left: a, right: b },
-        );
+        let result =
+            RSV::new_from_execution(instruction_pointer, RSVD::Subtract { left: a, right: b });
 
         // Push it onto the stack
         stack.push(result)?;
@@ -203,9 +196,9 @@ impl Opcode for Div {
         let b = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Divide {
+            RSVD::Divide {
                 dividend: a,
                 divisor:  b,
             },
@@ -265,9 +258,9 @@ impl Opcode for SDiv {
         let b = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::SignedDivide {
+            RSVD::SignedDivide {
                 dividend: a,
                 divisor:  b,
             },
@@ -324,9 +317,9 @@ impl Opcode for Mod {
         let b = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Modulo {
+            RSVD::Modulo {
                 dividend: a,
                 divisor:  b,
             },
@@ -386,9 +379,9 @@ impl Opcode for SMod {
         let b = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::SignedModulo {
+            RSVD::SignedModulo {
                 dividend: a,
                 divisor:  b,
             },
@@ -453,13 +446,10 @@ impl Opcode for AddMod {
 
         // As they are semantically equivalent for the purposes of symbolic
         // execution, we simplify this into nested add and mod.
-        let add = SymbolicValue::new_from_execution(
+        let add = RSV::new_from_execution(instruction_pointer, RSVD::Add { left: a, right: b });
+        let modulo = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Add { left: a, right: b },
-        );
-        let modulo = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Modulo {
+            RSVD::Modulo {
                 dividend: add,
                 divisor:  n,
             },
@@ -523,14 +513,12 @@ impl Opcode for MulMod {
         let n = stack.pop()?;
 
         // As they are semantically equivalent for the purposes of symbolic
-        // execution, we simplify this into nested add and mod.
-        let mul = SymbolicValue::new_from_execution(
+        // execution, we simplify this into nested mul and mod.
+        let mul =
+            RSV::new_from_execution(instruction_pointer, RSVD::Multiply { left: a, right: b });
+        let modulo = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Multiply { left: a, right: b },
-        );
-        let modulo = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::Modulo {
+            RSVD::Modulo {
                 dividend: mul,
                 divisor:  n,
             },
@@ -587,9 +575,9 @@ impl Opcode for Exp {
         let b = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
+        let result = RSV::new_from_execution(
             instruction_pointer,
-            SymbolicValueData::Exp {
+            RSVD::Exp {
                 value:    a,
                 exponent: b,
             },
@@ -651,10 +639,8 @@ impl Opcode for SignExtend {
         let x = stack.pop()?;
 
         // Create the new value
-        let result = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::SignExtend { value: a, size: x },
-        );
+        let result =
+            RSV::new_from_execution(instruction_pointer, RSVD::SignExtend { value: a, size: x });
 
         // Push it onto the stack
         stack.push(result)?;
@@ -684,14 +670,14 @@ impl Opcode for SignExtend {
 mod test {
     use crate::{
         opcode::{arithmetic, test_util as util, Opcode},
-        vm::value::{Provenance, SymbolicValue, SymbolicValueData},
+        vm::value::{Provenance, RSV, RSVD},
     };
 
     #[test]
     fn add_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -705,7 +691,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::Add { left, right } => {
+            RSVD::Add { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -718,8 +704,8 @@ mod test {
     #[test]
     fn mul_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -733,7 +719,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::Multiply { left, right } => {
+            RSVD::Multiply { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -746,8 +732,8 @@ mod test {
     #[test]
     fn sub_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -761,7 +747,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::Subtract { left, right } => {
+            RSVD::Subtract { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
             }
@@ -774,8 +760,8 @@ mod test {
     #[test]
     fn div_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -789,7 +775,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::Divide { dividend, divisor } => {
+            RSVD::Divide { dividend, divisor } => {
                 assert_eq!(dividend, &input_left);
                 assert_eq!(divisor, &input_right);
             }
@@ -802,8 +788,8 @@ mod test {
     #[test]
     fn s_div_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -817,7 +803,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::SignedDivide { dividend, divisor } => {
+            RSVD::SignedDivide { dividend, divisor } => {
                 assert_eq!(dividend, &input_left);
                 assert_eq!(divisor, &input_right);
             }
@@ -830,8 +816,8 @@ mod test {
     #[test]
     fn mod_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -845,7 +831,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::Modulo { dividend, divisor } => {
+            RSVD::Modulo { dividend, divisor } => {
                 assert_eq!(dividend, &input_left);
                 assert_eq!(divisor, &input_right);
             }
@@ -858,8 +844,8 @@ mod test {
     #[test]
     fn s_mod_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -873,7 +859,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::SignedModulo { dividend, divisor } => {
+            RSVD::SignedModulo { dividend, divisor } => {
                 assert_eq!(dividend, &input_left);
                 assert_eq!(divisor, &input_right);
             }
@@ -886,9 +872,9 @@ mod test {
     #[test]
     fn add_mod_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_n = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
+        let input_n = RSV::new_synthetic(2, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_n.clone(),
             input_right.clone(),
@@ -905,11 +891,11 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::Modulo { dividend, divisor } => {
+            RSVD::Modulo { dividend, divisor } => {
                 assert_eq!(divisor, &input_n);
                 assert_eq!(dividend.provenance, Provenance::Execution);
                 match &dividend.data {
-                    SymbolicValueData::Add { left, right } => {
+                    RSVD::Add { left, right } => {
                         assert_eq!(left, &input_left);
                         assert_eq!(right, &input_right);
                     }
@@ -925,9 +911,9 @@ mod test {
     #[test]
     fn mul_mod_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_n = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
+        let input_n = RSV::new_synthetic(2, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_n.clone(),
             input_right.clone(),
@@ -944,11 +930,11 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::Modulo { dividend, divisor } => {
+            RSVD::Modulo { dividend, divisor } => {
                 assert_eq!(divisor, &input_n);
                 assert_eq!(dividend.provenance, Provenance::Execution);
                 match &dividend.data {
-                    SymbolicValueData::Multiply { left, right } => {
+                    RSVD::Multiply { left, right } => {
                         assert_eq!(left, &input_left);
                         assert_eq!(right, &input_right);
                     }
@@ -964,8 +950,8 @@ mod test {
     #[test]
     fn exp_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -979,7 +965,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::Exp { value, exponent } => {
+            RSVD::Exp { value, exponent } => {
                 assert_eq!(value, &input_left);
                 assert_eq!(exponent, &input_right);
             }
@@ -992,8 +978,8 @@ mod test {
     #[test]
     fn sign_extend_manipulates_stack() -> anyhow::Result<()> {
         // Prepare the stack and vm
-        let input_left = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_right = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_left = RSV::new_synthetic(0, RSVD::new_value());
+        let input_right = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_right.clone(), input_left.clone()])?;
 
@@ -1007,7 +993,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.provenance, Provenance::Execution);
         match &item.data {
-            SymbolicValueData::SignExtend { value, size } => {
+            RSVD::SignExtend { value, size } => {
                 assert_eq!(value, &input_left);
                 assert_eq!(size, &input_right);
             }

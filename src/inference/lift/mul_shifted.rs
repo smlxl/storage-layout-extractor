@@ -3,7 +3,7 @@
 
 use crate::{
     inference::{lift::Lift, state::InferenceState},
-    vm::value::{known::KnownWord, BoxedVal, SVD},
+    vm::value::{known::KnownWord, RuntimeBoxedVal, RSVD},
 };
 
 /// This pass detects and lifts expressions that move values around inside a
@@ -57,11 +57,11 @@ impl MulShiftedValue {
 impl Lift for MulShiftedValue {
     fn run(
         &mut self,
-        value: BoxedVal,
+        value: RuntimeBoxedVal,
         _state: &InferenceState,
-    ) -> crate::error::unification::Result<BoxedVal> {
-        fn insert_multiplicative_shifts(data: &SVD) -> Option<SVD> {
-            let SVD::Multiply { left, right } = data else {
+    ) -> crate::error::unification::Result<RuntimeBoxedVal> {
+        fn insert_multiplicative_shifts(data: &RSVD) -> Option<RSVD> {
+            let RSVD::Multiply { left, right } = data else {
                 return None;
             };
 
@@ -71,11 +71,11 @@ impl Lift for MulShiftedValue {
                 left.data.clone().constant_fold(),
                 right.data.clone().constant_fold(),
             ) {
-                (SVD::KnownData { value }, SVD::SubWord { .. }) => (
+                (RSVD::KnownData { value }, RSVD::SubWord { .. }) => (
                     value,
                     right.clone().transform_data(insert_multiplicative_shifts),
                 ),
-                (SVD::SubWord { .. }, SVD::KnownData { value }) => (
+                (RSVD::SubWord { .. }, RSVD::KnownData { value }) => (
                     value,
                     left.clone().transform_data(insert_multiplicative_shifts),
                 ),
@@ -86,7 +86,7 @@ impl Lift for MulShiftedValue {
                 return None;
             };
 
-            Some(SVD::Shifted { offset, value })
+            Some(RSVD::Shifted { offset, value })
         }
 
         Ok(value.transform_data(insert_multiplicative_shifts))

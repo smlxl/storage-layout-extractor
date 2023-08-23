@@ -1,7 +1,9 @@
 //! This module contains the [`InferenceEngine`] and related utilities that deal
 //! with inferring and unifying types for the program.
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
+
+use itertools::Itertools;
 
 use self::abi::U256Wrapper;
 use crate::{
@@ -12,19 +14,20 @@ use crate::{
     },
     inference::{
         abi::{AbiType, StructElement},
-        expression::{Span, TypeExpression, WordUse, TE},
+        expression::{InferenceSet, Span, TypeExpression, WordUse, TE},
         lift::LiftingPasses,
         rule::InferenceRules,
         state::{InferenceState, TypeVariable},
     },
     vm::{
-        value::{BoxedVal, SVD},
+        value::{RuntimeBoxedVal, TCBoxedVal, TCSVD},
         ExecutionResult,
     },
     StorageLayout,
 };
 
 pub mod abi;
+pub mod debug;
 pub mod expression;
 pub mod lift;
 pub mod rule;
@@ -52,11 +55,7 @@ impl InferenceEngine {
     #[must_use]
     pub fn new(config: Config, execution_result: ExecutionResult) -> Self {
         // Create the state and register all initial values into it.
-        let mut state = InferenceState::empty();
-        execution_result
-            .all_values()
-            .into_iter()
-            .for_each(|v| _ = state.register(v));
+        let state = InferenceState::empty();
 
         // Create the unifier
         Self {
@@ -73,15 +72,14 @@ impl InferenceEngine {
     ///
     /// Returns [`Err`] if the engine's execution fails for any reason.
     pub fn run(&mut self) -> Result<StorageLayout> {
-        self.lift()?;
-        self.assign_vars();
+        let transformed_values = self.lift()?;
+        self.assign_vars(transformed_values);
         self.infer()?;
         self.unify()
     }
 
     /// Executes the lifting passes on all of the available symbolic values,
-    /// potentially transforming them, and then returns the associated type
-    /// variables for each expression.
+    /// potentially transforming them, returning the transformed values.
     ///
     /// Executing this method inserts all of the transformed values into the
     /// state of the inference engine.
@@ -89,10 +87,14 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// Returns [`Err`] if one or more of the lifting passes returns an error.
-    pub fn lift(&mut self) -> Result<()> {
+    pub fn lift(&mut self) -> Result<Vec<RuntimeBoxedVal>> {
+        // Identically structured values tell us the same thing at inference time, so we
+        // remove any exact duplicates to make the type checking process faster.
+        let result_values = self.execution_result.all_values().into_iter().unique().collect_vec();
+
         let mut new_values = Vec::new();
         let mut errors = Errors::new();
-        for value in self.values_under_analysis_cloned() {
+        for value in result_values {
             match self.config.sugar_passes.run(value, &self.state) {
                 Ok(v) => new_values.push(v),
                 Err(e) => errors.add_many_located(e),
@@ -100,34 +102,21 @@ impl InferenceEngine {
         }
 
         if errors.is_empty() {
-            unsafe { self.set_values_under_analysis(new_values) };
-            Ok(())
+            Ok(new_values)
         } else {
             Err(errors)
         }
     }
 
     /// Assigns type variables to all of the provided `values` and their
-    /// sub-values, registering them in the engine state.
+    /// sub-values, registering them in the engine state and transforming them
+    /// into the TC value representation.
     ///
     /// This function must be run after any operations (such as
     /// [`Self::lift`]) that mutate the values.
-    pub fn assign_vars(&mut self) {
-        // Create a queue of values that have not yet been processed.
-        let mut queue: VecDeque<BoxedVal> = VecDeque::new();
-        queue.extend(self.values_under_analysis_cloned());
-
-        // While the queue still has entries, we get the children of the entry, add
-        // them, and register the entry.
-        while let Some(v) = queue.pop_front() {
-            let inline: Vec<BoxedVal> = v.children().into_iter().cloned().collect();
-            queue.extend(inline);
-            self.state.register(v);
-        }
-
-        // Store the values in the unifier.
-        unsafe {
-            self.set_values_under_analysis(self.state.values().into_iter().cloned().collect());
+    pub fn assign_vars(&mut self, values: Vec<RuntimeBoxedVal>) {
+        for value in values {
+            let _ = self.state.register(value);
         }
     }
 
@@ -170,26 +159,26 @@ impl InferenceEngine {
         let all_values = self.state.values();
 
         // Start building the layout
-        let constant_storage_slots: Vec<BoxedVal> = all_values
+        let constant_storage_slots: Vec<TCBoxedVal> = all_values
             .into_iter()
             .filter(|v| {
                 matches!(
                     &v.data,
-                    SVD::StorageSlot { key } if matches!(&key.data, SVD::KnownData {..}))
+                    TCSVD::StorageSlot { key } if matches!(&key.data, TCSVD::KnownData {..}))
             })
             .cloned()
             .collect();
 
         for slot in constant_storage_slots {
             let ty_var = self.state.var_unchecked(&slot);
-            let SVD::StorageSlot { key } = &slot.data else {
+            let TCSVD::StorageSlot { key } = &slot.data else {
                 Err(Error::InvalidTree {
                     value:  slot.clone(),
                     reason: "Failed to destructure supposedly known structure".into(),
                 }
                 .locate(slot.instruction_pointer))?
             };
-            let SVD::KnownData { value } = &key.data else {
+            let TCSVD::KnownData { value } = &key.data else {
                 Err(Error::InvalidTree {
                     value:  key.clone(),
                     reason: "Failed to destructure supposedly known structure".into(),
@@ -208,6 +197,37 @@ impl InferenceEngine {
         }
 
         Ok(layout)
+    }
+
+    /// Iterates over all of the type variables, and where packed encodings
+    /// should be structs it hoists them to be structs.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if inferences cannot be retrieved for any given type
+    /// variable.
+    pub fn hoist_structs(&mut self) -> Result<()> {
+        // NOTE Currently broken
+        for ty_var in self.state.variables() {
+            let inference = self.type_of(ty_var)?;
+
+            // Type constructors of certain kinds can contain structs
+            match inference {
+                TE::DynamicArray { element }
+                | TE::FixedArray { element, .. }
+                | TE::Mapping { value: element, .. } => {
+                    let elem_type = self.type_of(element)?;
+                    let new_type = match elem_type {
+                        TE::Packed { types, .. } => TE::struct_of(types.clone()),
+                        _ => elem_type.clone(),
+                    };
+                    self.state.result().set_data(&ty_var, InferenceSet::from([new_type]));
+                }
+                _ => (),
+            }
+        }
+
+        Ok(())
     }
 
     /// Converts the inferences made about `var` into the best possible
@@ -457,7 +477,7 @@ impl InferenceEngine {
     /// Exactly what these are depends heavily on the current state of the
     /// engine at the time this method is called.
     #[must_use]
-    pub fn values_under_analysis(&self) -> Vec<&BoxedVal> {
+    pub fn values_under_analysis(&self) -> Vec<&TCBoxedVal> {
         self.state.values()
     }
 
@@ -466,7 +486,7 @@ impl InferenceEngine {
     /// Exactly what these are depends heavily on the current state of the
     /// engine at the time this method is called.
     #[must_use]
-    pub fn values_under_analysis_cloned(&self) -> Vec<BoxedVal> {
+    pub fn values_under_analysis_cloned(&self) -> Vec<TCBoxedVal> {
         self.state.values().into_iter().cloned().collect()
     }
 
@@ -480,10 +500,10 @@ impl InferenceEngine {
     ///
     /// In particular, it involves _clearing_ the state, thus invalidating all
     /// type variables and typing judgements.
-    pub unsafe fn set_values_under_analysis(&mut self, values: Vec<BoxedVal>) {
+    pub unsafe fn set_runtime_values_under_analysis(&mut self, values: Vec<RuntimeBoxedVal>) {
         self.state.clear();
         for v in values {
-            self.state.register(v);
+            let _ = self.state.register(v);
         }
     }
 }
@@ -533,10 +553,15 @@ impl AbiValue {
     ///
     /// If `self` is not [`Self::Packed`].
     #[must_use]
-    pub fn expect_type(self, msg: &'static str) -> AbiType {
+    pub fn expect_type(self, _: &'static str) -> AbiType {
         match self {
             Self::Type(tp) => tp,
-            Self::Packed(_) => panic!("{}", msg),
+            Self::Packed(tps) => AbiType::Struct {
+                elements: tps
+                    .iter()
+                    .map(|(tp, off)| StructElement::new(*off, tp.clone()))
+                    .collect(),
+            },
         }
     }
 }
@@ -563,17 +588,17 @@ impl From<Vec<(AbiType, usize)>> for AbiValue {
 pub mod test {
     use crate::{
         inference::{abi::AbiType, Config, InferenceEngine},
-        vm::value::{known::KnownWord, Provenance, SymbolicValue, SVD},
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD},
     };
 
     #[test]
     fn unifies_a_single_simple_storage_slot() -> anyhow::Result<()> {
         // `v_2 + v_3`
-        let v_2 = SymbolicValue::new_value(0, Provenance::Synthetic);
-        let v_3 = SymbolicValue::new_value(1, Provenance::Synthetic);
-        let add = SymbolicValue::new(
+        let v_2 = RSV::new_value(0, Provenance::Synthetic);
+        let v_3 = RSV::new_value(1, Provenance::Synthetic);
+        let add = RSV::new(
             2,
-            SVD::Add {
+            RSVD::Add {
                 left:  v_2.clone(),
                 right: v_3.clone(),
             },
@@ -581,29 +606,29 @@ pub mod test {
         );
 
         // `concat(v_1, c_1)`
-        let v_1 = SymbolicValue::new_value(3, Provenance::Synthetic);
-        let c_1 = SymbolicValue::new_known_value(4, KnownWord::from(1), Provenance::Synthetic);
-        let concat = SymbolicValue::new(
+        let v_1 = RSV::new_value(3, Provenance::Synthetic);
+        let c_1 = RSV::new_known_value(4, KnownWord::from(1), Provenance::Synthetic);
+        let concat = RSV::new(
             5,
-            SVD::Concat {
+            RSVD::Concat {
                 values: vec![v_1.clone(), c_1.clone()],
             },
             Provenance::Synthetic,
         );
 
         // `sha3(concat(v_1, c_1))`
-        let sha3 = SymbolicValue::new(
+        let sha3 = RSV::new(
             5,
-            SVD::Sha3 {
+            RSVD::Sha3 {
                 data: concat.clone(),
             },
             Provenance::Synthetic,
         );
 
         // `s_store(sha3(concat(v_1, c_1)), v_2 + v_3)`
-        let store = SymbolicValue::new(
+        let store = RSV::new(
             6,
-            SVD::StorageWrite {
+            RSVD::StorageWrite {
                 key:   sha3.clone(),
                 value: add.clone(),
             },
@@ -612,39 +637,38 @@ pub mod test {
 
         // Create the unifier
         let config = Config::default();
-        let mut unifier = InferenceEngine::new(config, util::default_execution_result());
-
-        // Force the values for analysis to be our `store` above.
-        unsafe { unifier.set_values_under_analysis(vec![store.clone()]) }
+        let mut unifier = InferenceEngine::new(
+            config,
+            util::execution_result_with_values(vec![store.clone()]),
+        );
 
         // First we run the lifting, and check the results
-        unifier.lift()?;
-        let results = unifier.values_under_analysis_cloned();
+        let results = unifier.lift()?;
         assert_eq!(results.len(), 1);
 
-        let c_1_slot = SymbolicValue::new(
+        let c_1_slot = RSV::new(
             0,
-            SVD::StorageSlot { key: c_1.clone() },
+            RSVD::StorageSlot { key: c_1.clone() },
             Provenance::Synthetic,
         );
-        let c_1_mapping = SymbolicValue::new(
+        let c_1_mapping = RSV::new(
             0,
-            SVD::MappingAccess {
+            RSVD::MappingAccess {
                 key:  v_1.clone(),
                 slot: c_1_slot.clone(),
             },
             Provenance::Synthetic,
         );
-        let store_slot = SymbolicValue::new(
+        let store_slot = RSV::new(
             0,
-            SVD::StorageSlot {
+            RSVD::StorageSlot {
                 key: c_1_mapping.clone(),
             },
             Provenance::Synthetic,
         );
-        let processed_store = SymbolicValue::new(
+        let processed_store = RSV::new(
             0,
-            SVD::StorageWrite {
+            RSVD::StorageWrite {
                 key:   store_slot.clone(),
                 value: add.clone(),
             },
@@ -653,28 +677,8 @@ pub mod test {
 
         assert_eq!(results[0], processed_store);
 
-        // Now we can run type variable assignment and check things
-        unifier.assign_vars();
-        let values = unifier.values_under_analysis();
-        assert_eq!(values.len(), 9);
-
-        // It should contain the lifted values
-        assert!(values.contains(&&v_2));
-        assert!(values.contains(&&v_3));
-        assert!(values.contains(&&add));
-        assert!(values.contains(&&v_1));
-        assert!(values.contains(&&c_1));
-        assert!(values.contains(&&c_1_slot));
-        assert!(values.contains(&&c_1_mapping));
-        assert!(values.contains(&&store_slot));
-        assert!(values.contains(&&processed_store));
-
-        // But not the ones eliminated by that process
-        assert!(!values.contains(&&concat));
-        assert!(!values.contains(&&sha3));
-        assert!(!values.contains(&&store));
-
-        // Next we can actually run the inference process and unify
+        // Now we can run type variable assignment and inference
+        unifier.assign_vars(results);
         unifier.infer()?;
 
         // We can check on the layout to make sure things are correct
@@ -698,52 +702,43 @@ pub mod test {
 
     #[test]
     fn assigns_type_variables_to_all_sub_expressions() {
-        let var_1 = SymbolicValue::new_value(0, Provenance::Synthetic);
-        let var_2 = SymbolicValue::new_value(1, Provenance::Synthetic);
-        let add = SymbolicValue::new(
+        let var_1 = RSV::new_value(0, Provenance::Synthetic);
+        let var_2 = RSV::new_value(1, Provenance::Synthetic);
+        let add = RSV::new(
             2,
-            SVD::Add {
+            RSVD::Add {
                 left:  var_1.clone(),
                 right: var_2.clone(),
             },
             Provenance::Synthetic,
         );
-        let storage_key =
-            SymbolicValue::new_known_value(3, KnownWord::from(10), Provenance::Synthetic);
-        let storage_slot = SymbolicValue::new(
+        let storage_key = RSV::new_known_value(3, KnownWord::from(10), Provenance::Synthetic);
+        let storage_slot = RSV::new(
             3,
-            SVD::StorageSlot {
+            RSVD::StorageSlot {
                 key: storage_key.clone(),
             },
             Provenance::Synthetic,
         );
-        let mapping = SymbolicValue::new(
+        let mapping = RSV::new(
             4,
-            SVD::MappingAccess {
+            RSVD::MappingAccess {
                 slot: storage_slot.clone(),
                 key:  add.clone(),
             },
             Provenance::Synthetic,
         );
-        let var_3 = SymbolicValue::new_value(5, Provenance::Synthetic);
+        let var_3 = RSV::new_value(5, Provenance::Synthetic);
 
         let values = vec![mapping.clone(), var_3.clone()];
 
         let config = Config::default();
         let mut unifier = InferenceEngine::new(config, util::default_execution_result());
-        unsafe { unifier.set_values_under_analysis(values) };
 
-        unifier.assign_vars();
+        unifier.assign_vars(values);
         let state = unifier.state();
 
         assert_eq!(state.values().len(), 7);
-        assert!(state.var(&var_1).is_some());
-        assert!(state.var(&var_2).is_some());
-        assert!(state.var(&add).is_some());
-        assert!(state.var(&storage_key).is_some());
-        assert!(state.var(&storage_slot).is_some());
-        assert!(state.var(&mapping).is_some());
-        assert!(state.var(&var_3).is_some());
     }
 
     /// Utilities for these tests
@@ -753,7 +748,7 @@ pub mod test {
             disassembly::InstructionStream,
             error::execution,
             opcode::control::Invalid,
-            vm::ExecutionResult,
+            vm::{state::VMState, value::RuntimeBoxedVal, ExecutionResult},
         };
 
         /// Creates a default execution result.
@@ -763,6 +758,21 @@ pub mod test {
                 instructions: InstructionStream::try_from(bytecode![Invalid::default()].as_slice())
                     .expect("Cannot actually panic due to statically-known bytecode"),
                 states:       Vec::new(),
+                errors:       execution::Errors::new(),
+            }
+        }
+
+        /// Creates an execution result that puts the provided `values`
+        /// somewhere in it for analysis.
+        #[must_use]
+        pub fn execution_result_with_values(values: Vec<RuntimeBoxedVal>) -> ExecutionResult {
+            let mut state_with_values = VMState::new(0, 0, 0);
+            values.into_iter().for_each(|v| state_with_values.record_value(v));
+
+            ExecutionResult {
+                instructions: InstructionStream::try_from(bytecode![Invalid::default()].as_slice())
+                    .expect("Cannot actually panic due to statically-known bytecode"),
+                states:       vec![state_with_values],
                 errors:       execution::Errors::new(),
             }
         }

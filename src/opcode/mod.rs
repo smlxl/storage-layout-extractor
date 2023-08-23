@@ -103,7 +103,7 @@ pub type ExecuteResult = Result<()>;
 mod test_util {
     use crate::{
         disassembly::InstructionStream,
-        vm::{value::BoxedVal, Config, VM},
+        vm::{value::RuntimeBoxedVal, Config, VM},
     };
 
     /// Constructs a new virtual machine with the provided `values` pushed
@@ -111,7 +111,7 @@ mod test_util {
     ///
     /// This means that the last item in `values` will be put on the top of
     /// the stack.
-    pub fn new_vm_with_values_on_stack(values: Vec<BoxedVal>) -> anyhow::Result<VM> {
+    pub fn new_vm_with_values_on_stack(values: Vec<RuntimeBoxedVal>) -> anyhow::Result<VM> {
         // We don't actually care what these are for this test, so we just have
         // _something_ long enough to account for what is going on.
         let bytes: Vec<u8> = vec![
@@ -129,7 +129,7 @@ mod test_util {
     /// the stack.
     pub fn new_vm_with_instructions_and_values_on_stack(
         instructions: InstructionStream,
-        values: Vec<BoxedVal>,
+        values: Vec<RuntimeBoxedVal>,
     ) -> anyhow::Result<VM> {
         let config = Config::default();
 

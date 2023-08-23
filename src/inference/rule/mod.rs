@@ -55,7 +55,7 @@ use crate::{
         },
         state::InferenceState,
     },
-    vm::value::BoxedVal,
+    vm::value::TCBoxedVal,
 };
 
 /// A trait representing processes for
@@ -86,7 +86,7 @@ where
     /// # Errors
     ///
     /// Returns [`Err`] if something goes wrong with the heuristic analysis.
-    fn infer(&self, value: &BoxedVal, state: &mut InferenceState) -> Result<()>;
+    fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()>;
 }
 
 /// A container for a set of inference rules that will be run in an arbitrary
@@ -123,7 +123,7 @@ impl InferenceRules {
     /// # Errors
     ///
     /// Returns [`Err`] if any of the passes error.
-    pub fn infer(&mut self, value: &BoxedVal, state: &mut InferenceState) -> Result<()> {
+    pub fn infer(&mut self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
         for rule in &self.rules {
             rule.infer(value, state)?;
         }

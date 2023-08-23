@@ -5,7 +5,7 @@ use crate::{
     error::{container::Locatable, execution},
     opcode::control::JumpDest,
     vm::{
-        value::{BoxedVal, SymbolicValueData},
+        value::{RuntimeBoxedVal, RSVD},
         VM,
     },
 };
@@ -28,10 +28,10 @@ use crate::{
 /// It is assumed that all errors returned by this function are instances of
 /// [`VMError`].
 #[allow(clippy::boxed_local)] // We always pass around boxed values during execution
-pub fn validate_jump_destination(counter: &BoxedVal, vm: &mut VM) -> execution::Result<u32> {
+pub fn validate_jump_destination(counter: &RuntimeBoxedVal, vm: &mut VM) -> execution::Result<u32> {
     let instruction_pointer = vm.instruction_pointer()?;
     let jump_target = match &counter.clone().constant_fold().data {
-        SymbolicValueData::KnownData { value, .. } => value.value_le().as_u32(),
+        RSVD::KnownData { value, .. } => value.value_le().as_u32(),
         _ => {
             return Err(execution::Error::NoConcreteJumpDestination.locate(instruction_pointer));
         }

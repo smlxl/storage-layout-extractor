@@ -119,6 +119,7 @@ pub mod error;
 pub mod inference;
 pub mod layout;
 pub mod opcode;
+pub mod utility;
 pub mod vm;
 
 // Re-exports to provide the library interface.

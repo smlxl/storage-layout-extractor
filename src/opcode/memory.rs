@@ -12,7 +12,7 @@ use crate::{
     error::disassembly,
     opcode::{ExecuteResult, Opcode},
     vm::{
-        value::{known::KnownWord, Provenance, SymbolicValue, SymbolicValueData},
+        value::{known::KnownWord, Provenance, RSV, RSVD},
         VM,
     },
 };
@@ -48,17 +48,14 @@ impl Opcode for CallDataLoad {
         let offset = stack.pop()?;
 
         // Construct a constant representing the word read
-        let size = SymbolicValue::new_known_value(
+        let size = RSV::new_known_value(
             instruction_pointer,
             KnownWord::from_le(32u8),
             Provenance::Synthetic,
         );
 
         // Then we construct the returned value
-        let value = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::call_data(offset, size),
-        );
+        let value = RSV::new_from_execution(instruction_pointer, RSVD::call_data(offset, size));
 
         // And push it onto the stack
         stack.push(value)?;
@@ -107,7 +104,7 @@ impl Opcode for CallDataSize {
         let mut stack = vm.stack_handle()?;
 
         // Construct the value and push it onto the stack.
-        let length = SymbolicValue::new_value(instruction_pointer, Provenance::CallDataSize);
+        let length = RSV::new_value(instruction_pointer, Provenance::CallDataSize);
         stack.push(length)?;
 
         // Done, so return ok
@@ -171,44 +168,41 @@ impl Opcode for CallDataCopy {
         // Modify the memory
         let memory = vm.state()?.memory_mut();
 
-        if let SymbolicValueData::KnownData { value } = &size.data {
-            let num_32 = SymbolicValue::new_known_value(
+        if let RSVD::KnownData { value } = &size.data {
+            let num_32 = RSV::new_known_value(
                 instruction_pointer,
                 KnownWord::from(32),
                 Provenance::Execution,
             );
             let actual_size: usize = value.into();
             for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = SymbolicValue::new_known_value(
+                let to_add_to_offset = RSV::new_known_value(
                     instruction_pointer,
                     KnownWord::from(internal_offset),
                     Provenance::Execution,
                 );
-                let dest_offset = SymbolicValue::new_from_execution(
+                let dest_offset = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::Add {
+                    RSVD::Add {
                         left:  dest_offset.clone(),
                         right: to_add_to_offset.clone(),
                     },
                 );
-                let src_offset = SymbolicValue::new_from_execution(
+                let src_offset = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::Add {
+                    RSVD::Add {
                         left:  offset.clone(),
                         right: to_add_to_offset,
                     },
                 );
-                let value = SymbolicValue::new_from_execution(
+                let value = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::call_data(src_offset, num_32.clone()),
+                    RSVD::call_data(src_offset, num_32.clone()),
                 );
                 memory.store(dest_offset, value);
             }
         } else {
-            let value = SymbolicValue::new_from_execution(
-                instruction_pointer,
-                SymbolicValueData::call_data(offset, size),
-            );
+            let value = RSV::new_from_execution(instruction_pointer, RSVD::call_data(offset, size));
             memory.store(dest_offset, value);
         }
 
@@ -256,7 +250,7 @@ impl Opcode for CodeSize {
         let mut stack = vm.stack_handle()?;
 
         // Construct the value
-        let code_size_constant = SymbolicValue::new_known_value(
+        let code_size_constant = RSV::new_known_value(
             instruction_pointer,
             KnownWord::from(true_code_size),
             Provenance::Execution,
@@ -324,36 +318,36 @@ impl Opcode for CodeCopy {
         // Modify the memory
         let memory = vm.state()?.memory_mut();
 
-        if let SymbolicValueData::KnownData { value } = &size.data {
-            let num_32 = SymbolicValue::new_known_value(
+        if let RSVD::KnownData { value } = &size.data {
+            let num_32 = RSV::new_known_value(
                 instruction_pointer,
                 KnownWord::from(32),
                 Provenance::Execution,
             );
             let actual_size: usize = value.into();
             for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = SymbolicValue::new_known_value(
+                let to_add_to_offset = RSV::new_known_value(
                     instruction_pointer,
                     KnownWord::from(internal_offset),
                     Provenance::Execution,
                 );
-                let dest_offset = SymbolicValue::new_from_execution(
+                let dest_offset = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::Add {
+                    RSVD::Add {
                         left:  dest_offset.clone(),
                         right: to_add_to_offset.clone(),
                     },
                 );
-                let src_offset = SymbolicValue::new_from_execution(
+                let src_offset = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::Add {
+                    RSVD::Add {
                         left:  offset.clone(),
                         right: to_add_to_offset,
                     },
                 );
-                let value = SymbolicValue::new_from_execution(
+                let value = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::CodeCopy {
+                    RSVD::CodeCopy {
                         offset: src_offset,
                         size:   num_32.clone(),
                     },
@@ -361,10 +355,8 @@ impl Opcode for CodeCopy {
                 memory.store(dest_offset, value);
             }
         } else {
-            let value = SymbolicValue::new_from_execution(
-                instruction_pointer,
-                SymbolicValueData::CodeCopy { offset, size },
-            );
+            let value =
+                RSV::new_from_execution(instruction_pointer, RSVD::CodeCopy { offset, size });
             memory.store(dest_offset, value);
         }
 
@@ -419,10 +411,7 @@ impl Opcode for ExtCodeSize {
         let address = stack.pop()?;
 
         // Construct the value and push it onto the stack
-        let value = SymbolicValue::new_from_execution(
-            instruction_pointer,
-            SymbolicValueData::ExtCodeSize { address },
-        );
+        let value = RSV::new_from_execution(instruction_pointer, RSVD::ExtCodeSize { address });
         stack.push(value)?;
 
         // Done, so return ok
@@ -488,36 +477,36 @@ impl Opcode for ExtCodeCopy {
         // Modify the memory
         let memory = vm.state()?.memory_mut();
 
-        if let SymbolicValueData::KnownData { value } = &size.data {
-            let num_32 = SymbolicValue::new_known_value(
+        if let RSVD::KnownData { value } = &size.data {
+            let num_32 = RSV::new_known_value(
                 instruction_pointer,
                 KnownWord::from(32),
                 Provenance::Execution,
             );
             let actual_size: usize = value.into();
             for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = SymbolicValue::new_known_value(
+                let to_add_to_offset = RSV::new_known_value(
                     instruction_pointer,
                     KnownWord::from(internal_offset),
                     Provenance::Execution,
                 );
-                let dest_offset = SymbolicValue::new_from_execution(
+                let dest_offset = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::Add {
+                    RSVD::Add {
                         left:  dest_offset.clone(),
                         right: to_add_to_offset.clone(),
                     },
                 );
-                let src_offset = SymbolicValue::new_from_execution(
+                let src_offset = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::Add {
+                    RSVD::Add {
                         left:  offset.clone(),
                         right: to_add_to_offset,
                     },
                 );
-                let value = SymbolicValue::new_from_execution(
+                let value = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::ExtCodeCopy {
+                    RSVD::ExtCodeCopy {
                         address: address.clone(),
                         offset:  src_offset,
                         size:    num_32.clone(),
@@ -526,9 +515,9 @@ impl Opcode for ExtCodeCopy {
                 memory.store(dest_offset, value);
             }
         } else {
-            let value = SymbolicValue::new_from_execution(
+            let value = RSV::new_from_execution(
                 instruction_pointer,
-                SymbolicValueData::ExtCodeCopy {
+                RSVD::ExtCodeCopy {
                     address,
                     offset,
                     size,
@@ -585,7 +574,7 @@ impl Opcode for ReturnDataSize {
         let mut stack = vm.stack_handle()?;
 
         // Construct the value and shove it onto the stack.
-        let size = SymbolicValue::new_value(instruction_pointer, Provenance::ReturnDataSize);
+        let size = RSV::new_value(instruction_pointer, Provenance::ReturnDataSize);
         stack.push(size)?;
 
         // Done, so return ok
@@ -649,36 +638,36 @@ impl Opcode for ReturnDataCopy {
         // Modify the memory
         let memory = vm.state()?.memory_mut();
 
-        if let SymbolicValueData::KnownData { value } = &size.data {
-            let num_32 = SymbolicValue::new_known_value(
+        if let RSVD::KnownData { value } = &size.data {
+            let num_32 = RSV::new_known_value(
                 instruction_pointer,
                 KnownWord::from(32),
                 Provenance::Execution,
             );
             let actual_size: usize = value.into();
             for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = SymbolicValue::new_known_value(
+                let to_add_to_offset = RSV::new_known_value(
                     instruction_pointer,
                     KnownWord::from(internal_offset),
                     Provenance::Execution,
                 );
-                let dest_offset = SymbolicValue::new_from_execution(
+                let dest_offset = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::Add {
+                    RSVD::Add {
                         left:  dest_offset.clone(),
                         right: to_add_to_offset.clone(),
                     },
                 );
-                let src_offset = SymbolicValue::new_from_execution(
+                let src_offset = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::Add {
+                    RSVD::Add {
                         left:  offset.clone(),
                         right: to_add_to_offset,
                     },
                 );
-                let value = SymbolicValue::new_from_execution(
+                let value = RSV::new_from_execution(
                     instruction_pointer,
-                    SymbolicValueData::ReturnData {
+                    RSVD::ReturnData {
                         offset: src_offset,
                         size:   num_32.clone(),
                     },
@@ -686,10 +675,8 @@ impl Opcode for ReturnDataCopy {
                 memory.store(dest_offset, value);
             }
         } else {
-            let value = SymbolicValue::new_from_execution(
-                instruction_pointer,
-                SymbolicValueData::ReturnData { offset, size },
-            );
+            let value =
+                RSV::new_from_execution(instruction_pointer, RSVD::ReturnData { offset, size });
             memory.store(dest_offset, value);
         }
 
@@ -1061,7 +1048,7 @@ impl Opcode for MSize {
         let mut stack = vm.stack_handle()?;
 
         // Prepare the value
-        let size = SymbolicValue::new_value(instruction_pointer, Provenance::MSize);
+        let size = RSV::new_value(instruction_pointer, Provenance::MSize);
 
         // Push it onto the stack
         stack.push(size)?;
@@ -1109,9 +1096,9 @@ impl Opcode for Push0 {
         let mut stack = vm.stack_handle()?;
 
         // Construct the value of zero
-        let zero = SymbolicValue::new(
+        let zero = RSV::new(
             instruction_pointer,
-            SymbolicValueData::new_known(KnownWord::zero()),
+            RSVD::new_known(KnownWord::zero()),
             Provenance::Bytecode,
         );
 
@@ -1224,9 +1211,9 @@ impl Opcode for PushN {
         let item_data = self.bytes_as_word();
 
         // Construct the value to push
-        let item = SymbolicValue::new(
+        let item = RSV::new(
             instruction_pointer,
-            SymbolicValueData::new_known(item_data),
+            RSVD::new_known(item_data),
             Provenance::Bytecode,
         );
 
@@ -1423,21 +1410,14 @@ mod test {
         opcode::{memory, test_util as util, Opcode},
         vm::{
             state::memory::MemStoreSize,
-            value::{
-                known::KnownWord,
-                BoxedVal,
-                Provenance,
-                SymbolicValue,
-                SymbolicValueData,
-                SVD,
-            },
+            value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
         },
     };
 
     #[test]
     fn call_data_load_inserts_value_with_correct_provenance() -> anyhow::Result<()> {
         // First we have to prepare the virtual machine and the instruction
-        let input_offset = SymbolicValue::new_value(0, Provenance::Synthetic);
+        let input_offset = RSV::new_value(0, Provenance::Synthetic);
         let mut vm = util::new_vm_with_values_on_stack(vec![input_offset])?;
 
         // Run the opcode
@@ -1451,7 +1431,7 @@ mod test {
         let item = stack.read(0)?;
         assert_eq!(item.instruction_pointer, 0);
         match &item.data {
-            SymbolicValueData::CallData { offset, .. } => {
+            RSVD::CallData { offset, .. } => {
                 assert_eq!(offset.provenance, Provenance::Synthetic);
             }
             _ => panic!("Invalid data"),
@@ -1482,9 +1462,9 @@ mod test {
     #[test]
     fn call_data_copy_copies_into_memory() -> anyhow::Result<()> {
         // Prepare the values on stack and VM
-        let dest_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_offset = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let dest_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_offset = RSV::new_synthetic(1, RSVD::new_value());
+        let input_size = RSV::new_synthetic(2, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_size.clone(),
             input_offset.clone(),
@@ -1503,7 +1483,7 @@ mod test {
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
-            SymbolicValueData::CallData { offset, size, .. } => {
+            RSVD::CallData { offset, size, .. } => {
                 assert_eq!(offset, &input_offset);
                 assert_eq!(size, &input_size);
             }
@@ -1530,7 +1510,7 @@ mod test {
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
         match &value.data {
-            SymbolicValueData::KnownData { value, .. } => {
+            RSVD::KnownData { value, .. } => {
                 assert_eq!(value, &KnownWord::from(code_size_actual));
             }
             _ => panic!("Incorrect data payload"),
@@ -1542,9 +1522,9 @@ mod test {
     #[test]
     fn code_copy_copies_into_memory() -> anyhow::Result<()> {
         // Prepare the values on stack and VM
-        let dest_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_offset = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let dest_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_offset = RSV::new_synthetic(1, RSVD::new_value());
+        let input_size = RSV::new_synthetic(2, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_size.clone(),
             input_offset.clone(),
@@ -1563,7 +1543,7 @@ mod test {
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
-            SymbolicValueData::CodeCopy { offset, size } => {
+            RSVD::CodeCopy { offset, size } => {
                 assert_eq!(offset, &input_offset);
                 assert_eq!(size, &input_size);
             }
@@ -1577,7 +1557,7 @@ mod test {
     #[test]
     fn ext_code_size_puts_value_on_stack() -> anyhow::Result<()> {
         // Prepare the virtual machine
-        let address = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
+        let address = RSV::new_synthetic(0, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![address.clone()])?;
 
         // Prepare and run the opcode
@@ -1589,7 +1569,7 @@ mod test {
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Execution);
-        assert_eq!(value.data, SymbolicValueData::ExtCodeSize { address });
+        assert_eq!(value.data, RSVD::ExtCodeSize { address });
 
         Ok(())
     }
@@ -1597,10 +1577,10 @@ mod test {
     #[test]
     fn ext_code_copy_copies_into_memory() -> anyhow::Result<()> {
         // Prepare the values on stack and VM
-        let input_address = SymbolicValue::new_synthetic(7, SymbolicValueData::new_value());
-        let dest_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_offset = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let input_address = RSV::new_synthetic(7, RSVD::new_value());
+        let dest_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_offset = RSV::new_synthetic(1, RSVD::new_value());
+        let input_size = RSV::new_synthetic(2, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_size.clone(),
             input_offset.clone(),
@@ -1620,7 +1600,7 @@ mod test {
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
-            SymbolicValueData::ExtCodeCopy {
+            RSVD::ExtCodeCopy {
                 address,
                 offset,
                 size,
@@ -1657,9 +1637,9 @@ mod test {
     #[test]
     fn return_data_copy_copies_into_memory() -> anyhow::Result<()> {
         // Prepare the values on stack and VM
-        let dest_offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_offset = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
-        let input_size = SymbolicValue::new_synthetic(2, SymbolicValueData::new_value());
+        let dest_offset = RSV::new_synthetic(0, RSVD::new_value());
+        let input_offset = RSV::new_synthetic(1, RSVD::new_value());
+        let input_size = RSV::new_synthetic(2, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![
             input_size.clone(),
             input_offset.clone(),
@@ -1678,7 +1658,7 @@ mod test {
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
         match &loaded.data {
-            SymbolicValueData::ReturnData { offset, size } => {
+            RSVD::ReturnData { offset, size } => {
                 assert_eq!(offset, &input_offset);
                 assert_eq!(size, &input_size);
             }
@@ -1692,10 +1672,8 @@ mod test {
     #[test]
     fn pop_pops_value_from_stack() -> anyhow::Result<()> {
         // Prepare the value on stack and the VM
-        let mut vm = util::new_vm_with_values_on_stack(vec![SymbolicValue::new_synthetic(
-            0,
-            SymbolicValueData::new_value(),
-        )])?;
+        let mut vm =
+            util::new_vm_with_values_on_stack(vec![RSV::new_synthetic(0, RSVD::new_value())])?;
 
         // Prepare and run the opcode
         let opcode = memory::Pop;
@@ -1711,8 +1689,8 @@ mod test {
     #[test]
     fn m_load_loads_word_from_memory() -> anyhow::Result<()> {
         // Prepare the values and the vm
-        let offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let data = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let offset = RSV::new_synthetic(0, RSVD::new_value());
+        let data = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![offset.clone()])?;
         vm.state()?.memory_mut().store(offset.clone(), data.clone());
 
@@ -1735,8 +1713,8 @@ mod test {
     #[test]
     fn m_store_stores_word_to_memory() -> anyhow::Result<()> {
         // Prepare the values and the vm
-        let offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let data = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let offset = RSV::new_synthetic(0, RSVD::new_value());
+        let data = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![data.clone(), offset.clone()])?;
 
         // Prepare and run the opcode
@@ -1757,8 +1735,8 @@ mod test {
     #[test]
     fn m_store_8_stores_word_to_memory() -> anyhow::Result<()> {
         // Prepare the values and the vm
-        let offset = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let data = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let offset = RSV::new_synthetic(0, RSVD::new_value());
+        let data = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![data.clone(), offset.clone()])?;
 
         // Prepare and run the opcode
@@ -1779,8 +1757,8 @@ mod test {
     #[test]
     fn s_load_loads_word_from_storage() -> anyhow::Result<()> {
         // Prepare the values and the vm
-        let input_key = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_key = RSV::new_synthetic(0, RSVD::new_value());
+        let input_value = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_values_on_stack(vec![input_key.clone()])?;
         vm.state()?
             .storage_mut()
@@ -1794,7 +1772,7 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         match &stack.read(0)?.data {
-            SVD::SLoad { key, value } => {
+            RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
             }
@@ -1805,7 +1783,7 @@ mod test {
         let storage = vm.state()?.storage_mut();
         assert_eq!(storage.entry_count(), 1);
         match &storage.load(&input_key).data {
-            SVD::SLoad { key, value } => {
+            RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
             }
@@ -1818,8 +1796,8 @@ mod test {
     #[test]
     fn s_store_writes_word_to_storage() -> anyhow::Result<()> {
         // Prepare the values and the vm
-        let input_key = SymbolicValue::new_synthetic(0, SymbolicValueData::new_value());
-        let input_value = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+        let input_key = RSV::new_synthetic(0, RSVD::new_value());
+        let input_value = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm =
             util::new_vm_with_values_on_stack(vec![input_value.clone(), input_key.clone()])?;
 
@@ -1834,7 +1812,7 @@ mod test {
         let storage = vm.state()?.storage_mut();
         assert_eq!(storage.entry_count(), 1);
         match &storage.load(&input_key).data {
-            SVD::SLoad { key, value } => {
+            RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
             }
@@ -1877,7 +1855,7 @@ mod test {
         let value = stack.read(0)?;
         assert_eq!(value.provenance, Provenance::Bytecode);
         match &value.data {
-            SymbolicValueData::KnownData { value, .. } => assert_eq!(value, &KnownWord::zero()),
+            RSVD::KnownData { value, .. } => assert_eq!(value, &KnownWord::zero()),
             _ => panic!("Incorrect payload"),
         }
 
@@ -1911,7 +1889,7 @@ mod test {
             let value = stack.read(0)?;
             assert_eq!(value.provenance, Provenance::Bytecode);
             match &value.data {
-                SymbolicValueData::KnownData { value, .. } => {
+                RSVD::KnownData { value, .. } => {
                     assert_eq!(value, &opcode.bytes_as_word());
                 }
                 _ => panic!("Incorrect payload"),
@@ -1926,12 +1904,11 @@ mod test {
         // We want to test for all valid dup sizes
         for item in 1..=16 {
             // Prepare the items
-            let item_to_dup =
-                SymbolicValue::new_synthetic(0, SymbolicValueData::new_known(KnownWord::zero()));
-            let other_item = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+            let item_to_dup = RSV::new_synthetic(0, RSVD::new_known(KnownWord::zero()));
+            let other_item = RSV::new_synthetic(1, RSVD::new_value());
 
             // Prepare the vm's stack
-            let mut stack: Vec<BoxedVal> = Vec::new();
+            let mut stack: Vec<RuntimeBoxedVal> = Vec::new();
             stack.push(item_to_dup.clone());
             for _ in 1..item {
                 stack.push(other_item.clone());
@@ -1958,16 +1935,12 @@ mod test {
         // We want to test for all the valid swap depths
         for item in 1..=16 {
             // Prepare the items
-            let stack_top =
-                SymbolicValue::new_synthetic(0, SymbolicValueData::new_known(KnownWord::zero()));
-            let item_to_swap = SymbolicValue::new_synthetic(
-                1,
-                SymbolicValueData::new_known(KnownWord::from_le(1u32)),
-            );
-            let other_item = SymbolicValue::new_synthetic(1, SymbolicValueData::new_value());
+            let stack_top = RSV::new_synthetic(0, RSVD::new_known(KnownWord::zero()));
+            let item_to_swap = RSV::new_synthetic(1, RSVD::new_known(KnownWord::from_le(1u32)));
+            let other_item = RSV::new_synthetic(1, RSVD::new_value());
 
             // Prepare the VM's stack
-            let mut stack: Vec<BoxedVal> = Vec::new();
+            let mut stack: Vec<RuntimeBoxedVal> = Vec::new();
             stack.push(item_to_swap.clone());
             for _ in 0..item - 1 {
                 stack.push(other_item.clone());

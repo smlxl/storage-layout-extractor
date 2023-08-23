@@ -23,7 +23,7 @@ use crate::{
         data::JumpTargets,
         state::{stack::LocatedStackHandle, VMState},
         thread::VMThread,
-        value::BoxedVal,
+        value::RuntimeBoxedVal,
     },
 };
 
@@ -459,7 +459,7 @@ pub struct ExecutionResult {
 
 impl ExecutionResult {
     /// Gathers all of the symbolic values known about by the execution result.
-    pub fn all_values(&self) -> Vec<BoxedVal> {
+    pub fn all_values(&self) -> Vec<RuntimeBoxedVal> {
         self.states.iter().flat_map(VMState::all_values).collect()
     }
 }

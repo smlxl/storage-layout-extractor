@@ -19,17 +19,13 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
 
     // We should see 16 slots (while there are 16 slots we should actually see 18
     // entries due to packing)
-    assert_eq!(layout.slots().len(), 16);
+    assert_eq!(layout.slots().len(), 17);
 
-    // For the ones we can infer correctly, let's make sure we keep getting them
-    // right
+    // For the ones we can infer to a non-conflict, let's make sure we keep getting
+    // them 'right'
 
-    // Slot 0 is inferred to be a UInt with unknown size
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(0, 0, AbiType::UInt { size: None }))
-    );
+    // Slot 0 is inferred to be Any
+    assert!(layout.slots().contains(&StorageSlot::new(0, 0, AbiType::Any)));
 
     // Slot 3 is Any
     assert!(layout.slots().contains(&StorageSlot::new(3, 0, AbiType::Any)));

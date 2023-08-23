@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use crate::{
     inference::{lift::Lift, state::InferenceState},
-    vm::value::{BoxedVal, PackedSpan, SV, SVD},
+    vm::value::{PackedSpan, RuntimeBoxedVal, RSV, RSVD},
 };
 
 /// This pass detects and lifts expressions that represent the packing of
@@ -42,50 +42,32 @@ impl PackedEncoding {
 impl Lift for PackedEncoding {
     fn run(
         &mut self,
-        value: BoxedVal,
+        value: RuntimeBoxedVal,
         _state: &InferenceState,
-    ) -> crate::error::unification::Result<BoxedVal> {
+    ) -> crate::error::unification::Result<RuntimeBoxedVal> {
         /// Pulls apart nodes representing bitwise ors all at the same semantic
         /// level, or returns [`None`] if none were found.
         ///
         /// The order of the returned values is arbitrary.
         #[allow(clippy::boxed_local)] // We pass all these things around boxed
-        fn unpick_ors(data: BoxedVal) -> Option<Vec<BoxedVal>> {
-            let SVD::Or { left, right } = data.data else { return None };
-            let left_ors = unpick_ors(left.clone());
+        fn unpick_ors(data: RuntimeBoxedVal) -> Vec<RuntimeBoxedVal> {
+            let RSVD::Or { left, right } = data.data else { return vec![data] };
+            let mut left_ors = unpick_ors(left.clone());
             let right_ors = unpick_ors(right.clone());
-
-            match left_ors {
-                Some(mut l_ors) => {
-                    if let Some(r_ors) = right_ors {
-                        l_ors.extend(r_ors);
-                        Some(l_ors)
-                    } else {
-                        l_ors.push(right);
-                        Some(l_ors)
-                    }
-                }
-                None => {
-                    if let Some(mut r_ors) = right_ors {
-                        r_ors.push(left);
-                        Some(r_ors)
-                    } else {
-                        Some(vec![left, right])
-                    }
-                }
-            }
+            left_ors.extend(right_ors);
+            left_ors
         }
 
-        fn lift_packed_encodings(data: &SVD) -> Option<SVD> {
+        fn lift_packed_encodings(data: &RSVD) -> Option<RSVD> {
             // At the top level it needs to be a storage write
-            let SVD::StorageWrite { key, value } = data else { return None };
+            let RSVD::StorageWrite { key, value } = data else { return None };
 
             // We then pull it apart into top-level elements, and fail out if they are not
             // valid types for this
-            let Some(elements) = unpick_ors(value.clone()) else { return None };
+            let elements = unpick_ors(value.clone());
             let true = elements
                 .iter()
-                .map(|e| matches!(e.data, SVD::Shifted { .. } | SVD::SubWord { .. }))
+                .map(|e| matches!(e.data, RSVD::Shifted { .. } | RSVD::SubWord { .. }))
                 .all(|r| r)
             else {
                 return None;
@@ -93,12 +75,12 @@ impl Lift for PackedEncoding {
 
             // Next, we need to turn those elements into spans so that we can compute
             // coverage of the word (by sorting elements)
-            let spans: Vec<PackedSpan> = elements
+            let spans: Vec<PackedSpan<()>> = elements
                 .into_iter()
                 .map(|e| match &e.data {
-                    SVD::SubWord { offset, size, .. } => PackedSpan::new(*offset, *size, e),
-                    SVD::Shifted { offset, value } => match &value.data {
-                        SVD::SubWord { size, .. } => PackedSpan::new(*offset, *size, e),
+                    RSVD::SubWord { offset, size, .. } => PackedSpan::new(*offset, *size, e),
+                    RSVD::Shifted { offset, value } => match &value.data {
+                        RSVD::SubWord { size, .. } => PackedSpan::new(*offset, *size, e),
                         _ => panic!("Shift of non-sub-word"),
                     },
                     _ => unreachable!("Element was of impossible type"),
@@ -121,23 +103,23 @@ impl Lift for PackedEncoding {
             let used_spans: Vec<_> = spans
                 .into_iter()
                 .filter(|span| match &span.value.data {
-                    SVD::SubWord { value, .. } => !matches!(
+                    RSVD::SubWord { value, .. } => !matches!(
                         &value.data,
-                        SVD::SLoad { key: inner_key, .. } if key == inner_key
+                        RSVD::SLoad { key: inner_key, .. } if key == inner_key
                     ),
                     _ => true,
                 })
                 .collect();
 
             if spans_are_valid {
-                let packed = SV::new(
+                let packed = RSV::new(
                     value.instruction_pointer,
-                    SVD::Packed {
+                    RSVD::Packed {
                         elements: used_spans,
                     },
                     value.provenance,
                 );
-                let store = SVD::StorageWrite {
+                let store = RSVD::StorageWrite {
                     key:   key.clone(),
                     value: packed,
                 };
@@ -158,40 +140,40 @@ mod test {
             lift::{packed_encoding::PackedEncoding, Lift},
             state::InferenceState,
         },
-        vm::value::{PackedSpan, Provenance, SV, SVD},
+        vm::value::{PackedSpan, Provenance, RSV, RSVD},
     };
 
     #[test]
     fn lifts_two_element_packed_encodings() -> anyhow::Result<()> {
         // Construct the data to work on
-        let value = SV::new_value(0, Provenance::Synthetic);
-        let sub_word_1 = SV::new_synthetic(
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let sub_word_1 = RSV::new_synthetic(
             1,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value:  value.clone(),
                 offset: 128,
                 size:   128,
             },
         );
-        let sub_word_2 = SV::new_synthetic(
+        let sub_word_2 = RSV::new_synthetic(
             2,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value,
                 offset: 0,
                 size: 128,
             },
         );
-        let or = SV::new_synthetic(
+        let or = RSV::new_synthetic(
             3,
-            SVD::Or {
+            RSVD::Or {
                 left:  sub_word_1.clone(),
                 right: sub_word_2.clone(),
             },
         );
-        let input_key = SV::new_value(4, Provenance::Synthetic);
-        let store = SV::new_synthetic(
+        let input_key = RSV::new_value(4, Provenance::Synthetic);
+        let store = RSV::new_synthetic(
             5,
-            SVD::StorageWrite {
+            RSVD::StorageWrite {
                 key:   input_key.clone(),
                 value: or,
             },
@@ -203,10 +185,10 @@ mod test {
 
         // Check the structure of the data
         match result.data {
-            SVD::StorageWrite { key, value } => {
+            RSVD::StorageWrite { key, value } => {
                 assert_eq!(key, input_key);
                 match value.data {
-                    SVD::Packed { elements } => {
+                    RSVD::Packed { elements } => {
                         assert_eq!(elements.len(), 2);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));
                         assert!(elements.contains(&PackedSpan::new(0, 128, sub_word_2)));
@@ -223,49 +205,49 @@ mod test {
     #[test]
     fn lifts_more_complex_packed_encodings() -> anyhow::Result<()> {
         // Construct the data to work on
-        let value = SV::new_value(0, Provenance::Synthetic);
-        let sub_word_1 = SV::new_synthetic(
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let sub_word_1 = RSV::new_synthetic(
             1,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value:  value.clone(),
                 offset: 128,
                 size:   128,
             },
         );
-        let sub_word_2 = SV::new_synthetic(
+        let sub_word_2 = RSV::new_synthetic(
             2,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value:  value.clone(),
                 offset: 64,
                 size:   64,
             },
         );
-        let sub_word_3 = SV::new_synthetic(
+        let sub_word_3 = RSV::new_synthetic(
             3,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value,
                 offset: 0,
                 size: 64,
             },
         );
-        let inner_or = SV::new_synthetic(
+        let inner_or = RSV::new_synthetic(
             4,
-            SVD::Or {
+            RSVD::Or {
                 left:  sub_word_1.clone(),
                 right: sub_word_2.clone(),
             },
         );
-        let outer_or = SV::new_synthetic(
+        let outer_or = RSV::new_synthetic(
             5,
-            SVD::Or {
+            RSVD::Or {
                 left:  inner_or,
                 right: sub_word_3.clone(),
             },
         );
-        let input_key = SV::new_value(6, Provenance::Synthetic);
-        let store = SV::new_synthetic(
+        let input_key = RSV::new_value(6, Provenance::Synthetic);
+        let store = RSV::new_synthetic(
             7,
-            SVD::StorageWrite {
+            RSVD::StorageWrite {
                 key:   input_key.clone(),
                 value: outer_or,
             },
@@ -277,10 +259,10 @@ mod test {
 
         // Check the structure of the data
         match result.data {
-            SVD::StorageWrite { key, value } => {
+            RSVD::StorageWrite { key, value } => {
                 assert_eq!(key, input_key);
                 match value.data {
-                    SVD::Packed { elements } => {
+                    RSVD::Packed { elements } => {
                         assert_eq!(elements.len(), 3);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));
                         assert!(elements.contains(&PackedSpan::new(64, 64, sub_word_2)));
@@ -298,56 +280,56 @@ mod test {
     #[test]
     fn lifts_packed_encodings_with_sized_shifted_elements() -> anyhow::Result<()> {
         // Construct the test data
-        let value = SV::new_value(0, Provenance::Synthetic);
-        let sub_word_1 = SV::new_synthetic(
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let sub_word_1 = RSV::new_synthetic(
             1,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value:  value.clone(),
                 offset: 128,
                 size:   128,
             },
         );
-        let sub_word_2 = SV::new_synthetic(
+        let sub_word_2 = RSV::new_synthetic(
             2,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value:  value.clone(),
                 offset: 0,
                 size:   64,
             },
         );
-        let sub_word_3 = SV::new_synthetic(
+        let sub_word_3 = RSV::new_synthetic(
             3,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value,
                 offset: 0,
                 size: 64,
             },
         );
-        let shifted = SV::new_synthetic(
+        let shifted = RSV::new_synthetic(
             4,
-            SVD::Shifted {
+            RSVD::Shifted {
                 offset: 64,
                 value:  sub_word_3,
             },
         );
-        let inner_or = SV::new_synthetic(
+        let inner_or = RSV::new_synthetic(
             4,
-            SVD::Or {
+            RSVD::Or {
                 left:  sub_word_1.clone(),
                 right: sub_word_2.clone(),
             },
         );
-        let outer_or = SV::new_synthetic(
+        let outer_or = RSV::new_synthetic(
             5,
-            SVD::Or {
+            RSVD::Or {
                 left:  inner_or,
                 right: shifted.clone(),
             },
         );
-        let input_key = SV::new_value(6, Provenance::Synthetic);
-        let store = SV::new_synthetic(
+        let input_key = RSV::new_value(6, Provenance::Synthetic);
+        let store = RSV::new_synthetic(
             7,
-            SVD::StorageWrite {
+            RSVD::StorageWrite {
                 key:   input_key.clone(),
                 value: outer_or,
             },
@@ -359,10 +341,10 @@ mod test {
 
         // Check the structure of the data
         match result.data {
-            SVD::StorageWrite { key, value } => {
+            RSVD::StorageWrite { key, value } => {
                 assert_eq!(key, input_key);
                 match value.data {
-                    SVD::Packed { elements } => {
+                    RSVD::Packed { elements } => {
                         assert_eq!(elements.len(), 3);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));
                         assert!(elements.contains(&PackedSpan::new(0, 64, sub_word_2)));
@@ -380,47 +362,47 @@ mod test {
     #[test]
     fn drops_direct_reads_from_same_slot_in_packed_encodings() -> anyhow::Result<()> {
         // Create the expressions to be lifted
-        let input_key = SV::new_value(4, Provenance::Synthetic);
-        let value = SV::new_value(0, Provenance::Synthetic);
-        let uninit_load = SV::new_synthetic(
+        let input_key = RSV::new_value(4, Provenance::Synthetic);
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let uninit_load = RSV::new_synthetic(
             0,
-            SVD::UnwrittenStorageValue {
+            RSVD::UnwrittenStorageValue {
                 key: input_key.clone(),
             },
         );
-        let s_load = SV::new_synthetic(
+        let s_load = RSV::new_synthetic(
             7,
-            SVD::SLoad {
+            RSVD::SLoad {
                 key:   input_key.clone(),
                 value: uninit_load,
             },
         );
-        let sub_word_1 = SV::new_synthetic(
+        let sub_word_1 = RSV::new_synthetic(
             1,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value,
                 offset: 128,
                 size: 128,
             },
         );
-        let sub_word_2 = SV::new_synthetic(
+        let sub_word_2 = RSV::new_synthetic(
             2,
-            SVD::SubWord {
+            RSVD::SubWord {
                 value:  s_load,
                 offset: 0,
                 size:   128,
             },
         );
-        let or = SV::new_synthetic(
+        let or = RSV::new_synthetic(
             3,
-            SVD::Or {
+            RSVD::Or {
                 left:  sub_word_1.clone(),
                 right: sub_word_2,
             },
         );
-        let store = SV::new_synthetic(
+        let store = RSV::new_synthetic(
             5,
-            SVD::StorageWrite {
+            RSVD::StorageWrite {
                 key:   input_key.clone(),
                 value: or,
             },
@@ -432,10 +414,10 @@ mod test {
 
         // Check the structure of the data
         match result.data {
-            SVD::StorageWrite { key, value } => {
+            RSVD::StorageWrite { key, value } => {
                 assert_eq!(key, input_key);
                 match value.data {
-                    SVD::Packed { elements } => {
+                    RSVD::Packed { elements } => {
                         assert_eq!(elements.len(), 1);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));
                     }

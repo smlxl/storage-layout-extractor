@@ -422,7 +422,7 @@ mod test {
             state::InferenceState,
             unification::{merge, unify},
         },
-        vm::value::{Provenance, SV},
+        vm::value::{Provenance, RSV},
     };
 
     #[test]
@@ -432,9 +432,9 @@ mod test {
 
         // Set up the state
         let mut state = InferenceState::empty();
-        let v_1 = SV::new_value(0, Provenance::Synthetic);
-        let v_2 = SV::new_value(1, Provenance::Synthetic);
-        state.register(v_1);
+        let v_1 = RSV::new_value(0, Provenance::Synthetic);
+        let v_2 = RSV::new_value(1, Provenance::Synthetic);
+        let _ = state.register(v_1);
         let v_2_tv = state.register(v_2);
 
         // Set up some inferences
@@ -453,7 +453,7 @@ mod test {
     fn can_infer_compatible_unsigned_words() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let v_1 = SV::new_value(0, Provenance::Synthetic);
+        let v_1 = RSV::new_value(0, Provenance::Synthetic);
         let v_1_tv = state.register(v_1);
 
         // Set up some inferences
@@ -484,7 +484,7 @@ mod test {
     fn can_infer_compatible_signed_words() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let v_1 = SV::new_value(0, Provenance::Synthetic);
+        let v_1 = RSV::new_value(0, Provenance::Synthetic);
         let v_1_tv = state.register(v_1);
 
         // Set up some inferences
@@ -512,7 +512,7 @@ mod test {
     fn conflicts_for_incompatible_word_evidence() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let v_1 = SV::new_value(0, Provenance::Synthetic);
+        let v_1 = RSV::new_value(0, Provenance::Synthetic);
         let v_1_ty = state.register(v_1);
 
         // Set up some inferences
@@ -539,8 +539,8 @@ mod test {
     fn can_infer_unsigned_word_with_dynamic_array() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let array = SV::new_value(0, Provenance::Synthetic);
-        let element = SV::new_value(0, Provenance::Synthetic);
+        let array = RSV::new_value(0, Provenance::Synthetic);
+        let element = RSV::new_value(0, Provenance::Synthetic);
         let array_tv = state.register(array);
         let element_tv = state.register(element);
 
@@ -575,8 +575,8 @@ mod test {
     fn conflicts_for_signed_word_with_dynamic_array() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let array = SV::new_value(0, Provenance::Synthetic);
-        let element = SV::new_value(0, Provenance::Synthetic);
+        let array = RSV::new_value(0, Provenance::Synthetic);
+        let element = RSV::new_value(0, Provenance::Synthetic);
         let array_tv = state.register(array);
         let element_tv = state.register(element);
 
@@ -606,9 +606,9 @@ mod test {
     fn can_infer_dynamic_arrays_with_compatible_element_types() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let array = SV::new_value(0, Provenance::Synthetic);
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(0, Provenance::Synthetic);
+        let array = RSV::new_value(0, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(0, Provenance::Synthetic);
         let array_tv = state.register(array);
         let elem_1_tv = state.register(elem_1);
         let elem_2_tv = state.register(elem_2);
@@ -646,9 +646,9 @@ mod test {
     fn conflicts_for_dynamic_arrays_with_incompatible_element_types() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let array = SV::new_value(0, Provenance::Synthetic);
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(0, Provenance::Synthetic);
+        let array = RSV::new_value(0, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(0, Provenance::Synthetic);
         let array_tv = state.register(array);
         let elem_1_tv = state.register(elem_1);
         let elem_2_tv = state.register(elem_2);
@@ -690,9 +690,9 @@ mod test {
     fn can_infer_fixed_arrays_with_compatible_element_types() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let array = SV::new_value(0, Provenance::Synthetic);
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(0, Provenance::Synthetic);
+        let array = RSV::new_value(0, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(0, Provenance::Synthetic);
         let array_tv = state.register(array);
         let elem_1_tv = state.register(elem_1);
         let elem_2_tv = state.register(elem_2);
@@ -737,9 +737,9 @@ mod test {
     fn conflicts_for_fixed_arrays_with_incompatible_element_types() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let array = SV::new_value(0, Provenance::Synthetic);
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(0, Provenance::Synthetic);
+        let array = RSV::new_value(0, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(0, Provenance::Synthetic);
         let array_tv = state.register(array);
         let elem_1_tv = state.register(elem_1);
         let elem_2_tv = state.register(elem_2);
@@ -787,9 +787,9 @@ mod test {
     fn conflicts_for_fixed_arrays_with_incompatible_lengths() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let array = SV::new_value(0, Provenance::Synthetic);
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(0, Provenance::Synthetic);
+        let array = RSV::new_value(0, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(0, Provenance::Synthetic);
         let array_tv = state.register(array);
         let elem_1_tv = state.register(elem_1);
         let elem_2_tv = state.register(elem_2);
@@ -826,11 +826,11 @@ mod test {
     fn can_infer_mappings_with_compatible_types() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let mapping = SV::new_value(0, Provenance::Synthetic);
-        let key_1 = SV::new_value(0, Provenance::Synthetic);
-        let value_1 = SV::new_value(0, Provenance::Synthetic);
-        let key_2 = SV::new_value(0, Provenance::Synthetic);
-        let value_2 = SV::new_value(0, Provenance::Synthetic);
+        let mapping = RSV::new_value(0, Provenance::Synthetic);
+        let key_1 = RSV::new_value(0, Provenance::Synthetic);
+        let value_1 = RSV::new_value(0, Provenance::Synthetic);
+        let key_2 = RSV::new_value(0, Provenance::Synthetic);
+        let value_2 = RSV::new_value(0, Provenance::Synthetic);
         let mapping_tv = state.register(mapping);
         let key_1_tv = state.register(key_1);
         let value_1_tv = state.register(value_1);
@@ -872,11 +872,11 @@ mod test {
     fn errors_for_mappings_with_incompatible_key_types() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let mapping = SV::new_value(0, Provenance::Synthetic);
-        let key_1 = SV::new_value(0, Provenance::Synthetic);
-        let value_1 = SV::new_value(0, Provenance::Synthetic);
-        let key_2 = SV::new_value(0, Provenance::Synthetic);
-        let value_2 = SV::new_value(0, Provenance::Synthetic);
+        let mapping = RSV::new_value(0, Provenance::Synthetic);
+        let key_1 = RSV::new_value(0, Provenance::Synthetic);
+        let value_1 = RSV::new_value(0, Provenance::Synthetic);
+        let key_2 = RSV::new_value(0, Provenance::Synthetic);
+        let value_2 = RSV::new_value(0, Provenance::Synthetic);
         let mapping_tv = state.register(mapping);
         let key_1_tv = state.register(key_1);
         let value_1_tv = state.register(value_1);
@@ -921,11 +921,11 @@ mod test {
     fn errors_for_mappings_with_incompatible_value_types() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let mapping = SV::new_value(0, Provenance::Synthetic);
-        let key_1 = SV::new_value(0, Provenance::Synthetic);
-        let value_1 = SV::new_value(0, Provenance::Synthetic);
-        let key_2 = SV::new_value(0, Provenance::Synthetic);
-        let value_2 = SV::new_value(0, Provenance::Synthetic);
+        let mapping = RSV::new_value(0, Provenance::Synthetic);
+        let key_1 = RSV::new_value(0, Provenance::Synthetic);
+        let value_1 = RSV::new_value(0, Provenance::Synthetic);
+        let key_2 = RSV::new_value(0, Provenance::Synthetic);
+        let value_2 = RSV::new_value(0, Provenance::Synthetic);
         let mapping_tv = state.register(mapping);
         let key_1_tv = state.register(key_1);
         let value_1_tv = state.register(value_1);
@@ -970,7 +970,7 @@ mod test {
     fn can_infer_any_when_alone() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let value = SV::new_value(0, Provenance::Synthetic);
+        let value = RSV::new_value(0, Provenance::Synthetic);
         let value_tv = state.register(value);
 
         // Set up some inferences
@@ -987,7 +987,7 @@ mod test {
     fn can_infer_other_value_with_any() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let value = SV::new_value(0, Provenance::Synthetic);
+        let value = RSV::new_value(0, Provenance::Synthetic);
         let value_tv = state.register(value);
 
         // Set up some inferences
@@ -1006,12 +1006,12 @@ mod test {
     fn can_infer_packed_with_packed() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(1, Provenance::Synthetic);
-        let elem_3 = SV::new_value(2, Provenance::Synthetic);
-        let elem_4 = SV::new_value(3, Provenance::Synthetic);
-        let packed_1 = SV::new_value(4, Provenance::Synthetic);
-        let packed_2 = SV::new_value(5, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(1, Provenance::Synthetic);
+        let elem_3 = RSV::new_value(2, Provenance::Synthetic);
+        let elem_4 = RSV::new_value(3, Provenance::Synthetic);
+        let packed_1 = RSV::new_value(4, Provenance::Synthetic);
+        let packed_2 = RSV::new_value(5, Provenance::Synthetic);
 
         let [e1_tv, e2_tv, e3_tv, e4_tv, p1_tv, p2_tv] =
             state.register_many([elem_1, elem_2, elem_3, elem_4, packed_1, packed_2]);
@@ -1057,12 +1057,12 @@ mod test {
     fn conflicts_if_packed_types_are_incompatible() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(1, Provenance::Synthetic);
-        let elem_3 = SV::new_value(2, Provenance::Synthetic);
-        let elem_4 = SV::new_value(3, Provenance::Synthetic);
-        let packed_1 = SV::new_value(4, Provenance::Synthetic);
-        let packed_2 = SV::new_value(5, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(1, Provenance::Synthetic);
+        let elem_3 = RSV::new_value(2, Provenance::Synthetic);
+        let elem_4 = RSV::new_value(3, Provenance::Synthetic);
+        let packed_1 = RSV::new_value(4, Provenance::Synthetic);
+        let packed_2 = RSV::new_value(5, Provenance::Synthetic);
 
         let [e1_tv, e2_tv, e3_tv, e4_tv, p1_tv, p2_tv] =
             state.register_many([elem_1, elem_2, elem_3, elem_4, packed_1, packed_2]);
@@ -1099,10 +1099,10 @@ mod test {
     fn can_infer_packed_with_bytes() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(1, Provenance::Synthetic);
-        let elem_3 = SV::new_value(2, Provenance::Synthetic);
-        let packed_1 = SV::new_value(3, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(1, Provenance::Synthetic);
+        let elem_3 = RSV::new_value(2, Provenance::Synthetic);
+        let packed_1 = RSV::new_value(3, Provenance::Synthetic);
 
         let [e1_tv, e2_tv, e3_tv, p1_tv] = state.register_many([elem_1, elem_2, elem_3, packed_1]);
 
@@ -1139,10 +1139,10 @@ mod test {
     fn can_infer_packed_with_bytes_with_offset() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(1, Provenance::Synthetic);
-        let elem_3 = SV::new_value(2, Provenance::Synthetic);
-        let packed_1 = SV::new_value(3, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(1, Provenance::Synthetic);
+        let elem_3 = RSV::new_value(2, Provenance::Synthetic);
+        let packed_1 = RSV::new_value(3, Provenance::Synthetic);
 
         let [e1_tv, e2_tv, e3_tv, p1_tv] = state.register_many([elem_1, elem_2, elem_3, packed_1]);
 
@@ -1179,10 +1179,10 @@ mod test {
     fn conflicts_if_packed_and_bytes_are_incompatible() {
         // Set up the state
         let mut state = InferenceState::empty();
-        let elem_1 = SV::new_value(0, Provenance::Synthetic);
-        let elem_2 = SV::new_value(1, Provenance::Synthetic);
-        let elem_3 = SV::new_value(2, Provenance::Synthetic);
-        let packed_1 = SV::new_value(3, Provenance::Synthetic);
+        let elem_1 = RSV::new_value(0, Provenance::Synthetic);
+        let elem_2 = RSV::new_value(1, Provenance::Synthetic);
+        let elem_3 = RSV::new_value(2, Provenance::Synthetic);
+        let packed_1 = RSV::new_value(3, Provenance::Synthetic);
 
         let [e1_tv, e2_tv, e3_tv, p1_tv] = state.register_many([elem_1, elem_2, elem_3, packed_1]);
 

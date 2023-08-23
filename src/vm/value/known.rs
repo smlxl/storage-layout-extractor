@@ -726,4 +726,6 @@ mod test {
 
         assert_eq!(value.sar(shift), KnownWord::from_le_signed(0b11_0101i32));
     }
+
+    // TODO [Ara] Tests for wrapping behaviour
 }
