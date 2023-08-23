@@ -38,8 +38,6 @@ pub struct InferenceState {
     unification_result: UnificationForest,
 }
 
-static mut COUNTER: u32 = 0;
-
 impl InferenceState {
     /// Constructs a new, empty inference state.
     #[must_use]
@@ -69,16 +67,11 @@ impl InferenceState {
     /// _two different registrations_ for that `value` in the state in almost
     /// all cases.
     ///
-    /// The only case where this does _not_ happen is for [`RSVD::StorageSlot`]
-    /// values, which explicitly refer to _the same type_ no matter how many
-    /// times they are registered.
+    /// The only case where this does _not_ happen is for values where
+    /// [`Self::is_stable_typed`] returns `true`.
     #[must_use]
     pub fn register(&mut self, value: RuntimeBoxedVal) -> TypeVariable {
         let returned_val = self.register_internal(value);
-        unsafe {
-            COUNTER += 1;
-        }
-        // unsafe {dbg!(COUNTER)};
         self.var_unchecked(&returned_val)
     }
 

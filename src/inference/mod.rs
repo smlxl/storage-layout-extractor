@@ -154,9 +154,6 @@ impl InferenceEngine {
         // Actually run unification
         unification::unify(&mut self.state);
 
-        // Run hoisting on structs
-        // self.hoist_structs()?;
-
         // Create an empty layout
         let mut layout = StorageLayout::default();
         let all_values = self.state.values();
@@ -210,6 +207,7 @@ impl InferenceEngine {
     /// Returns [`Err`] if inferences cannot be retrieved for any given type
     /// variable.
     pub fn hoist_structs(&mut self) -> Result<()> {
+        // NOTE Currently broken
         for ty_var in self.state.variables() {
             let inference = self.type_of(ty_var)?;
 
