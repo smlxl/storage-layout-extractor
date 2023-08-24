@@ -15,7 +15,7 @@ pub mod mapping_access;
 pub mod masked_word;
 pub mod offset_size;
 pub mod packed_encoding;
-pub mod s_load_is_element_type;
+pub mod s_load_is_inner_types;
 pub mod sha3;
 pub mod shifted_has_element_type;
 pub mod storage_key;
@@ -47,7 +47,7 @@ use crate::{
             masked_word::MaskedWordRule,
             offset_size::OffsetSizeRule,
             packed_encoding::PackedEncodingRule,
-            s_load_is_element_type::SLoadIsElementTypeRule,
+            s_load_is_inner_types::SLoadIsInnerTypesRule,
             sha3::HashRule,
             shifted_has_element_type::ShiftedHasElementTypeRule,
             storage_key::StorageKeyRule,
@@ -150,7 +150,7 @@ impl Default for InferenceRules {
         rules.add(OffsetSizeRule);
         rules.add(PackedEncodingRule);
         rules.add(ShiftedHasElementTypeRule);
-        rules.add(SLoadIsElementTypeRule);
+        rules.add(SLoadIsInnerTypesRule);
         rules.add(StorageKeyRule);
         rules.add(StorageWriteRule);
 

@@ -23,8 +23,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // We should see 13 entries once we account for packing
     assert_eq!(layout.slots().len(), 13);
 
-    // `uint256` but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(0, 0, AbiType::Any)));
+    // `uint256` but we infer `bytesUnknown`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(0, 0, AbiType::Bytes { length: None }))
+    );
 
     // `mapping(bytes32 => struct)` but we infer `mapping(uint16 => uintUnknown)`
     assert!(layout.slots().contains(&StorageSlot::new(
@@ -47,8 +51,18 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `packed(bool, address)` but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(3, 0, AbiType::Any)));
+    // `packed(bool, address)` but we infer `packed(number8, conflict)`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(3, 0, AbiType::Number { size: Some(8) }))
+    );
+    assert_eq!(layout.slots()[4].index, 3);
+    assert_eq!(layout.slots()[4].offset, 8);
+    assert!(matches!(
+        &layout.slots()[4].typ,
+        AbiType::ConflictedType { .. }
+    ));
 
     // `mapping(address => mapping(address => bool))` but we infer `mapping(bytes20
     // => mapping(bytes20 => struct(number8, bytes31))`
@@ -85,12 +99,13 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `uint256` but we infer `numberUnknown`
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(6, 0, AbiType::Number { size: None }))
-    );
+    // `uint256` but we infer `conflict`
+    assert_eq!(layout.slots()[7].index, 6);
+    assert_eq!(layout.slots()[7].offset, 0);
+    assert!(matches!(
+        &layout.slots()[7].typ,
+        AbiType::ConflictedType { .. }
+    ));
 
     // `mapping(bytes32 => mapping(address => bytes32)` but we infer `mapping(uint16
     // => mapping(bytes20 => conflict))`

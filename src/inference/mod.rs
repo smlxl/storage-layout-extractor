@@ -241,7 +241,7 @@ impl InferenceEngine {
     /// If something goes wrong in the computation of the [`AbiType`].
     fn abi_type_for(&mut self, var: TypeVariable) -> Result<AbiValue> {
         let mut seen_vars = HashSet::new();
-        self.abi_type_for_impl(var, &mut seen_vars)
+        self.abi_type_for_impl(var, &mut seen_vars, ParentType::None)
     }
 
     /// The internal implementation of [`Self::abi_type_for`], allowing the
@@ -255,6 +255,7 @@ impl InferenceEngine {
         &mut self,
         var: TypeVariable,
         seen_exprs: &mut HashSet<TypeExpression>,
+        parent: ParentType,
     ) -> Result<AbiValue> {
         let type_expr = self.type_of(var)?;
 
@@ -325,7 +326,7 @@ impl InferenceEngine {
             },
             TE::FixedArray { element, length } => {
                 let tp = self
-                    .abi_type_for_impl(element, seen_exprs)?
+                    .abi_type_for_impl(element, seen_exprs, ParentType::Other)?
                     .expect_type("Fixed array element resolved to multiple types");
                 AbiType::Array {
                     size: U256Wrapper(length),
@@ -335,10 +336,10 @@ impl InferenceEngine {
             }
             TE::Mapping { key, value } => {
                 let key_tp = self
-                    .abi_type_for_impl(key, seen_exprs)?
+                    .abi_type_for_impl(key, seen_exprs, ParentType::Other)?
                     .expect_type("Mapping key resolved to multiple types");
                 let val_tp = self
-                    .abi_type_for_impl(value, seen_exprs)?
+                    .abi_type_for_impl(value, seen_exprs, ParentType::Other)?
                     .expect_type("Mapping value resolved to multiple types");
                 AbiType::Mapping {
                     key_type:   Box::new(key_tp),
@@ -348,20 +349,23 @@ impl InferenceEngine {
             }
             TE::DynamicArray { element } => {
                 let tp = self
-                    .abi_type_for_impl(element, seen_exprs)?
+                    .abi_type_for_impl(element, seen_exprs, ParentType::Other)?
                     .expect_type("Dynamic array element resolved to multiple types");
                 AbiType::DynArray { tp: Box::new(tp) }.into()
             }
             TE::Packed { types, is_struct } => {
                 let mut pairs = Vec::new();
                 for Span { typ, offset, .. } in types {
-                    match self.abi_type_for_impl(typ, seen_exprs)? {
+                    match self.abi_type_for_impl(typ, seen_exprs, ParentType::Packed)? {
                         AbiValue::Packed(xs) => pairs.extend(xs),
                         AbiValue::Type(ty) => pairs.push((ty.clone(), offset)),
                     }
                 }
 
-                if pairs.is_empty() {
+                if parent == ParentType::Packed {
+                    // If it has packed as a parent, we want to return them no matter what.
+                    AbiValue::Packed(pairs)
+                } else if pairs.is_empty() {
                     // If it is empty, we know nothing
                     AbiType::Any.into()
                 } else if pairs.len() == 1 {
@@ -371,8 +375,9 @@ impl InferenceEngine {
                         // If the offset is zero the slot is the contained type
                         typ.into()
                     } else {
-                        // But if it isn't, it's actually a packed where we don't know its elements
-                        // so we have to insert a synthetic element to make the spacing work
+                        // But if it isn't, it's actually a packed where we don't know its
+                        // elements so we have to insert a synthetic
+                        // element to make the spacing work
                         AbiValue::Packed(vec![(AbiType::Any, 0), pair.clone()])
                     }
                 } else if is_struct {
@@ -383,8 +388,8 @@ impl InferenceEngine {
                         .collect();
                     AbiType::Struct { elements }.into()
                 } else {
-                    // Otherwise it is a standard packed encoding, so we return a set of sub-slot
-                    // types
+                    // Otherwise it is a standard packed encoding, so we return a set of
+                    // sub-slot types
                     AbiValue::Packed(pairs)
                 }
             }
@@ -598,6 +603,20 @@ impl From<Vec<(AbiType, usize)>> for AbiValue {
     fn from(value: Vec<(AbiType, usize)>) -> Self {
         Self::Packed(value)
     }
+}
+
+/// An enum used during resolution of ABI types to prevent the insertion of
+/// defaulted elements in certain places.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum ParentType {
+    /// The parent type for this call was [`TE::Packed`].
+    Packed,
+
+    /// The parent type for this call was some other type expression.
+    Other,
+
+    /// There was no parent type for the call.
+    None,
 }
 
 #[cfg(test)]
