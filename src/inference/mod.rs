@@ -523,6 +523,22 @@ pub struct Config {
     pub inference_rules: InferenceRules,
 }
 
+impl Config {
+    // Sets the `sugar_passes` config parameter to `value`
+    #[must_use]
+    pub fn with_sugar_passes(mut self, value: LiftingPasses) -> Config {
+        self.sugar_passes = value;
+        self
+    }
+
+    // Sets the `inference_rules` config parameter to `value`
+    #[must_use]
+    pub fn with_inference_rules(mut self, value: InferenceRules) -> Config {
+        self.inference_rules = value;
+        self
+    }
+}
+
 /// Creates a default inference engine configuration.
 impl Default for Config {
     fn default() -> Self {
