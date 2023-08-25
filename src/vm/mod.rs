@@ -474,7 +474,7 @@ pub struct Config {
     /// on an EVM will not get as far as symbolic execution can here.
     ///
     /// Defaults to [`BLOCK_GAS_LIMIT`].
-    pub gas_limit: usize,
+    gas_limit: usize,
 
     /// The maximum number of times that the virtual machine will visit each
     /// opcode.
@@ -482,7 +482,7 @@ pub struct Config {
     /// This limit is enforced _per-thread_ in the virtual machine.
     ///
     /// Defaults to [`DEFAULT_ITERATIONS_PER_OPCODE`].
-    pub maximum_iterations_per_opcode: usize,
+    maximum_iterations_per_opcode: usize,
 
     /// The maximum number of times that the virtual machine will fork from any
     /// conditional jump to a given jump target.
@@ -491,7 +491,30 @@ pub struct Config {
     /// when symbolically executing the bytecode.
     ///
     /// Defaults to [`DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT`].
-    pub maximum_forks_per_fork_target: usize,
+    maximum_forks_per_fork_target: usize,
+}
+
+impl Config {
+    // Sets the `maximum_forks_per_fork_target` config parameter
+    #[must_use]
+    pub fn with_max_forks_per_fork_target(mut self, value: usize) -> Config {
+        self.maximum_forks_per_fork_target = value;
+        self
+    }
+
+    // Sets the `maximum_iterations_per_opcode` config parameter
+    #[must_use]
+    pub fn with_max_iterations_per_opcode(mut self, value: usize) -> Config {
+        self.maximum_iterations_per_opcode = value;
+        self
+    }
+
+    // Sets the `gas_limit` config parameter
+    #[must_use]
+    pub fn with_gas_limit(mut self, value: usize) -> Config {
+        self.gas_limit = value;
+        self
+    }
 }
 
 impl Default for Config {
