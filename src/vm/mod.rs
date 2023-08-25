@@ -495,21 +495,21 @@ pub struct Config {
 }
 
 impl Config {
-    // Sets the `maximum_forks_per_fork_target` config parameter
+    // Sets the `maximum_forks_per_fork_target` config parameter to `value`.
     #[must_use]
     pub fn with_max_forks_per_fork_target(mut self, value: usize) -> Config {
         self.maximum_forks_per_fork_target = value;
         self
     }
 
-    // Sets the `maximum_iterations_per_opcode` config parameter
+    // Sets the `maximum_iterations_per_opcode` config parameter to `value`.
     #[must_use]
     pub fn with_max_iterations_per_opcode(mut self, value: usize) -> Config {
         self.maximum_iterations_per_opcode = value;
         self
     }
 
-    // Sets the `gas_limit` config parameter
+    // Sets the `gas_limit` config parameter to `value`.
     #[must_use]
     pub fn with_gas_limit(mut self, value: usize) -> Config {
         self.gas_limit = value;
