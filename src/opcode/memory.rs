@@ -48,16 +48,19 @@ impl Opcode for CallDataLoad {
         let offset = stack.pop()?;
 
         // Construct a constant representing the word read
-        let size = RSV::new_known_value(
+        let size = vm.build().known(
             instruction_pointer,
             KnownWord::from_le(32u8),
             Provenance::Synthetic,
         );
 
         // Then we construct the returned value
-        let value = RSV::new_from_execution(instruction_pointer, RSVD::call_data(offset, size));
+        let value = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::call_data(offset, size));
 
         // And push it onto the stack
+        let mut stack = vm.stack_handle()?;
         stack.push(value)?;
 
         // Done, so return ok
@@ -166,43 +169,39 @@ impl Opcode for CallDataCopy {
         let size = stack.pop()?.constant_fold();
 
         // Modify the memory
-        let memory = vm.state()?.memory_mut();
-
-        if let RSVD::KnownData { value } = &size.data {
-            let num_32 = RSV::new_known_value(
-                instruction_pointer,
-                KnownWord::from(32),
-                Provenance::Execution,
-            );
+        if let RSVD::KnownData { value } = size.data() {
+            let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
             let actual_size: usize = value.into();
             for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = RSV::new_known_value(
-                    instruction_pointer,
-                    KnownWord::from(internal_offset),
-                    Provenance::Execution,
-                );
-                let dest_offset = RSV::new_from_execution(
+                let to_add_to_offset = vm
+                    .build()
+                    .known_exec(instruction_pointer, KnownWord::from(internal_offset));
+                let dest_offset = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::Add {
                         left:  dest_offset.clone(),
                         right: to_add_to_offset.clone(),
                     },
                 );
-                let src_offset = RSV::new_from_execution(
+                let src_offset = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::Add {
                         left:  offset.clone(),
                         right: to_add_to_offset,
                     },
                 );
-                let value = RSV::new_from_execution(
+                let value = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::call_data(src_offset, num_32.clone()),
                 );
+                let memory = vm.state()?.memory_mut();
                 memory.store(dest_offset, value);
             }
         } else {
-            let value = RSV::new_from_execution(instruction_pointer, RSVD::call_data(offset, size));
+            let value = vm
+                .build()
+                .symbolic_exec(instruction_pointer, RSVD::call_data(offset, size));
+            let memory = vm.state()?.memory_mut();
             memory.store(dest_offset, value);
         }
 
@@ -247,16 +246,14 @@ impl Opcode for CodeSize {
         // Get the state
         let instruction_pointer = vm.instruction_pointer()?;
         let true_code_size = vm.instructions().len();
-        let mut stack = vm.stack_handle()?;
 
         // Construct the value
-        let code_size_constant = RSV::new_known_value(
-            instruction_pointer,
-            KnownWord::from(true_code_size),
-            Provenance::Execution,
-        );
+        let code_size_constant = vm
+            .build()
+            .known_exec(instruction_pointer, KnownWord::from(true_code_size));
 
         // Push it onto the stack
+        let mut stack = vm.stack_handle()?;
         stack.push(code_size_constant)?;
 
         Ok(())
@@ -316,47 +313,42 @@ impl Opcode for CodeCopy {
         let size = stack.pop()?.constant_fold();
 
         // Modify the memory
-        let memory = vm.state()?.memory_mut();
-
-        if let RSVD::KnownData { value } = &size.data {
-            let num_32 = RSV::new_known_value(
-                instruction_pointer,
-                KnownWord::from(32),
-                Provenance::Execution,
-            );
+        if let RSVD::KnownData { value } = size.data() {
+            let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
             let actual_size: usize = value.into();
             for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = RSV::new_known_value(
-                    instruction_pointer,
-                    KnownWord::from(internal_offset),
-                    Provenance::Execution,
-                );
-                let dest_offset = RSV::new_from_execution(
+                let to_add_to_offset = vm
+                    .build()
+                    .known_exec(instruction_pointer, KnownWord::from(internal_offset));
+                let dest_offset = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::Add {
                         left:  dest_offset.clone(),
                         right: to_add_to_offset.clone(),
                     },
                 );
-                let src_offset = RSV::new_from_execution(
+                let src_offset = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::Add {
                         left:  offset.clone(),
                         right: to_add_to_offset,
                     },
                 );
-                let value = RSV::new_from_execution(
+                let value = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::CodeCopy {
                         offset: src_offset,
                         size:   num_32.clone(),
                     },
                 );
+                let memory = vm.state()?.memory_mut();
                 memory.store(dest_offset, value);
             }
         } else {
-            let value =
-                RSV::new_from_execution(instruction_pointer, RSVD::CodeCopy { offset, size });
+            let value = vm
+                .build()
+                .symbolic_exec(instruction_pointer, RSVD::CodeCopy { offset, size });
+            let memory = vm.state()?.memory_mut();
             memory.store(dest_offset, value);
         }
 
@@ -411,7 +403,10 @@ impl Opcode for ExtCodeSize {
         let address = stack.pop()?;
 
         // Construct the value and push it onto the stack
-        let value = RSV::new_from_execution(instruction_pointer, RSVD::ExtCodeSize { address });
+        let value = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::ExtCodeSize { address });
+        let mut stack = vm.stack_handle()?;
         stack.push(value)?;
 
         // Done, so return ok
@@ -475,36 +470,28 @@ impl Opcode for ExtCodeCopy {
         let size = stack.pop()?.constant_fold();
 
         // Modify the memory
-        let memory = vm.state()?.memory_mut();
-
-        if let RSVD::KnownData { value } = &size.data {
-            let num_32 = RSV::new_known_value(
-                instruction_pointer,
-                KnownWord::from(32),
-                Provenance::Execution,
-            );
+        if let RSVD::KnownData { value } = size.data() {
+            let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
             let actual_size: usize = value.into();
             for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = RSV::new_known_value(
-                    instruction_pointer,
-                    KnownWord::from(internal_offset),
-                    Provenance::Execution,
-                );
-                let dest_offset = RSV::new_from_execution(
+                let to_add_to_offset = vm
+                    .build()
+                    .known_exec(instruction_pointer, KnownWord::from(internal_offset));
+                let dest_offset = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::Add {
                         left:  dest_offset.clone(),
                         right: to_add_to_offset.clone(),
                     },
                 );
-                let src_offset = RSV::new_from_execution(
+                let src_offset = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::Add {
                         left:  offset.clone(),
                         right: to_add_to_offset,
                     },
                 );
-                let value = RSV::new_from_execution(
+                let value = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::ExtCodeCopy {
                         address: address.clone(),
@@ -512,10 +499,11 @@ impl Opcode for ExtCodeCopy {
                         size:    num_32.clone(),
                     },
                 );
+                let memory = vm.state()?.memory_mut();
                 memory.store(dest_offset, value);
             }
         } else {
-            let value = RSV::new_from_execution(
+            let value = vm.build().symbolic_exec(
                 instruction_pointer,
                 RSVD::ExtCodeCopy {
                     address,
@@ -523,6 +511,7 @@ impl Opcode for ExtCodeCopy {
                     size,
                 },
             );
+            let memory = vm.state()?.memory_mut();
             memory.store(dest_offset, value);
         }
 
@@ -636,47 +625,42 @@ impl Opcode for ReturnDataCopy {
         let size = stack.pop()?.constant_fold();
 
         // Modify the memory
-        let memory = vm.state()?.memory_mut();
-
-        if let RSVD::KnownData { value } = &size.data {
-            let num_32 = RSV::new_known_value(
-                instruction_pointer,
-                KnownWord::from(32),
-                Provenance::Execution,
-            );
+        if let RSVD::KnownData { value } = size.data() {
+            let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
             let actual_size: usize = value.into();
             for internal_offset in (0..actual_size).step_by(32) {
-                let to_add_to_offset = RSV::new_known_value(
-                    instruction_pointer,
-                    KnownWord::from(internal_offset),
-                    Provenance::Execution,
-                );
-                let dest_offset = RSV::new_from_execution(
+                let to_add_to_offset = vm
+                    .build()
+                    .known_exec(instruction_pointer, KnownWord::from(internal_offset));
+                let dest_offset = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::Add {
                         left:  dest_offset.clone(),
                         right: to_add_to_offset.clone(),
                     },
                 );
-                let src_offset = RSV::new_from_execution(
+                let src_offset = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::Add {
                         left:  offset.clone(),
                         right: to_add_to_offset,
                     },
                 );
-                let value = RSV::new_from_execution(
+                let value = vm.build().symbolic_exec(
                     instruction_pointer,
                     RSVD::ReturnData {
                         offset: src_offset,
                         size:   num_32.clone(),
                     },
                 );
+                let memory = vm.state()?.memory_mut();
                 memory.store(dest_offset, value);
             }
         } else {
-            let value =
-                RSV::new_from_execution(instruction_pointer, RSVD::ReturnData { offset, size });
+            let value = vm
+                .build()
+                .symbolic_exec(instruction_pointer, RSVD::ReturnData { offset, size });
+            let memory = vm.state()?.memory_mut();
             memory.store(dest_offset, value);
         }
 
@@ -1093,16 +1077,16 @@ impl Opcode for Push0 {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Construct the value of zero
-        let zero = RSV::new(
+        let zero = vm.build().symbolic(
             instruction_pointer,
             RSVD::new_known(KnownWord::zero()),
             Provenance::Bytecode,
         );
 
         // Push it onto the stack
+        let mut stack = vm.stack_handle()?;
         stack.push(zero)?;
 
         // Done, so return ok
@@ -1205,19 +1189,19 @@ impl Opcode for PushN {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and env data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Pull the data out of the opcode; validation is done in parsing
         let item_data = self.bytes_as_word();
 
         // Construct the value to push
-        let item = RSV::new(
+        let item = vm.build().symbolic(
             instruction_pointer,
             RSVD::new_known(item_data),
             Provenance::Bytecode,
         );
 
         // Push it onto the stack
+        let mut stack = vm.stack_handle()?;
         stack.push(item)?;
 
         // Done, so return ok
@@ -1429,14 +1413,14 @@ mod test {
         assert_eq!(stack.depth(), 1);
 
         let item = stack.read(0)?;
-        assert_eq!(item.instruction_pointer, 0);
-        match &item.data {
+        assert_eq!(item.instruction_pointer(), 0);
+        match item.data() {
             RSVD::CallData { offset, .. } => {
-                assert_eq!(offset.provenance, Provenance::Synthetic);
+                assert_eq!(offset.provenance(), Provenance::Synthetic);
             }
             _ => panic!("Invalid data"),
         };
-        assert_eq!(item.provenance, Provenance::Execution);
+        assert_eq!(item.provenance(), Provenance::Execution);
 
         Ok(())
     }
@@ -1454,7 +1438,7 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
-        assert_eq!(value.provenance, Provenance::CallDataSize);
+        assert_eq!(value.provenance(), Provenance::CallDataSize);
 
         Ok(())
     }
@@ -1482,14 +1466,14 @@ mod test {
         // Inspect the memory
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
-        match &loaded.data {
+        match loaded.data() {
             RSVD::CallData { offset, size, .. } => {
                 assert_eq!(offset, &input_offset);
                 assert_eq!(size, &input_size);
             }
             _ => panic!("Incorrect payload"),
         };
-        assert_eq!(loaded.provenance, Provenance::Execution);
+        assert_eq!(loaded.provenance(), Provenance::Execution);
 
         Ok(())
     }
@@ -1508,8 +1492,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
-        assert_eq!(value.provenance, Provenance::Execution);
-        match &value.data {
+        assert_eq!(value.provenance(), Provenance::Execution);
+        match value.data() {
             RSVD::KnownData { value, .. } => {
                 assert_eq!(value, &KnownWord::from(code_size_actual));
             }
@@ -1542,14 +1526,14 @@ mod test {
         // Inspect the memory
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
-        match &loaded.data {
+        match loaded.data() {
             RSVD::CodeCopy { offset, size } => {
                 assert_eq!(offset, &input_offset);
                 assert_eq!(size, &input_size);
             }
             _ => panic!("Incorrect payload"),
         }
-        assert_eq!(loaded.provenance, Provenance::Execution);
+        assert_eq!(loaded.provenance(), Provenance::Execution);
 
         Ok(())
     }
@@ -1568,8 +1552,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
-        assert_eq!(value.provenance, Provenance::Execution);
-        assert_eq!(value.data, RSVD::ExtCodeSize { address });
+        assert_eq!(value.provenance(), Provenance::Execution);
+        assert_eq!(value.data(), &RSVD::ExtCodeSize { address });
 
         Ok(())
     }
@@ -1599,7 +1583,7 @@ mod test {
         // Inspect the memory
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
-        match &loaded.data {
+        match loaded.data() {
             RSVD::ExtCodeCopy {
                 address,
                 offset,
@@ -1611,7 +1595,7 @@ mod test {
             }
             _ => panic!("Incorrect payload"),
         };
-        assert_eq!(loaded.provenance, Provenance::Execution);
+        assert_eq!(loaded.provenance(), Provenance::Execution);
 
         Ok(())
     }
@@ -1629,7 +1613,7 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let item = stack.read(0)?;
-        assert_eq!(item.provenance, Provenance::ReturnDataSize);
+        assert_eq!(item.provenance(), Provenance::ReturnDataSize);
 
         Ok(())
     }
@@ -1657,14 +1641,14 @@ mod test {
         // Inspect the memory
         let memory = vm.state()?.memory_mut();
         let loaded = memory.load(&dest_offset);
-        match &loaded.data {
+        match loaded.data() {
             RSVD::ReturnData { offset, size } => {
                 assert_eq!(offset, &input_offset);
                 assert_eq!(size, &input_size);
             }
             _ => panic!("Incorrect payload"),
         }
-        assert_eq!(loaded.provenance, Provenance::Execution);
+        assert_eq!(loaded.provenance(), Provenance::Execution);
 
         Ok(())
     }
@@ -1771,7 +1755,7 @@ mod test {
         // Inspect the stack state
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
-        match &stack.read(0)?.data {
+        match stack.read(0)?.data() {
             RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
@@ -1782,7 +1766,7 @@ mod test {
         // Inspect the storage state
         let storage = vm.state()?.storage_mut();
         assert_eq!(storage.entry_count(), 1);
-        match &storage.load(&input_key).data {
+        match storage.load(&input_key).data() {
             RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
@@ -1811,7 +1795,7 @@ mod test {
         // Inspect the storage state
         let storage = vm.state()?.storage_mut();
         assert_eq!(storage.entry_count(), 1);
-        match &storage.load(&input_key).data {
+        match storage.load(&input_key).data() {
             RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
@@ -1835,7 +1819,7 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
-        assert_eq!(value.provenance, Provenance::MSize);
+        assert_eq!(value.provenance(), Provenance::MSize);
 
         Ok(())
     }
@@ -1853,8 +1837,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
-        assert_eq!(value.provenance, Provenance::Bytecode);
-        match &value.data {
+        assert_eq!(value.provenance(), Provenance::Bytecode);
+        match value.data() {
             RSVD::KnownData { value, .. } => assert_eq!(value, &KnownWord::zero()),
             _ => panic!("Incorrect payload"),
         }
@@ -1887,8 +1871,8 @@ mod test {
             let stack = vm.state()?.stack_mut();
             assert_eq!(stack.depth(), 1);
             let value = stack.read(0)?;
-            assert_eq!(value.provenance, Provenance::Bytecode);
-            match &value.data {
+            assert_eq!(value.provenance(), Provenance::Bytecode);
+            match value.data() {
                 RSVD::KnownData { value, .. } => {
                     assert_eq!(value, &opcode.bytes_as_word());
                 }

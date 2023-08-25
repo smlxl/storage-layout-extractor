@@ -15,7 +15,7 @@ pub struct BitShiftRule;
 
 impl InferenceRule for BitShiftRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::LeftShift {
                 shift,
                 value: shift_val,

@@ -25,16 +25,16 @@ pub struct DynamicArrayWriteRule;
 impl InferenceRule for DynamicArrayWriteRule {
     #[allow(clippy::many_single_char_names)] // They correspond to the above spec
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        let TCSVD::StorageWrite { key: b, value: g } = &value.data else {
+        let TCSVD::StorageWrite { key: b, value: g } = value.data() else {
             return Ok(());
         };
-        let TCSVD::StorageSlot { key: c } = &b.data else {
+        let TCSVD::StorageSlot { key: c } = b.data() else {
             return Ok(());
         };
-        let TCSVD::DynamicArrayAccess { slot: d, index: f } = &c.data else {
+        let TCSVD::DynamicArrayAccess { slot: d, index: f } = c.data() else {
             return Ok(());
         };
-        let TCSVD::StorageSlot { .. } = &d.data else {
+        let TCSVD::StorageSlot { .. } = d.data() else {
             return Ok(());
         };
 

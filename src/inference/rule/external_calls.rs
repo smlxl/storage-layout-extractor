@@ -41,7 +41,7 @@ pub struct ExternalCallRule;
 impl InferenceRule for ExternalCallRule {
     #[allow(clippy::many_single_char_names)] // They correspond to the above spec
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::CallWithValue {
                 gas: b,
                 address: c,

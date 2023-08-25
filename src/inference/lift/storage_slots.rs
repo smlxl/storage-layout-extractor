@@ -37,52 +37,52 @@ impl Lift for StorageSlots {
         fn insert_storage_accesses(data: &RSVD) -> Option<RSVD> {
             match data {
                 RSVD::MappingAccess { key, slot } => {
-                    let data = match &slot.data {
-                        RSVD::StorageSlot { .. } => slot.data.clone(),
+                    let data = match &slot.data() {
+                        RSVD::StorageSlot { .. } => slot.data().clone(),
                         _ => RSVD::StorageSlot {
                             key: slot.clone().transform_data(insert_storage_accesses),
                         },
                     };
-                    let slot = RSV::new(slot.instruction_pointer, data, slot.provenance);
+                    let slot = RSV::new(slot.instruction_pointer(), data, slot.provenance(), None);
                     Some(RSVD::MappingAccess {
                         key: key.clone().transform_data(insert_storage_accesses),
                         slot,
                     })
                 }
                 RSVD::StorageWrite { key, value } => {
-                    let data = match &key.data {
-                        RSVD::StorageSlot { .. } => key.data.clone(),
+                    let data = match &key.data() {
+                        RSVD::StorageSlot { .. } => key.data().clone(),
                         _ => RSVD::StorageSlot {
                             key: key.clone().transform_data(insert_storage_accesses),
                         },
                     };
-                    let new_key = RSV::new(key.instruction_pointer, data, key.provenance);
+                    let new_key = RSV::new(key.instruction_pointer(), data, key.provenance(), None);
                     Some(RSVD::StorageWrite {
                         key:   new_key,
                         value: value.clone().transform_data(insert_storage_accesses),
                     })
                 }
                 RSVD::DynamicArrayAccess { slot, index } => {
-                    let data = match &slot.data {
-                        RSVD::StorageSlot { .. } => slot.data.clone(),
+                    let data = match &slot.data() {
+                        RSVD::StorageSlot { .. } => slot.data().clone(),
                         _ => RSVD::StorageSlot {
                             key: slot.clone().transform_data(insert_storage_accesses),
                         },
                     };
-                    let slot = RSV::new(slot.instruction_pointer, data, slot.provenance);
+                    let slot = RSV::new(slot.instruction_pointer(), data, slot.provenance(), None);
                     Some(RSVD::DynamicArrayAccess {
                         index: index.clone().transform_data(insert_storage_accesses),
                         slot,
                     })
                 }
                 RSVD::SLoad { key, value } => {
-                    let data = match &key.data {
-                        RSVD::StorageSlot { .. } => key.data.clone(),
+                    let data = match &key.data() {
+                        RSVD::StorageSlot { .. } => key.data().clone(),
                         _ => RSVD::StorageSlot {
                             key: key.clone().transform_data(insert_storage_accesses),
                         },
                     };
-                    let slot = RSV::new(key.instruction_pointer, data, key.provenance);
+                    let slot = RSV::new(key.instruction_pointer(), data, key.provenance(), None);
                     Some(RSVD::SLoad {
                         key:   slot,
                         value: value.clone().transform_data(insert_storage_accesses),
@@ -109,7 +109,7 @@ mod test {
     #[test]
     fn lifts_storage_slots_in_mappings_at_top_level() -> anyhow::Result<()> {
         let slot_index_constant =
-            RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
+            RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
         let mapping_access = RSV::new(
             2,
@@ -118,17 +118,18 @@ mod test {
                 slot: slot_index_constant.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         let state = InferenceState::empty();
         let result = StorageSlots.run(mapping_access, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::MappingAccess { key, slot } => {
-                assert_eq!(key, mapping_key);
-                match slot.data {
+                assert_eq!(key, &mapping_key);
+                match slot.data() {
                     RSVD::StorageSlot { key } => {
-                        assert_eq!(key, slot_index_constant);
+                        assert_eq!(key, &slot_index_constant);
                     }
                     _ => panic!("Incorrect payload"),
                 }
@@ -142,7 +143,7 @@ mod test {
     #[test]
     fn lifts_storage_slots_in_mappings_when_nested() -> anyhow::Result<()> {
         let slot_index_constant =
-            RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
+            RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
         let mapping_access = RSV::new(
             2,
@@ -151,6 +152,7 @@ mod test {
                 slot: slot_index_constant.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
         let outer_key = RSV::new_value(1, Provenance::Synthetic);
         let write = RSV::new(
@@ -160,26 +162,27 @@ mod test {
                 value: mapping_access,
             },
             Provenance::Synthetic,
+            None,
         );
 
         let state = InferenceState::empty();
         let result = StorageSlots.run(write, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::StorageWrite { key, value } => {
-                match key.data {
+                match key.data() {
                     RSVD::StorageSlot { key } => {
-                        assert_eq!(key, outer_key);
+                        assert_eq!(key, &outer_key);
                     }
                     _ => panic!("Incorrect payload"),
                 }
 
-                match value.data {
+                match value.data() {
                     RSVD::MappingAccess { key, slot } => {
-                        assert_eq!(key, mapping_key);
-                        match slot.data {
+                        assert_eq!(key, &mapping_key);
+                        match slot.data() {
                             RSVD::StorageSlot { key } => {
-                                assert_eq!(key, slot_index_constant);
+                                assert_eq!(key, &slot_index_constant);
                             }
                             _ => panic!("Incorrect payload"),
                         }
@@ -195,7 +198,7 @@ mod test {
 
     #[test]
     fn lifts_storage_slots_in_s_stores() -> anyhow::Result<()> {
-        let storage_key = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
+        let storage_key = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
         let storage_value = RSV::new_value(1, Provenance::Synthetic);
         let storage_store = RSV::new(
             2,
@@ -204,16 +207,17 @@ mod test {
                 value: storage_value.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         let state = InferenceState::empty();
         let result = StorageSlots.run(storage_store, &state)?;
 
-        match result.data {
-            RSVD::StorageWrite { key, value } => match key.data {
+        match result.data() {
+            RSVD::StorageWrite { key, value } => match key.data() {
                 RSVD::StorageSlot { key } => {
-                    assert_eq!(key, storage_key);
-                    assert_eq!(value, storage_value);
+                    assert_eq!(key, &storage_key);
+                    assert_eq!(value, &storage_value);
                 }
                 _ => panic!("Incorrect payload"),
             },
@@ -234,18 +238,19 @@ mod test {
                 index: input_index.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         let state = InferenceState::empty();
         let result = StorageSlots.run(dyn_array, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::DynamicArrayAccess { slot, index } => {
-                assert_eq!(index, input_index);
+                assert_eq!(index, &input_index);
 
-                match slot.data {
+                match slot.data() {
                     RSVD::StorageSlot { key } => {
-                        assert_eq!(key, input_slot);
+                        assert_eq!(key, &input_slot);
                     }
                     _ => panic!("Incorrect payload"),
                 }
@@ -264,6 +269,7 @@ mod test {
                 key: RSV::new_value(1, Provenance::Synthetic),
             },
             Provenance::Synthetic,
+            None,
         );
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
         let mapping_access = RSV::new(
@@ -273,15 +279,16 @@ mod test {
                 slot: input_slot.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         let state = InferenceState::empty();
         let result = StorageSlots.run(mapping_access, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::MappingAccess { key, slot } => {
-                assert_eq!(key, mapping_key);
-                assert_eq!(slot, input_slot);
+                assert_eq!(key, &mapping_key);
+                assert_eq!(slot, &input_slot);
             }
             _ => panic!("Incorrect payload"),
         }
@@ -297,6 +304,7 @@ mod test {
                 key: RSV::new_value(1, Provenance::Synthetic),
             },
             Provenance::Synthetic,
+            None,
         );
         let storage_value = RSV::new_value(1, Provenance::Synthetic);
         let storage_store = RSV::new(
@@ -306,15 +314,16 @@ mod test {
                 value: storage_value.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         let state = InferenceState::empty();
         let result = StorageSlots.run(storage_store, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::StorageWrite { key, value } => {
-                assert_eq!(key, input_slot);
-                assert_eq!(value, storage_value);
+                assert_eq!(key, &input_slot);
+                assert_eq!(value, &storage_value);
             }
             _ => panic!("Incorrect payload"),
         }
@@ -330,6 +339,7 @@ mod test {
                 key: RSV::new_value(1, Provenance::Synthetic),
             },
             Provenance::Synthetic,
+            None,
         );
         let input_index = RSV::new_value(1, Provenance::Synthetic);
         let dyn_array = RSV::new(
@@ -339,15 +349,16 @@ mod test {
                 index: input_index.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         let state = InferenceState::empty();
         let result = StorageSlots.run(dyn_array, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::DynamicArrayAccess { slot, index } => {
-                assert_eq!(index, input_index);
-                assert_eq!(slot, input_slot);
+                assert_eq!(index, &input_index);
+                assert_eq!(slot, &input_slot);
             }
             _ => panic!("Incorrect payload"),
         }
@@ -370,12 +381,12 @@ mod test {
         let state = InferenceState::empty();
         let result = StorageSlots.run(s_load, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::SLoad { key, value } => {
-                assert_eq!(value, input_value);
-                match key.data {
+                assert_eq!(value, &input_value);
+                match key.data() {
                     RSVD::StorageSlot { key } => {
-                        assert_eq!(key, input_key);
+                        assert_eq!(key, &input_key);
                     }
                     _ => panic!("Incorrect payload"),
                 }

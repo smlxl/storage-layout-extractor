@@ -31,7 +31,7 @@ impl InferenceRule for MaskedWordRule {
             value: sub_value,
             offset,
             size,
-        } = &value.data
+        } = value.data()
         else {
             return Ok(());
         };

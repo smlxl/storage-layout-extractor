@@ -23,7 +23,7 @@ pub struct StorageWriteRule;
 
 impl InferenceRule for StorageWriteRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::StorageWrite { key, value } => {
                 // An equality for the key's type
                 let key_tv = state.var_unchecked(key);

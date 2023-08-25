@@ -27,7 +27,7 @@ pub struct PackedEncodingRule;
 
 impl InferenceRule for PackedEncodingRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        let TCSVD::Packed { elements } = &value.data else { return Ok(()) };
+        let TCSVD::Packed { elements } = value.data() else { return Ok(()) };
 
         // Construct the inference from this input
         let element_spans: Vec<Span> = elements

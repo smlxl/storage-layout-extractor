@@ -51,7 +51,7 @@ impl Lift for PackedEncoding {
         /// The order of the returned values is arbitrary.
         #[allow(clippy::boxed_local)] // We pass all these things around boxed
         fn unpick_ors(data: RuntimeBoxedVal) -> Vec<RuntimeBoxedVal> {
-            let RSVD::Or { left, right } = data.data else { return vec![data] };
+            let RSVD::Or { left, right } = data.data() else { return vec![data] };
             let mut left_ors = unpick_ors(left.clone());
             let right_ors = unpick_ors(right.clone());
             left_ors.extend(right_ors);
@@ -67,7 +67,7 @@ impl Lift for PackedEncoding {
             let elements = unpick_ors(value.clone());
             let true = elements
                 .iter()
-                .map(|e| matches!(e.data, RSVD::Shifted { .. } | RSVD::SubWord { .. }))
+                .map(|e| matches!(e.data(), RSVD::Shifted { .. } | RSVD::SubWord { .. }))
                 .all(|r| r)
             else {
                 return None;
@@ -77,9 +77,9 @@ impl Lift for PackedEncoding {
             // coverage of the word (by sorting elements)
             let spans: Vec<PackedSpan<()>> = elements
                 .into_iter()
-                .map(|e| match &e.data {
+                .map(|e| match &e.data() {
                     RSVD::SubWord { offset, size, .. } => PackedSpan::new(*offset, *size, e),
-                    RSVD::Shifted { offset, value } => match &value.data {
+                    RSVD::Shifted { offset, value } => match &value.data() {
                         RSVD::SubWord { size, .. } => PackedSpan::new(*offset, *size, e),
                         _ => panic!("Shift of non-sub-word"),
                     },
@@ -102,9 +102,9 @@ impl Lift for PackedEncoding {
             // gets written to.
             let used_spans: Vec<_> = spans
                 .into_iter()
-                .filter(|span| match &span.value.data {
+                .filter(|span| match &span.value.data() {
                     RSVD::SubWord { value, .. } => !matches!(
-                        &value.data,
+                        value.data(),
                         RSVD::SLoad { key: inner_key, .. } if key == inner_key
                     ),
                     _ => true,
@@ -113,11 +113,12 @@ impl Lift for PackedEncoding {
 
             if spans_are_valid {
                 let packed = RSV::new(
-                    value.instruction_pointer,
+                    value.instruction_pointer(),
                     RSVD::Packed {
                         elements: used_spans,
                     },
-                    value.provenance,
+                    value.provenance(),
+                    None,
                 );
                 let store = RSVD::StorageWrite {
                     key:   key.clone(),
@@ -184,10 +185,10 @@ mod test {
         let result = PackedEncoding.run(store, &state)?;
 
         // Check the structure of the data
-        match result.data {
+        match result.data() {
             RSVD::StorageWrite { key, value } => {
-                assert_eq!(key, input_key);
-                match value.data {
+                assert_eq!(key, &input_key);
+                match value.data() {
                     RSVD::Packed { elements } => {
                         assert_eq!(elements.len(), 2);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));
@@ -258,10 +259,10 @@ mod test {
         let result = PackedEncoding.run(store, &state)?;
 
         // Check the structure of the data
-        match result.data {
+        match result.data() {
             RSVD::StorageWrite { key, value } => {
-                assert_eq!(key, input_key);
-                match value.data {
+                assert_eq!(key, &input_key);
+                match value.data() {
                     RSVD::Packed { elements } => {
                         assert_eq!(elements.len(), 3);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));
@@ -340,10 +341,10 @@ mod test {
         let result = PackedEncoding.run(store, &state)?;
 
         // Check the structure of the data
-        match result.data {
+        match result.data() {
             RSVD::StorageWrite { key, value } => {
-                assert_eq!(key, input_key);
-                match value.data {
+                assert_eq!(key, &input_key);
+                match value.data() {
                     RSVD::Packed { elements } => {
                         assert_eq!(elements.len(), 3);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));
@@ -413,10 +414,10 @@ mod test {
         let result = PackedEncoding.run(store, &state)?;
 
         // Check the structure of the data
-        match result.data {
+        match result.data() {
             RSVD::StorageWrite { key, value } => {
-                assert_eq!(key, input_key);
-                match value.data {
+                assert_eq!(key, &input_key);
+                match value.data() {
                     RSVD::Packed { elements } => {
                         assert_eq!(elements.len(), 1);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));

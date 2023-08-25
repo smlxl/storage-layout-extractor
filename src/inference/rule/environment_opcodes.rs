@@ -17,7 +17,7 @@ pub struct EnvironmentCodesRule;
 
 impl InferenceRule for EnvironmentCodesRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::Address | TCSVD::Origin | TCSVD::Caller | TCSVD::CoinBase => {
                 state.infer_for(value, TE::address());
             }

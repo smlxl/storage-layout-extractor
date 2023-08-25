@@ -12,6 +12,7 @@ use crate::{
         BLOCK_GAS_LIMIT,
         DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT,
         DEFAULT_ITERATIONS_PER_OPCODE,
+        DEFAULT_VALUE_SIZE_LIMIT,
     },
     disassembly::{ExecutionThread, InstructionStream},
     error::{
@@ -23,7 +24,7 @@ use crate::{
         data::JumpTargets,
         state::{stack::LocatedStackHandle, VMState},
         thread::VMThread,
-        value::RuntimeBoxedVal,
+        value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
     },
 };
 
@@ -54,6 +55,9 @@ pub struct VM {
 
     /// Any errors that were encountered during the course of execution.
     errors: Errors,
+
+    /// A builder for new values with configuration.
+    builder: ValueBuilder,
 }
 
 impl VM {
@@ -93,6 +97,7 @@ impl VM {
         let stored_states = Vec::new();
         let current_thread_killed = false;
         let errors = Errors::default();
+        let builder = ValueBuilder::new(&config);
 
         Ok(Self {
             instructions,
@@ -102,6 +107,7 @@ impl VM {
             config,
             current_thread_killed,
             errors,
+            builder,
         })
     }
 
@@ -133,6 +139,7 @@ impl VM {
                 .expect("We already know a thread is present")
                 .instructions_mut()
                 .instruction_pointer();
+
             let current_thread = self.current_thread_mut()?;
             current_thread
                 .state_mut()
@@ -428,6 +435,16 @@ impl VM {
         self.errors.add(error);
     }
 
+    /// Gets the value [`ValueBuilder`] associated with this VM instance.
+    ///
+    /// This is used for creating new values without having to manually pass
+    /// configuration from the virtual machine to each call to the value
+    /// constructor functions.
+    #[must_use]
+    pub fn build(&self) -> &ValueBuilder {
+        &self.builder
+    }
+
     /// Consumes the virtual machine to convert it into the data necessary for
     /// the analysis in the [`crate::inference::InferenceEngine`].
     #[must_use]
@@ -492,28 +509,143 @@ pub struct Config {
     ///
     /// Defaults to [`DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT`].
     pub maximum_forks_per_fork_target: usize,
+
+    /// The maximum number of nodes that a symbolic value can contain before it
+    /// is culled.
+    pub value_size_limit: usize,
 }
 
 impl Config {
-    // Sets the `maximum_forks_per_fork_target` config parameter to `value`.
+    /// Sets the `maximum_forks_per_fork_target` config parameter to `value`.
     #[must_use]
     pub fn with_max_forks_per_fork_target(mut self, value: usize) -> Config {
         self.maximum_forks_per_fork_target = value;
         self
     }
 
-    // Sets the `maximum_iterations_per_opcode` config parameter to `value`.
+    /// Sets the `maximum_iterations_per_opcode` config parameter to `value`.
     #[must_use]
     pub fn with_max_iterations_per_opcode(mut self, value: usize) -> Config {
         self.maximum_iterations_per_opcode = value;
         self
     }
 
-    // Sets the `gas_limit` config parameter to `value`.
+    /// Sets the `gas_limit` config parameter to `value`.
     #[must_use]
     pub fn with_gas_limit(mut self, value: usize) -> Config {
         self.gas_limit = value;
         self
+    }
+
+    /// Sets the value size limit configuration parameter to `value`.
+    #[must_use]
+    pub fn with_value_size_limit(mut self, value: usize) -> Config {
+        self.value_size_limit = value;
+        self
+    }
+}
+
+/// A structure that provides an interface to building new [`RSV`]s with access
+/// to the VM's configuration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValueBuilder {
+    config: Config,
+}
+
+impl ValueBuilder {
+    /// Constructs a new value builder with access to the specified `config`.
+    #[must_use]
+    pub fn new(config: &Config) -> Self {
+        let config = config.clone();
+        Self { config }
+    }
+
+    /// Constructs a new bare value at `instruction_pointer` with the specified
+    /// `provenance`.
+    ///
+    /// This function exists to make it easier to construct values with the
+    /// specified [`Config::value_size_limit`] without the need to pass it every
+    /// time to the raw constructor.
+    #[must_use]
+    pub fn value(&self, instruction_pointer: u32, provenance: Provenance) -> RuntimeBoxedVal {
+        RSV::new_value(instruction_pointer, provenance)
+    }
+
+    /// Constructs a new `SymbolicValue` representing the operation performed at
+    /// `instruction_pointer` on the symbolic `data` and with the specified
+    /// `provenance`.
+    ///
+    /// This function exists to make it easier to construct values with the
+    /// specified [`Config::value_size_limit`] without the need to pass it every
+    /// time to the raw constructor.
+    #[must_use]
+    pub fn symbolic(
+        &self,
+        instruction_pointer: u32,
+        data: RSVD,
+        provenance: Provenance,
+    ) -> RuntimeBoxedVal {
+        RSV::new(
+            instruction_pointer,
+            data,
+            provenance,
+            Some(self.config.value_size_limit),
+        )
+    }
+
+    /// Constructs a new `SymbolicValue` representing the operation performed at
+    /// `instruction_pointer` on the symbolic `data` and with its provenance
+    /// being [`Provenance::Execution`].
+    ///
+    /// This function exists to make it easier to construct values with the
+    /// specified [`Config::value_size_limit`] without the need to pass it every
+    /// time to the raw constructor.
+    #[must_use]
+    pub fn symbolic_exec(&self, instruction_pointer: u32, data: RSVD) -> RuntimeBoxedVal {
+        RSV::new_from_execution(
+            instruction_pointer,
+            data,
+            Some(self.config.value_size_limit),
+        )
+    }
+
+    /// Constructs a new `SymbolicValue` representing a known value of
+    /// `value_data` created at `instruction_pointer` with the specified
+    /// `provenance`.
+    ///
+    /// This function exists to make it easier to construct values with the
+    /// specified [`Config::value_size_limit`] without the need to pass it every
+    /// time to the raw constructor.
+    #[must_use]
+    pub fn known(
+        &self,
+        instruction_pointer: u32,
+        value_data: KnownWord,
+        provenance: Provenance,
+    ) -> RuntimeBoxedVal {
+        RSV::new_known_value(
+            instruction_pointer,
+            value_data,
+            provenance,
+            Some(self.config.value_size_limit),
+        )
+    }
+
+    /// Constructs a new `SymbolicValue` representing a known value of
+    /// `value_data` created at `instruction_pointer` with its provenance being
+    /// [`Provenance::Execution`].
+    ///
+    /// This function exists to make it easier to construct values with the
+    /// specified [`Config::value_size_limit`] without the need to pass it every
+    /// time to the raw constructor.
+    #[must_use]
+    pub fn known_exec(&self, instruction_pointer: u32, value_data: KnownWord) -> RuntimeBoxedVal {
+        RSV::new_known_value(
+            instruction_pointer,
+            value_data,
+            Provenance::Execution,
+            Some(self.config.value_size_limit),
+        )
     }
 }
 
@@ -522,10 +654,12 @@ impl Default for Config {
         let gas_limit = BLOCK_GAS_LIMIT;
         let maximum_iterations_per_opcode = DEFAULT_ITERATIONS_PER_OPCODE;
         let maximum_forks_per_fork_target = DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT;
+        let value_size_limit = DEFAULT_VALUE_SIZE_LIMIT;
         Self {
             gas_limit,
             maximum_iterations_per_opcode,
             maximum_forks_per_fork_target,
+            value_size_limit,
         }
     }
 }

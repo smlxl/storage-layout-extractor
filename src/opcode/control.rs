@@ -4,7 +4,7 @@ use crate::{
     error::execution,
     opcode::{util, ExecuteResult, Opcode},
     vm::{
-        value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
+        value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSVD},
         VM,
     },
 };
@@ -286,16 +286,16 @@ pub struct PC;
 
 impl Opcode for PC {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
-        // Get the stack and instruction pointer
+        // Get the instruction pointer
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Construct the value and push it onto the stack
-        let result = RSV::new_known_value(
+        let result = vm.build().known(
             instruction_pointer,
             KnownWord::from_le(instruction_pointer),
             Provenance::ProgramCounter,
         );
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -360,23 +360,16 @@ fn store_return_data(
     vm: &mut VM,
 ) -> ExecuteResult {
     let instruction_pointer = vm.instruction_pointer()?;
-    let memory = vm.state()?.memory_mut();
     let ret_size = ret_size.clone().constant_fold();
 
-    if let RSVD::KnownData { value } = ret_size.data {
-        let num_32 = RSV::new_known_value(
-            instruction_pointer,
-            KnownWord::from(32),
-            Provenance::Execution,
-        );
+    if let RSVD::KnownData { value } = ret_size.data() {
+        let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
         let actual_size: usize = value.into();
         for internal_offset in (0..actual_size).step_by(32) {
-            let to_add_to_offset = RSV::new_known_value(
-                instruction_pointer,
-                KnownWord::from(internal_offset),
-                Provenance::Execution,
-            );
-            let dest_offset = RSV::new_from_execution(
+            let to_add_to_offset = vm
+                .build()
+                .known_exec(instruction_pointer, KnownWord::from(internal_offset));
+            let dest_offset = vm.build().symbolic_exec(
                 instruction_pointer,
                 RSVD::Add {
                     left:  ret_offset.clone().constant_fold(),
@@ -384,21 +377,25 @@ fn store_return_data(
                 },
             );
             // Offsets in the _return data_ start at zero.
-            let src_offset = RSV::new_from_execution(
-                instruction_pointer,
-                RSVD::new_known(KnownWord::from(internal_offset)),
-            );
-            let value = RSV::new_from_execution(
+            let src_offset = vm
+                .build()
+                .known_exec(instruction_pointer, KnownWord::from(internal_offset));
+            let value = vm.build().symbolic_exec(
                 instruction_pointer,
                 RSVD::ReturnData {
                     offset: src_offset,
                     size:   num_32.clone(),
                 },
             );
+            let memory = vm.state()?.memory_mut();
             memory.store(dest_offset, value);
         }
     } else {
-        let ret_value = RSV::new_value(instruction_pointer, Provenance::MessageCall);
+        let ret_value = vm.build().symbolic(
+            instruction_pointer,
+            RSVD::new_value(),
+            Provenance::MessageCall,
+        );
         vm.state()?.memory_mut().store(ret_offset.clone(), ret_value);
     }
 
@@ -464,7 +461,7 @@ impl Opcode for Call {
         store_return_data(&ret_size, &ret_offset, vm)?;
 
         // Create the value representing the call
-        let call_return = RSV::new_from_execution(
+        let call_return = vm.build().symbolic_exec(
             instruction_pointer,
             RSVD::CallWithValue {
                 gas,
@@ -620,7 +617,7 @@ impl Opcode for DelegateCall {
         store_return_data(&ret_size, &ret_offset, vm)?;
 
         // Create the value representing the call
-        let call_return = RSV::new_from_execution(
+        let call_return = vm.build().symbolic_exec(
             instruction_pointer,
             RSVD::CallWithoutValue {
                 gas,
@@ -760,7 +757,7 @@ impl Opcode for Return {
             .state()?
             .memory_mut()
             .load_slice(&offset, &size, instruction_pointer);
-        let return_val = RSV::new_from_execution(instruction_pointer, RSVD::Return { data });
+        let return_val = vm.build().symbolic_exec(instruction_pointer, RSVD::Return { data });
         vm.state()?.record_value(return_val);
 
         // Now end execution
@@ -827,7 +824,7 @@ impl Opcode for Revert {
             .state()?
             .memory_mut()
             .load_slice(&offset, &size, instruction_pointer);
-        let return_val = RSV::new_from_execution(instruction_pointer, RSVD::Revert { data });
+        let return_val = vm.build().symbolic_exec(instruction_pointer, RSVD::Revert { data });
         vm.state()?.record_value(return_val);
 
         // Now end execution
@@ -941,6 +938,7 @@ mod test {
             0,
             KnownWord::from_le(0x03u32), // Offset of JUMPDEST in the bytes above
             Provenance::Synthetic,
+            None,
         );
         let mut vm =
             util::new_vm_with_instructions_and_values_on_stack(instructions, vec![immediate])?;
@@ -1006,6 +1004,7 @@ mod test {
             0,
             KnownWord::from_le(0x04u32), // Out of bounds
             Provenance::Synthetic,
+            None,
         );
         let mut vm =
             util::new_vm_with_instructions_and_values_on_stack(instructions, vec![immediate])?;
@@ -1041,6 +1040,7 @@ mod test {
             0,
             KnownWord::from_le(0x03u32), // The final INVALID in the bytes above
             Provenance::Synthetic,
+            None,
         );
         let mut vm =
             util::new_vm_with_instructions_and_values_on_stack(instructions, vec![immediate])?;
@@ -1071,6 +1071,7 @@ mod test {
             0,
             KnownWord::from_le(0x02u32), // Offset of JUMPDEST in the bytes above
             Provenance::Synthetic,
+            None,
         );
         let cond = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_instructions_and_values_on_stack(
@@ -1121,6 +1122,7 @@ mod test {
             0,
             KnownWord::from_le(0x04u32), // OOB target
             Provenance::Synthetic,
+            None,
         );
         let cond = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_instructions_and_values_on_stack(
@@ -1159,6 +1161,7 @@ mod test {
             0,
             KnownWord::from_le(0x02u32), // Invalid jump target
             Provenance::Synthetic,
+            None,
         );
         let cond = RSV::new_synthetic(1, RSVD::new_value());
         let mut vm = util::new_vm_with_instructions_and_values_on_stack(
@@ -1194,7 +1197,7 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
-        match &value.data {
+        match value.data() {
             RSVD::KnownData { value, .. } => {
                 assert_eq!(value, &KnownWord::from_le(0x00u32));
             }
@@ -1252,8 +1255,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
-        assert_eq!(value.provenance, Provenance::Execution);
-        match &value.data {
+        assert_eq!(value.provenance(), Provenance::Execution);
+        match value.data() {
             RSVD::CallWithValue {
                 gas,
                 address,
@@ -1275,7 +1278,7 @@ mod test {
         // Inspect the memory state
         let memory = vm.state()?.memory_mut();
         let return_value = memory.load(&input_ret_offset);
-        assert_eq!(return_value.provenance, Provenance::MessageCall);
+        assert_eq!(return_value.provenance(), Provenance::MessageCall);
         let input_value = memory.load(&input_arg_offset);
         assert_eq!(input_value, input_data);
 
@@ -1312,8 +1315,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let value = stack.read(0)?;
-        assert_eq!(value.provenance, Provenance::Execution);
-        match &value.data {
+        assert_eq!(value.provenance(), Provenance::Execution);
+        match value.data() {
             RSVD::CallWithoutValue {
                 gas,
                 address,
@@ -1333,7 +1336,7 @@ mod test {
         // Inspect the memory state
         let memory = vm.state()?.memory_mut();
         let return_value = memory.load(&input_ret_offset);
-        assert_eq!(return_value.provenance, Provenance::MessageCall);
+        assert_eq!(return_value.provenance(), Provenance::MessageCall);
         let input_value = memory.load(&input_arg_offset);
         assert_eq!(input_value, input_data);
 
@@ -1358,8 +1361,8 @@ mod test {
 
         // Ensure the value was stored
         let value = &vm.state()?.recorded_values()[0];
-        assert_eq!(value.provenance, Provenance::Execution);
-        match &value.data {
+        assert_eq!(value.provenance(), Provenance::Execution);
+        match value.data() {
             RSVD::Return { data } => {
                 assert_eq!(data, &revert_data);
             }
@@ -1387,8 +1390,8 @@ mod test {
 
         // Ensure the value was stored
         let value = &vm.state()?.recorded_values()[0];
-        assert_eq!(value.provenance, Provenance::Execution);
-        match &value.data {
+        assert_eq!(value.provenance(), Provenance::Execution);
+        match value.data() {
             RSVD::Revert { data } => {
                 assert_eq!(data, &revert_data);
             }

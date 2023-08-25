@@ -34,7 +34,7 @@ pub struct ExtCodeRule;
 
 impl InferenceRule for ExtCodeRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::ExtCodeSize { address } => {
                 state.infer_for(address, TE::address());
                 state.infer_for(value, TE::unsigned_word(None));

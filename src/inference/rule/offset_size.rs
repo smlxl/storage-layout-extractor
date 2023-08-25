@@ -24,7 +24,7 @@ pub struct OffsetSizeRule;
 
 impl InferenceRule for OffsetSizeRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::CallData { offset, size, .. }
             | TCSVD::CodeCopy { offset, size }
             | TCSVD::ReturnData { offset, size } => {

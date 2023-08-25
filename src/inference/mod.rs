@@ -163,27 +163,27 @@ impl InferenceEngine {
             .into_iter()
             .filter(|v| {
                 matches!(
-                    &v.data,
-                    TCSVD::StorageSlot { key } if matches!(&key.data, TCSVD::KnownData {..}))
+                    v.data(),
+                    TCSVD::StorageSlot { key } if matches!(key.data(), TCSVD::KnownData {..}))
             })
             .cloned()
             .collect();
 
         for slot in constant_storage_slots {
             let ty_var = self.state.var_unchecked(&slot);
-            let TCSVD::StorageSlot { key } = &slot.data else {
+            let TCSVD::StorageSlot { key } = slot.data() else {
                 Err(Error::InvalidTree {
                     value:  slot.clone(),
                     reason: "Failed to destructure supposedly known structure".into(),
                 }
-                .locate(slot.instruction_pointer))?
+                .locate(slot.instruction_pointer()))?
             };
-            let TCSVD::KnownData { value } = &key.data else {
+            let TCSVD::KnownData { value } = key.data() else {
                 Err(Error::InvalidTree {
                     value:  key.clone(),
                     reason: "Failed to destructure supposedly known structure".into(),
                 }
-                .locate(slot.instruction_pointer))?
+                .locate(slot.instruction_pointer()))?
             };
 
             // Get one or more types from the storage slot
@@ -268,7 +268,7 @@ impl InferenceEngine {
         seen_exprs.insert(type_expr.clone());
 
         // Get the location in case an error needs to be raised
-        let location = self.state.value(var).unwrap().instruction_pointer;
+        let location = self.state.value(var).unwrap().instruction_pointer();
         let abi_type: AbiValue = match type_expr {
             TE::Any => AbiType::Any.into(),
             TE::Word { width, usage } => match usage {
@@ -424,7 +424,7 @@ impl InferenceEngine {
         let forest = self.state.result();
         match forest.get_data(&type_variable).cloned() {
             None => {
-                let location = self.state.value_unchecked(type_variable).instruction_pointer;
+                let location = self.state.value_unchecked(type_variable).instruction_pointer();
                 Err(Error::UnificationFailure { var: type_variable }.locate(location))?
             }
             Some(inferences) => {
@@ -435,7 +435,7 @@ impl InferenceEngine {
                     1 => Ok(vec.first().expect("We know the vec has at least one item").clone()),
                     _ => {
                         let location =
-                            self.state.value_unchecked(type_variable).instruction_pointer;
+                            self.state.value_unchecked(type_variable).instruction_pointer();
                         Err(Error::UnificationIncomplete {
                             var:        type_variable,
                             inferences: inferences.iter().cloned().collect(),
@@ -529,14 +529,14 @@ pub struct Config {
 }
 
 impl Config {
-    // Sets the `sugar_passes` config parameter to `value`.
+    /// Sets the `sugar_passes` config parameter to `value`.
     #[must_use]
     pub fn with_sugar_passes(mut self, value: LiftingPasses) -> Config {
         self.sugar_passes = value;
         self
     }
 
-    // Sets the `inference_rules` config parameter to `value`.
+    /// Sets the `inference_rules` config parameter to `value`.
     #[must_use]
     pub fn with_inference_rules(mut self, value: InferenceRules) -> Config {
         self.inference_rules = value;
@@ -638,17 +638,19 @@ pub mod test {
                 right: v_3.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         // `concat(v_1, c_1)`
         let v_1 = RSV::new_value(3, Provenance::Synthetic);
-        let c_1 = RSV::new_known_value(4, KnownWord::from(1), Provenance::Synthetic);
+        let c_1 = RSV::new_known_value(4, KnownWord::from(1), Provenance::Synthetic, None);
         let concat = RSV::new(
             5,
             RSVD::Concat {
                 values: vec![v_1.clone(), c_1.clone()],
             },
             Provenance::Synthetic,
+            None,
         );
 
         // `sha3(concat(v_1, c_1))`
@@ -658,6 +660,7 @@ pub mod test {
                 data: concat.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         // `s_store(sha3(concat(v_1, c_1)), v_2 + v_3)`
@@ -668,6 +671,7 @@ pub mod test {
                 value: add.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         // Create the unifier
@@ -685,6 +689,7 @@ pub mod test {
             0,
             RSVD::StorageSlot { key: c_1.clone() },
             Provenance::Synthetic,
+            None,
         );
         let c_1_mapping = RSV::new(
             0,
@@ -693,6 +698,7 @@ pub mod test {
                 slot: c_1_slot.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
         let store_slot = RSV::new(
             0,
@@ -700,6 +706,7 @@ pub mod test {
                 key: c_1_mapping.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
         let processed_store = RSV::new(
             0,
@@ -708,6 +715,7 @@ pub mod test {
                 value: add.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         assert_eq!(results[0], processed_store);
@@ -746,14 +754,16 @@ pub mod test {
                 right: var_2.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
-        let storage_key = RSV::new_known_value(3, KnownWord::from(10), Provenance::Synthetic);
+        let storage_key = RSV::new_known_value(3, KnownWord::from(10), Provenance::Synthetic, None);
         let storage_slot = RSV::new(
             3,
             RSVD::StorageSlot {
                 key: storage_key.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
         let mapping = RSV::new(
             4,
@@ -762,6 +772,7 @@ pub mod test {
                 key:  add.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
         let var_3 = RSV::new_value(5, Provenance::Synthetic);
 

@@ -18,7 +18,7 @@ pub struct CreateContractRule;
 
 impl InferenceRule for CreateContractRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::Create {
                 value: create_val, ..
             } => {

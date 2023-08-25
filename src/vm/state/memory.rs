@@ -94,7 +94,7 @@ impl Memory {
     ) {
         let offset = offset.constant_fold();
         let store_value = MemStore { data: value, size };
-        let entry = match &offset.data {
+        let entry = match offset.data() {
             RSVD::KnownData { value } => {
                 self.constant_offsets.entry(value.into()).or_insert(vec![])
             }
@@ -117,7 +117,7 @@ impl Memory {
     #[must_use]
     pub fn load(&mut self, offset: &RuntimeBoxedVal) -> RuntimeBoxedVal {
         let offset = offset.clone().constant_fold();
-        match offset.data {
+        match offset.data() {
             RSVD::KnownData { value } => {
                 Self::get_or_initialize(&mut self.constant_offsets, &value.into()).clone()
             }
@@ -146,7 +146,7 @@ impl Memory {
         instruction_pointer: u32,
     ) -> RuntimeBoxedVal {
         let offset = offset.clone().constant_fold();
-        match &offset.data {
+        match offset.data() {
             RSVD::KnownData { value } => match Self::decompose_size(size) {
                 Some(size) => {
                     let offset: usize = value.into();
@@ -164,6 +164,7 @@ impl Memory {
                         instruction_pointer,
                         RSVD::Concat { values },
                         Provenance::Synthetic,
+                        None,
                     )
                 }
                 None => {
@@ -184,7 +185,7 @@ impl Memory {
     /// size if so, and [`None`] otherwise.
     #[must_use]
     fn decompose_size(size: &RuntimeBoxedVal) -> Option<usize> {
-        match &size.data {
+        match size.data() {
             RSVD::KnownData { value } => Some(value.into()),
             _ => None,
         }
@@ -204,7 +205,8 @@ impl Memory {
         let entry = map.entry(key.clone()).or_insert_with(|| {
             // The instruction pointer is 0 here, as the uninitialized value was created
             // when the program started.
-            let data = RSV::new_known_value(0, KnownWord::zero(), Provenance::UninitializedMemory);
+            let data =
+                RSV::new_known_value(0, KnownWord::zero(), Provenance::UninitializedMemory, None);
 
             vec![MemStore {
                 data,
@@ -410,18 +412,14 @@ mod test {
         let offset = new_synthetic_value(0);
 
         let loaded = memory.load(&offset);
-        assert_eq!(loaded.instruction_pointer, 0);
+        assert_eq!(loaded.instruction_pointer(), 0);
+        assert_eq!(loaded.provenance(), Provenance::UninitializedMemory);
 
-        match *loaded {
-            RSV {
-                data: RSVD::KnownData { value, .. },
-                provenance,
-                ..
-            } => {
-                assert_eq!(value, KnownWord::zero());
-                assert_eq!(provenance, Provenance::UninitializedMemory,);
+        match loaded.data() {
+            RSVD::KnownData { value } => {
+                assert_eq!(value, &KnownWord::zero());
             }
-            _ => panic!("Test failure"),
+            _ => panic!("Incorrect payload"),
         }
     }
 
@@ -430,12 +428,12 @@ mod test {
         let mut memory = Memory::new();
         let zero = KnownWord::zero();
         let thirty_two = KnownWord::from(32);
-        let offset_1 = RSV::new_known_value(0, zero, Provenance::Synthetic);
+        let offset_1 = RSV::new_known_value(0, zero, Provenance::Synthetic, None);
         let value_1 = new_synthetic_value(1);
-        let offset_2 = RSV::new_known_value(1, thirty_two, Provenance::Synthetic);
+        let offset_2 = RSV::new_known_value(1, thirty_two, Provenance::Synthetic, None);
         let value_2 = new_synthetic_value(3);
         let sixty_four = KnownWord::from(64);
-        let bytes_64 = RSV::new_known_value(4, sixty_four, Provenance::Synthetic);
+        let bytes_64 = RSV::new_known_value(4, sixty_four, Provenance::Synthetic, None);
 
         // Store under known offsets
         memory.store(offset_1.clone(), value_1.clone());
@@ -443,7 +441,7 @@ mod test {
 
         // Read it back
         let result = memory.load_slice(&offset_1, &bytes_64, 5);
-        match &result.data {
+        match result.data() {
             RSVD::Concat { values } => {
                 assert_eq!(values, &vec![value_1, value_2]);
             }
@@ -455,7 +453,7 @@ mod test {
     fn can_load_word_at_known_offset_with_symbolic_size() {
         let mut memory = Memory::new();
         let zero = KnownWord::zero();
-        let offset = RSV::new_known_value(0, zero, Provenance::Synthetic);
+        let offset = RSV::new_known_value(0, zero, Provenance::Synthetic, None);
         let value = new_synthetic_value(1);
         let size = new_synthetic_value(2);
 

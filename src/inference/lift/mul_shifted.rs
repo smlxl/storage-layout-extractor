@@ -69,8 +69,8 @@ impl Lift for MulShiftedValue {
             // We need to pull out the expected structure while accounting for the fact that
             // the operands may be either way around.
             let (constant, value) = match (
-                left.data.clone().constant_fold(),
-                right.data.clone().constant_fold(),
+                left.data().clone().constant_fold(),
+                right.data().clone().constant_fold(),
             ) {
                 (RSVD::KnownData { value }, RSVD::SubWord { .. }) => (
                     value,
@@ -128,8 +128,12 @@ mod test {
                 size: 64,
             },
         );
-        let constant =
-            SV::new_known_value(2, KnownWord::from_le(2u32.pow(16)), Provenance::Synthetic);
+        let constant = SV::new_known_value(
+            2,
+            KnownWord::from_le(2u32.pow(16)),
+            Provenance::Synthetic,
+            None,
+        );
         let mul_const_on_left = SV::new_synthetic(
             3,
             SVD::Multiply {
@@ -151,17 +155,17 @@ mod test {
         let result_right = MulShiftedValue.run(mul_const_on_right, &state)?;
 
         // Check that the results are sane
-        match result_left.data {
+        match result_left.data() {
             SVD::Shifted { offset, value } => {
-                assert_eq!(offset, 16);
-                assert_eq!(value, sub_word);
+                assert_eq!(offset, &16);
+                assert_eq!(value, &sub_word);
             }
             _ => panic!("Incorrect payload"),
         }
-        match result_right.data {
+        match result_right.data() {
             SVD::Shifted { offset, value } => {
-                assert_eq!(offset, 16);
-                assert_eq!(value, sub_word);
+                assert_eq!(offset, &16);
+                assert_eq!(value, &sub_word);
             }
             _ => panic!("Incorrect payload"),
         }
@@ -181,8 +185,12 @@ mod test {
                 size:   128,
             },
         );
-        let constant =
-            SV::new_known_value(2, KnownWord::from_le(2u32.pow(16)), Provenance::Synthetic);
+        let constant = SV::new_known_value(
+            2,
+            KnownWord::from_le(2u32.pow(16)),
+            Provenance::Synthetic,
+            None,
+        );
         let inner_mul = SV::new_synthetic(
             3,
             SVD::Multiply {
@@ -211,23 +219,23 @@ mod test {
         let result = MulShiftedValue.run(outer_mul, &state)?;
 
         // Check that the result is correct
-        match result.data {
+        match result.data() {
             SVD::Shifted { offset, value } => {
-                assert_eq!(offset, 16);
+                assert_eq!(offset, &16);
 
-                match value.data {
+                match value.data() {
                     SVD::SubWord {
                         value,
                         offset,
                         size,
                     } => {
-                        assert_eq!(offset, 0);
-                        assert_eq!(size, 192);
+                        assert_eq!(offset, &0);
+                        assert_eq!(size, &192);
 
-                        match value.data {
+                        match value.data() {
                             SVD::Shifted { offset, value } => {
-                                assert_eq!(offset, 16);
-                                assert_eq!(value, inner_sub_word);
+                                assert_eq!(offset, &16);
+                                assert_eq!(value, &inner_sub_word);
                             }
                             _ => panic!("Incorrect payload"),
                         }
@@ -276,8 +284,12 @@ mod test {
     fn does_not_lift_if_operand_is_non_sub_word() -> anyhow::Result<()> {
         // Create the input data
         let value = SV::new_value(0, Provenance::Synthetic);
-        let constant =
-            SV::new_known_value(2, KnownWord::from_le(2u32.pow(16)), Provenance::Synthetic);
+        let constant = SV::new_known_value(
+            2,
+            KnownWord::from_le(2u32.pow(16)),
+            Provenance::Synthetic,
+            None,
+        );
         let mul = SV::new_synthetic(
             3,
             SVD::Multiply {
@@ -308,7 +320,8 @@ mod test {
                 size: 64,
             },
         );
-        let constant = SV::new_known_value(2, KnownWord::from_le(31u32), Provenance::Synthetic);
+        let constant =
+            SV::new_known_value(2, KnownWord::from_le(31u32), Provenance::Synthetic, None);
         let mul = SV::new_synthetic(
             3,
             SVD::Multiply {
