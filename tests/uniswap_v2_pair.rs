@@ -18,16 +18,20 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let layout = analyzer.analyze()?;
 
     // We should see 18 entries as we output packing in slots as separate slots, but
-    // we only see 17 due to not seeing part of a packed.
-    assert_eq!(layout.slots().len(), 17);
+    // we only see 16 due to not seeing part of a packed.
+    assert_eq!(layout.slots().len(), 16);
 
     // For the ones we can infer to a non-conflict, let's make sure we keep getting
     // them 'right'
 
-    // `uint256` but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(0, 0, AbiType::Any)));
+    // `uint256` but we infer `uintUnknown`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(0, 0, AbiType::UInt { size: None }))
+    );
 
-    // `mapping(address => uint)`
+    // `mapping(address => uintUnknown)`
     assert!(layout.slots().contains(&StorageSlot::new(
         1,
         0,
@@ -63,36 +67,30 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `address` but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(5, 0, AbiType::Any)));
+    // `address` but we infer `conflict`
+    assert_eq!(layout.slots()[5].index, 5);
+    assert_eq!(layout.slots()[5].offset, 0);
+    assert!(matches!(
+        &layout.slots()[5].typ,
+        AbiType::ConflictedType { .. }
+    ));
 
-    // `address` but `bytes20` is the best we do now
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(6, 0, AbiType::Bytes { length: Some(20) }))
-    );
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(6, 0, AbiType::Address)));
 
-    // `address` but `bytes20` is the best we do now
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(7, 0, AbiType::Bytes { length: Some(20) }))
-    );
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(7, 0, AbiType::Address)));
 
-    // `(uint112, uint112)`, but we infer `bytes28`
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(8, 0, AbiType::Bytes { length: Some(28) }))
-    );
+    // `packed(uint112, uint112)`, but we infer `conflict`
+    assert_eq!(layout.slots()[8].index, 8);
+    assert_eq!(layout.slots()[8].offset, 0);
+    assert!(matches!(
+        &layout.slots()[8].typ,
+        AbiType::ConflictedType { .. }
+    ));
 
-    // `uint32`, but we infer `bytes4`
-    assert!(layout.slots().contains(&StorageSlot::new(
-        8,
-        224,
-        AbiType::Bytes { length: Some(4) }
-    )));
+    // `uint32`, but we miss it entirely
+    assert!(!layout.slots().iter().any(|s| s.index == 8 && s.offset == 224));
 
     // `uint256`, but we infer `number`
     assert!(
@@ -108,8 +106,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             .contains(&StorageSlot::new(10, 0, AbiType::Number { size: None }))
     );
 
-    // `uint256`, but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(11, 0, AbiType::Any)));
+    // `uint256`, but we infer `uintUnknown`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(11, 0, AbiType::UInt { size: None }))
+    );
 
     // `uint256`
     assert!(
@@ -132,8 +134,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             .contains(&StorageSlot::new(14, 0, AbiType::UInt { size: Some(256) }))
     );
 
-    // `uint256`, but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(15, 0, AbiType::Any)));
+    // `uint256`, but we infer `bytesUnknown`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(15, 0, AbiType::Bytes { length: None }))
+    );
 
     Ok(())
 }

@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use itertools::Itertools;
-use storage_layout_analyzer::inference::abi::AbiType;
+use storage_layout_analyzer::inference::abi::{AbiType, StructElement};
 
 mod common;
 
@@ -45,8 +45,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         _ => panic!("Incorrect type"),
     }
 
-    // `mapping(conflict => mapping(conflict => mapping(conflict => struct)))` where
-    // the struct is currently partially incorrect
+    // `mapping(conflict => mapping(conflict => mapping(conflict => struct)))`
     assert_eq!(layout.slots()[1].index, 1);
     assert_eq!(layout.slots()[1].offset, 0);
     match &layout.slots()[1].typ {
@@ -72,34 +71,31 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
 
                             match value_type.as_ref() {
                                 AbiType::Struct { elements } => {
-                                    // Note that we currently discover a spurious element duplicated
-                                    // at index zero, so we have 4 elements instead of 3
-                                    assert_eq!(elements.len(), 4);
+                                    // The struct should have three elements
+                                    assert_eq!(elements.len(), 3);
                                     let elements = elements
                                         .iter()
                                         .sorted_by_key(|span| span.offset)
                                         .collect_vec();
 
-                                    // An address, but currently a conflict
+                                    // `address` but we infer `conflict`
                                     assert_eq!(elements[0].offset, 0);
                                     assert!(matches!(
                                         elements[0].typ.as_ref(),
                                         &AbiType::ConflictedType { .. }
                                     ));
 
-                                    // 48 bits of expiration
-                                    assert_eq!(elements[2].offset, 160);
-                                    assert_eq!(
-                                        elements[2].typ.as_ref(),
-                                        &AbiType::Bytes { length: Some(6) }
-                                    );
+                                    // `uint32` but we infer `bytes6`
+                                    assert!(elements.contains(&&StructElement::new(
+                                        160,
+                                        AbiType::Bytes { length: Some(6) }
+                                    )));
 
-                                    // 48 bits of nonce, that we get wrong
-                                    assert_eq!(elements[3].offset, 208);
-                                    assert!(matches!(
-                                        elements[3].typ.as_ref(),
-                                        AbiType::Bytes { .. }
-                                    ));
+                                    // we infer `bytes0`, which is obviously false
+                                    assert!(elements.contains(&&StructElement::new(
+                                        208,
+                                        AbiType::Bytes { length: Some(0) }
+                                    )));
                                 }
 
                                 _ => panic!("Incorrect type"),

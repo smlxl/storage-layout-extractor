@@ -36,7 +36,8 @@ impl MulShiftedValue {
 
     /// Calculates which power of 2 `number` is, or returns [`None`] if `number`
     /// is not a power of 2.
-    fn which_power_of_2(mut number: KnownWord) -> Option<usize> {
+    #[must_use]
+    pub fn which_power_of_2(mut number: KnownWord) -> Option<usize> {
         let two = KnownWord::from_le(2u8);
         if number == KnownWord::from_le(1u8) {
             Some(0)

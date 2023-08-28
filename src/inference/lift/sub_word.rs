@@ -5,7 +5,10 @@ use itertools::Itertools;
 
 use crate::{
     constant::WORD_SIZE_BITS,
-    inference::{lift::Lift, state::InferenceState},
+    inference::{
+        lift::{mul_shifted::MulShiftedValue, Lift},
+        state::InferenceState,
+    },
     vm::value::{RuntimeBoxedVal, RSVD, SVD},
 };
 
@@ -112,6 +115,13 @@ impl SubWordValue {
                             (dividend, shift.into())
                         }
                         _ => (value, 0),
+                    }
+                }
+                RSVD::KnownData { value: divisor } => {
+                    if let Some(shift) = MulShiftedValue::which_power_of_2(*divisor) {
+                        (dividend, shift)
+                    } else {
+                        (value, 0)
                     }
                 }
                 _ => (value, 0),

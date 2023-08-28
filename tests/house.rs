@@ -20,8 +20,8 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // Get the final storage layout for the input contract
     let layout = analyzer.analyze()?;
 
-    // We should see 36 entries, but we miss one
-    assert_eq!(layout.slots().len(), 35);
+    // We should see 36 entries
+    assert_eq!(layout.slots().len(), 36);
 
     // `address` but we infer `number160`
     assert!(
@@ -40,35 +40,36 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `address`
     assert!(layout.slots().contains(&StorageSlot::new(2, 0, AbiType::Address)));
 
-    // `bool` but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(3, 0, AbiType::Any)));
+    // `bool` but we infer `number8`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(3, 0, AbiType::Number { size: Some(8) }))
+    );
 
-    // `string` but we infer `any[]`
-    assert!(layout.slots().contains(&StorageSlot::new(
-        4,
-        0,
-        AbiType::DynArray {
-            tp: Box::new(AbiType::Any),
-        }
-    )));
+    // `string` but we infer `conflict`
+    assert_eq!(layout.slots()[4].index, 4);
+    assert_eq!(layout.slots()[4].offset, 0);
+    assert!(matches!(
+        &layout.slots()[4].typ,
+        AbiType::ConflictedType { .. }
+    ));
 
-    // `string` but we infer `any[]`
-    assert!(layout.slots().contains(&StorageSlot::new(
-        5,
-        0,
-        AbiType::DynArray {
-            tp: Box::new(AbiType::Any),
-        }
-    )));
+    // `string` but we infer `conflict`
+    assert_eq!(layout.slots()[5].index, 5);
+    assert_eq!(layout.slots()[5].offset, 0);
+    assert!(matches!(
+        &layout.slots()[5].typ,
+        AbiType::ConflictedType { .. }
+    ));
 
-    // `string` but we infer `any[]`
-    assert!(layout.slots().contains(&StorageSlot::new(
-        6,
-        0,
-        AbiType::DynArray {
-            tp: Box::new(AbiType::Any),
-        }
-    )));
+    // `string` but we infer `conflict`
+    assert_eq!(layout.slots()[6].index, 6);
+    assert_eq!(layout.slots()[6].offset, 0);
+    assert!(matches!(
+        &layout.slots()[6].typ,
+        AbiType::ConflictedType { .. }
+    ));
 
     // `address` but we infer `bytes20`
     assert!(
@@ -91,24 +92,23 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             .contains(&StorageSlot::new(9, 0, AbiType::UInt { size: Some(256) }))
     );
 
-    // `uint256` but we infer `number256`
-    assert!(layout.slots().contains(&StorageSlot::new(
-        10,
-        0,
-        AbiType::Number { size: Some(256) }
-    )));
+    // `uint256`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(10, 0, AbiType::UInt { size: Some(256) }))
+    );
 
     // `uint256` but we miss it entirely
-    assert!(!layout.slots().iter().any(|slot| slot.offset == 11));
+    assert!(!layout.slots().iter().any(|slot| slot.index == 11));
 
-    // `string` but we infer `any[]`
-    assert!(layout.slots().contains(&StorageSlot::new(
-        12,
-        0,
-        AbiType::DynArray {
-            tp: Box::new(AbiType::Any),
-        }
-    )));
+    // `string` but we infer `conflict`
+    assert_eq!(layout.slots()[12].index, 12);
+    assert_eq!(layout.slots()[12].offset, 0);
+    assert!(matches!(
+        &layout.slots()[12].typ,
+        AbiType::ConflictedType { .. }
+    ));
 
     // `mapping(uint256 => struct)` but we infer `mapping(uint256 => uint256)`
     assert!(layout.slots().contains(&StorageSlot::new(

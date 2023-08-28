@@ -23,6 +23,9 @@ impl StorageLayout {
     }
 
     /// Gets the storage slots that make up this layout.
+    ///
+    /// These are guaranteed to be sorted in ascending order by slot index and
+    /// then offset within the slot.
     #[must_use]
     pub fn slots(&self) -> &Vec<StorageSlot> {
         &self.slots

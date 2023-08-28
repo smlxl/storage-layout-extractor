@@ -1,5 +1,5 @@
 //! This module contains an inference rule that equates every `SLoad` with the
-//! type of its element.
+//! type of its element and its key.
 
 use crate::{
     error::unification::Result,
@@ -17,21 +17,26 @@ use crate::{
 ///
 /// equating
 ///
+/// - `a = b`
 /// - `a = c`
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct SLoadIsElementTypeRule;
+pub struct SLoadIsInnerTypesRule;
 
-impl InferenceRule for SLoadIsElementTypeRule {
+impl InferenceRule for SLoadIsInnerTypesRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
         let TCSVD::SLoad {
-            value: inner_value, ..
+            value: inner_value,
+            key,
         } = &value.data
         else {
             return Ok(());
         };
 
         let inner_value_tv = state.var_unchecked(inner_value);
+        let slot_tv = state.var_unchecked(key);
+
         state.infer_for(value, TE::eq(inner_value_tv));
+        state.infer_for(value, TE::eq(slot_tv));
 
         Ok(())
     }

@@ -19,20 +19,31 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
 
     // We should see 8 entries, but we only see 6 due to a lack of discovery of
     // fixed-length arrays, and a missing packed element
-    assert_eq!(layout.slots().len(), 6);
+    assert_eq!(layout.slots().len(), 7);
 
-    // `address`, but we infer `number160` and miss the packing
+    // `address`, but we infer `number160`
     assert!(
         layout
             .slots()
             .contains(&StorageSlot::new(0, 0, AbiType::Number { size: Some(160) }))
     );
 
-    // `address` but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(1, 0, AbiType::Any)));
+    // `bool`, packed
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(0, 160, AbiType::Number { size: Some(8) }))
+    );
 
-    // `uint256` but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(2, 0, AbiType::Any)));
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(1, 0, AbiType::Address)));
+
+    // `uint256` but we infer `numberUnknown`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(2, 0, AbiType::Number { size: None }))
+    );
 
     // `mapping(uint256 => struct)` but we infer `mapping(bytes32 => address)`
     assert!(layout.slots().contains(&StorageSlot::new(
@@ -44,14 +55,18 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `bool` but we infer `any`
-    assert!(layout.slots().contains(&StorageSlot::new(4, 0, AbiType::Any)));
-
-    // `uint256` but we infer `any`
+    // `bool` but we infer `number8`
     assert!(
         layout
             .slots()
-            .contains(&StorageSlot::new(5, 0, AbiType::Number { size: None }))
+            .contains(&StorageSlot::new(4, 0, AbiType::Number { size: Some(8) }))
+    );
+
+    // `uint256` but we infer `uintUnknown`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(5, 0, AbiType::UInt { size: None }))
     );
 
     Ok(())
