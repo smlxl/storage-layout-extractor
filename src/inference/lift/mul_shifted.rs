@@ -2,6 +2,7 @@
 //! multiplication-based shifting of bits around within a word.
 
 use crate::{
+    constant::WORD_SIZE_BITS,
     inference::{lift::Lift, state::InferenceState},
     vm::value::{known::KnownWord, RuntimeBoxedVal, RSVD},
 };
@@ -41,11 +42,17 @@ impl MulShiftedValue {
         let two = KnownWord::from_le(2u8);
         if number == KnownWord::from_le(1u8) {
             Some(0)
+        } else if number == KnownWord::zero() {
+            None
         } else if number % two == KnownWord::zero() {
             let mut counter = 1;
             while number != two {
                 counter += 1;
                 number = number / two;
+
+                if counter > WORD_SIZE_BITS {
+                    return None;
+                }
             }
 
             Some(counter)

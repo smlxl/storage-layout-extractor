@@ -166,7 +166,13 @@ impl KnownWord {
         // before performing the operation using `{to,from}_ne_bytes`
         let left_signed = I256::from_ne_bytes(self.value.to_ne_bytes());
         let right_signed = I256::from_ne_bytes(rhs.value.to_ne_bytes());
-        let result = left_signed.wrapping_div(right_signed);
+
+        let zero = I256::new(0);
+        let result = if right_signed == zero {
+            zero
+        } else {
+            left_signed.wrapping_div(right_signed)
+        };
 
         // To convert it back internally we need to perform direct conversion of the
         // byte pattern, using native endianness
@@ -180,7 +186,13 @@ impl KnownWord {
         // before performing the operation using `{to,from}_ne_bytes`
         let left_signed = I256::from_ne_bytes(self.value.to_ne_bytes());
         let right_signed = I256::from_ne_bytes(rhs.value.to_ne_bytes());
-        let result = left_signed.wrapping_rem(right_signed);
+
+        let zero = I256::new(0);
+        let result = if right_signed == zero {
+            zero
+        } else {
+            left_signed.wrapping_rem(right_signed)
+        };
 
         // To convert it back internally we need to perform direct conversion of the
         // byte pattern, using native endianness
@@ -297,7 +309,12 @@ impl std::ops::Div<KnownWord> for KnownWord {
     /// Performs unsigned division of two known words.
     fn div(self, rhs: KnownWord) -> Self::Output {
         // The operation takes place in native endianness, which in our case is LE
-        KnownWord::from_le(self.value.wrapping_div(rhs.value))
+        let zero = KnownWord::zero();
+        if rhs == zero {
+            zero
+        } else {
+            KnownWord::from_le(self.value.wrapping_div(rhs.value))
+        }
     }
 }
 
@@ -306,7 +323,12 @@ impl std::ops::Rem<KnownWord> for KnownWord {
 
     /// Performs unsigned modulo of two known words.
     fn rem(self, rhs: KnownWord) -> Self::Output {
-        KnownWord::from_le(self.value.wrapping_rem(rhs.value))
+        let zero = KnownWord::zero();
+        if rhs == zero {
+            zero
+        } else {
+            KnownWord::from_le(self.value.wrapping_rem(rhs.value))
+        }
     }
 }
 
@@ -727,5 +749,35 @@ mod test {
         assert_eq!(value.sar(shift), KnownWord::from_le_signed(0b11_0101i32));
     }
 
-    // TODO [Ara] Tests for wrapping behaviour
+    #[test]
+    fn arithmetic_can_get_zero_when_dividing_by_zero() {
+        let a = KnownWord::from_le(0x2u32);
+        let zero = KnownWord::zero();
+
+        assert_eq!(a / zero, zero);
+    }
+
+    #[test]
+    fn arithmetic_can_get_zero_when_signed_dividing_by_zero() {
+        let a = KnownWord::from_le(0x2u32);
+        let zero = KnownWord::zero();
+
+        assert_eq!(a.signed_div(zero), zero);
+    }
+
+    #[test]
+    fn arithmetic_can_get_zero_when_mod_by_zero() {
+        let a = KnownWord::from_le(0x2u32);
+        let zero = KnownWord::zero();
+
+        assert_eq!(a % zero, zero);
+    }
+
+    #[test]
+    fn arithmetic_can_get_zero_when_signed_mod_by_zero() {
+        let a = KnownWord::from_le(0x2u32);
+        let zero = KnownWord::zero();
+
+        assert_eq!(a.signed_rem(zero), zero);
+    }
 }
