@@ -51,6 +51,7 @@
 //!     inference,
 //!     opcode::{control::*, logic::*, memory::*, Opcode},
 //!     vm,
+//!     watchdog::LazyWatchdog,
 //! };
 //!
 //! let bytes = bytecode![
@@ -82,6 +83,7 @@
 //!     contract,
 //!     vm::Config::default(),
 //!     inference::Config::default(),
+//!     LazyWatchdog.in_rc(),
 //! )
 //! .analyze()
 //! .unwrap();
@@ -121,6 +123,7 @@ pub mod layout;
 pub mod opcode;
 pub mod utility;
 pub mod vm;
+pub mod watchdog;
 
 // Re-exports to provide the library interface.
 pub use analyzer::new;

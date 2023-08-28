@@ -8,6 +8,7 @@ use crate::{
     inference::InferenceEngine,
     vm,
     vm::{ExecutionResult, VM},
+    watchdog::DynWatchdog,
     StorageLayout,
 };
 
@@ -26,6 +27,9 @@ pub struct HasContract {
 
     /// The unifier configuration.
     pub unifier_config: inference::Config,
+
+    /// The watchdog that is monitoring the progress of the analyzer.
+    pub watchdog: DynWatchdog,
 }
 impl State for HasContract {}
 
@@ -40,6 +44,9 @@ pub struct DisassemblyComplete {
 
     /// The unifier configuration.
     pub unifier_config: inference::Config,
+
+    /// The watchdog that is monitoring the progress of the analyzer.
+    pub watchdog: DynWatchdog,
 }
 impl State for DisassemblyComplete {}
 
@@ -52,6 +59,9 @@ pub struct VMReady {
 
     /// The unifier configuration.
     pub unifier_config: inference::Config,
+
+    /// The watchdog that is monitoring the progress of the analyzer.
+    pub watchdog: DynWatchdog,
 }
 impl State for VMReady {}
 
@@ -62,6 +72,9 @@ pub struct ExecutionComplete {
 
     /// The unifier configuration.
     pub unifier_config: inference::Config,
+
+    /// The watchdog that is monitoring the progress of the analyzer.
+    pub watchdog: DynWatchdog,
 }
 impl State for ExecutionComplete {}
 
@@ -70,6 +83,9 @@ impl State for ExecutionComplete {}
 pub struct InferenceReady {
     /// The inference engine, ready to perform inference and unification.
     pub engine: InferenceEngine,
+
+    /// The watchdog that is monitoring the progress of the analyzer.
+    pub watchdog: DynWatchdog,
 }
 impl State for InferenceReady {}
 

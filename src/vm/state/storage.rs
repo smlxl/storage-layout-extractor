@@ -168,7 +168,7 @@ impl Storage {
     /// Gets all of the values in storage as symbolic `SSTORE`s.
     ///
     /// Here, each `key -> value` pair, accounting for generations, is wrapped
-    /// into [`SVD::StorageWrite`] of `(key, value)`, allowing for easier
+    /// into [`RSVD::StorageWrite`] of `(key, value)`, allowing for easier
     /// analysis later.
     #[must_use]
     pub fn stores_as_values(&self) -> Vec<RuntimeBoxedVal> {

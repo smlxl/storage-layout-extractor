@@ -84,13 +84,13 @@ impl InferenceState {
     ///
     /// TODO Improve performance here.
     ///
-    /// Currently this function is called inside [`Self::register_internal`]
-    /// which results in quadratic traversal of values during registration.
+    /// Currently this function is called inside [`Self::register`] which
+    /// results in quadratic traversal of values during registration.
     ///
     /// Instead, the data returned by this function could become part of the
     /// return value of _that_ function, making traversal linear again.
     #[must_use]
-    fn is_stable_typed(value: &RuntimeBoxedVal) -> bool {
+    pub fn is_stable_typed(value: &RuntimeBoxedVal) -> bool {
         match value.data() {
             RSVD::StorageSlot { .. } | RSVD::Value { .. } | RSVD::CallData { .. } => true,
             _ => value.children().into_iter().any(Self::is_stable_typed),

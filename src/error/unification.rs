@@ -30,6 +30,9 @@ pub enum Error {
 
     #[error("Tried to convert {value} to fit in size {width} but it was too large")]
     OverSizedNumber { value: i128, width: usize },
+
+    #[error("Type checking was stopped by the watchdog")]
+    StoppedByWatchdog,
 }
 
 /// Make it possible to attach locations to these errors.

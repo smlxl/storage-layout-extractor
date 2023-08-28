@@ -17,6 +17,7 @@ use storage_layout_analyzer::{
     },
     inference,
     vm,
+    watchdog::{DynWatchdog, LazyWatchdog},
 };
 
 /// A wrapper for the parts of the JSON representation of the compiled contract
@@ -35,7 +36,10 @@ pub struct DeployedBytecode {
 /// Constructs a new analyser to analyze the hex-encoded (with the `0x` prefix)
 /// contract bytecode provided in `code` and using the default configurations.
 #[allow(unused)] // It is actually
-pub fn new_analyzer_from_bytecode(code: impl Into<String>) -> anyhow::Result<InitialAnalyzer> {
+pub fn new_analyzer_from_bytecode(
+    code: impl Into<String>,
+    watchdog: DynWatchdog,
+) -> anyhow::Result<InitialAnalyzer> {
     // Generally unsafe but fine for ASCII so we do it here.
     let code = code.into();
     let no_0x_prefix = &code[2..];
@@ -51,7 +55,7 @@ pub fn new_analyzer_from_bytecode(code: impl Into<String>) -> anyhow::Result<Ini
     let vm_config = vm::Config::default();
     let unifier_config = inference::Config::default();
 
-    Ok(sla::new(contract, vm_config, unifier_config))
+    Ok(sla::new(contract, vm_config, unifier_config, watchdog))
 }
 
 /// Constructs a new analyzer to analyze the contract at the provided `path` and
@@ -67,7 +71,12 @@ pub fn new_analyzer_from_path(path: impl Into<String>) -> anyhow::Result<Initial
     let vm_config = vm::Config::default();
     let unifier_config = inference::Config::default();
 
-    Ok(sla::new(contract, vm_config, unifier_config))
+    Ok(sla::new(
+        contract,
+        vm_config,
+        unifier_config,
+        LazyWatchdog.in_rc(),
+    ))
 }
 
 /// Creates a new contract from the file at the provided `path`.

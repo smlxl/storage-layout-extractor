@@ -26,6 +26,7 @@ use crate::{
         thread::VMThread,
         value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
     },
+    watchdog::DynWatchdog,
 };
 
 /// The virtual machine used to perform symbolic execution of the contract
@@ -58,6 +59,10 @@ pub struct VM {
 
     /// A builder for new values with configuration.
     builder: ValueBuilder,
+
+    /// A watchdog that gets polled at intervals to check whether the analysis
+    /// needs to exit.
+    watchdog: DynWatchdog,
 }
 
 impl VM {
@@ -75,7 +80,11 @@ impl VM {
     ///
     /// Panics if the length of the instruction stream exceeds [`u32::MAX`].
     /// This is a programmer bug.
-    pub fn new(instructions: InstructionStream, config: Config) -> Result<Self> {
+    pub fn new(
+        instructions: InstructionStream,
+        config: Config,
+        watchdog: DynWatchdog,
+    ) -> Result<Self> {
         // Create the initial thread internally as we can't use the function for this
         // while `self` doesn't exist.
         let instructions_len = instructions
@@ -108,6 +117,7 @@ impl VM {
             current_thread_killed,
             errors,
             builder,
+            watchdog,
         })
     }
 
@@ -130,9 +140,10 @@ impl VM {
     /// Note that if this errors, it will still be possible to collect any
     /// stored state information for as far as execution proceeded.
     pub fn execute(&mut self) -> std::result::Result<(), Errors> {
+        let poll_interval = self.watchdog.poll_every();
+        let mut counter = 0;
+
         while let Ok(instruction) = self.current_instruction() {
-            // We have to mark as being visited beforehand, so this is reflected in any
-            // state bifurcations
             let instruction_pointer = self
                 .thread_queue
                 .front_mut()
@@ -140,6 +151,16 @@ impl VM {
                 .instructions_mut()
                 .instruction_pointer();
 
+            // If we have been told to stop, stop and return an error.
+            if counter % poll_interval == 0 && self.watchdog.should_stop() {
+                Err(Error::StoppedByWatchdog {
+                    iterations: counter,
+                })
+                .locate(instruction_pointer)?;
+            }
+
+            // We have to mark as being visited beforehand, so this is reflected in any
+            // state bifurcations
             let current_thread = self.current_thread_mut()?;
             current_thread
                 .state_mut()
@@ -167,6 +188,8 @@ impl VM {
             // This should never be called if there is nothing to advance to, so if it
             // errors we forward it immediately.
             self.advance()?;
+
+            counter += 1;
         }
 
         // If we reach here, we have run out of things to execute.
@@ -676,12 +699,13 @@ mod test {
             memory::{CallDataSize, MStore, PushN, SStore},
         },
         vm::{Config, VM},
+        watchdog::LazyWatchdog,
     };
 
     #[test]
     fn can_construct_new_vm() -> anyhow::Result<()> {
         let instructions = util::basic_instruction_stream();
-        let vm = VM::new(instructions, Config::default())?;
+        let vm = VM::new(instructions, Config::default(), LazyWatchdog.in_rc())?;
 
         // A newly-constructed virtual machine should have one thread of
         // execution to explore.
@@ -714,7 +738,7 @@ mod test {
 
         // Prepare the vm itself
         let config = Config::default();
-        let mut vm = VM::new(instructions, config)?;
+        let mut vm = VM::new(instructions, config, LazyWatchdog.in_rc())?;
 
         // Execute the VM
         let result = vm.execute();
@@ -765,7 +789,7 @@ mod test {
 
         // Prepare the vm itself
         let config = Config::default();
-        let mut vm = VM::new(instructions, config)?;
+        let mut vm = VM::new(instructions, config, LazyWatchdog.in_rc())?;
 
         // Execute the VM
         let result = vm.execute();

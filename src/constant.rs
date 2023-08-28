@@ -72,3 +72,7 @@ pub const DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT: usize = 50;
 /// The default number of nodes that a symbolic value can contain before it is
 /// culled.
 pub const DEFAULT_VALUE_SIZE_LIMIT: usize = 250;
+
+/// The number of loop iterations the analyzer will wait before polling the
+/// watchdog.
+pub const DEFAULT_WATCHDOG_POLL_LOOP_ITERATIONS: usize = 100;
