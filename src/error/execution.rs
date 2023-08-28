@@ -46,6 +46,9 @@ pub enum Error {
 
     #[error("The instruction at {pointer} is not a JUMPI")]
     NotJumpSource { pointer: u32 },
+
+    #[error("Execution was stopped by the watchdog after executing {iterations} instructions")]
+    StoppedByWatchdog { iterations: usize },
 }
 
 /// Make it possible to attach locations to these errors.

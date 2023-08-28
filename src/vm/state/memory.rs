@@ -132,7 +132,7 @@ impl Memory {
     ///
     /// - Where both the `offset` and `size` are immediates, this will load
     ///   adjacent words from memory and provide them to the caller as a
-    ///   [`SymbolicValueData::Concat`].
+    ///   [`RSVD::Concat`].
     /// - Where `offset` is an immediate, but `size` is not, it will return only
     ///   the word at `offset`.
     /// - Where `offset` is symbolic, it will return only the word at `offset`.

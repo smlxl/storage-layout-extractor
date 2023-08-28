@@ -104,6 +104,7 @@ mod test_util {
     use crate::{
         disassembly::InstructionStream,
         vm::{value::RuntimeBoxedVal, Config, VM},
+        watchdog::LazyWatchdog,
     };
 
     /// Constructs a new virtual machine with the provided `values` pushed
@@ -133,7 +134,7 @@ mod test_util {
     ) -> anyhow::Result<VM> {
         let config = Config::default();
 
-        let mut vm = VM::new(instructions, config)?;
+        let mut vm = VM::new(instructions, config, LazyWatchdog.in_rc())?;
         let stack = vm.state()?.stack_mut();
 
         let values_len = values.len();

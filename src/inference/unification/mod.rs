@@ -11,10 +11,17 @@ use std::collections::{HashSet, VecDeque};
 
 use itertools::Itertools;
 
-use crate::inference::{
-    expression::{InferenceSet, TypeExpression, WordUse, TE},
-    state::{InferenceState, TypeVariable},
-    unification::{correspondence::Correspondence, data::DisjointSet},
+use crate::{
+    error::{
+        container::Locatable,
+        unification::{Error, Result},
+    },
+    inference::{
+        expression::{InferenceSet, TypeExpression, WordUse, TE},
+        state::{InferenceState, TypeVariable},
+        unification::{correspondence::Correspondence, data::DisjointSet},
+    },
+    watchdog::DynWatchdog,
 };
 
 /// The concrete type of the [`DisjointSet`] data structure used for type
@@ -26,7 +33,11 @@ pub type UnificationForest = DisjointSet<TypeVariable, InferenceSet>;
 /// state.
 ///
 /// This may result in [`TE::Conflict`]s occurring in the result forest.
-pub fn unify(state: &mut InferenceState) {
+///
+/// # Errors
+///
+/// Returns [`Err`] if unification is halted by the watchdog.
+pub fn unify(state: &mut InferenceState, watchdog: &DynWatchdog) -> Result<()> {
     // First we have to create our forest.
     let mut forest = UnificationForest::new();
 
@@ -46,6 +57,9 @@ pub fn unify(state: &mut InferenceState) {
         }
     }
 
+    let polling_interval = watchdog.poll_every();
+    let mut counter = 0;
+
     // Then, we loop until we stop making progress.
     loop {
         // Create the set of new equalities.
@@ -56,6 +70,13 @@ pub fn unify(state: &mut InferenceState) {
         let mut made_progress = false;
 
         for (ty_var, inferences) in forest.sets() {
+            // If we have been told to stop, stop and return an error.
+            if counter % polling_interval == 0 && watchdog.should_stop() {
+                let location = state.value_unchecked(ty_var).instruction_pointer();
+
+                Err(Error::StoppedByWatchdog).locate(location)?;
+            }
+
             // If there are no inferences for this type variable, go to the next one.
             if inferences.is_empty() {
                 continue;
@@ -82,6 +103,8 @@ pub fn unify(state: &mut InferenceState) {
 
             // Finally, we have to update the forest's inferences for each type variable
             forest.set_data(&ty_var, InferenceSet::from([current]));
+
+            counter += 0;
         }
 
         // When we get to the end of that loop, we need to compute the unions of
@@ -104,6 +127,8 @@ pub fn unify(state: &mut InferenceState) {
     }
 
     state.set_result(forest);
+
+    Ok(())
 }
 
 /// Combines `left` with `right` to produce a new type expression.
@@ -428,6 +453,7 @@ mod test {
             unification::{merge, unify},
         },
         vm::value::{Provenance, RSV},
+        watchdog::LazyWatchdog,
     };
 
     #[test]
@@ -455,7 +481,7 @@ mod test {
     }
 
     #[test]
-    fn can_infer_compatible_unsigned_words() {
+    fn can_infer_compatible_unsigned_words() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let v_1 = RSV::new_value(0, Provenance::Synthetic);
@@ -474,7 +500,7 @@ mod test {
         for permutation in inference_permutations {
             permutation.into_iter().for_each(|i| state.infer(v_1_tv, i.clone()));
 
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(v_1_tv, state.result());
 
             assert!(result.is_some());
@@ -483,10 +509,12 @@ mod test {
                 TE::word(Some(ADDRESS_WIDTH_BITS), WordUse::Address)
             );
         }
+
+        Ok(())
     }
 
     #[test]
-    fn can_infer_compatible_signed_words() {
+    fn can_infer_compatible_signed_words() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let v_1 = RSV::new_value(0, Provenance::Synthetic);
@@ -505,16 +533,18 @@ mod test {
         for permutation in inference_permutations {
             permutation.into_iter().for_each(|i| state.infer(v_1_tv, i.clone()));
 
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(v_1_tv, state.result());
 
             assert!(result.is_some());
             assert_eq!(result.unwrap(), TE::word(Some(64), WordUse::SignedNumeric));
         }
+
+        Ok(())
     }
 
     #[test]
-    fn conflicts_for_incompatible_word_evidence() {
+    fn conflicts_for_incompatible_word_evidence() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let v_1 = RSV::new_value(0, Provenance::Synthetic);
@@ -532,16 +562,18 @@ mod test {
         for permutation in permutations {
             permutation.into_iter().for_each(|i| state.infer(v_1_ty, i.clone()));
 
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(v_1_ty, state.result());
 
             assert!(result.is_some());
             assert!(matches!(result.unwrap(), TE::Conflict { .. }));
         }
+
+        Ok(())
     }
 
     #[test]
-    fn can_infer_unsigned_word_with_dynamic_array() {
+    fn can_infer_unsigned_word_with_dynamic_array() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let array = RSV::new_value(0, Provenance::Synthetic);
@@ -563,7 +595,7 @@ mod test {
         for permutation in permutations {
             permutation.into_iter().for_each(|i| state.infer(array_tv, i.clone()));
 
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(array_tv, state.result());
 
             assert!(result.is_some());
@@ -574,10 +606,12 @@ mod test {
                 }
             );
         }
+
+        Ok(())
     }
 
     #[test]
-    fn conflicts_for_signed_word_with_dynamic_array() {
+    fn conflicts_for_signed_word_with_dynamic_array() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let array = RSV::new_value(0, Provenance::Synthetic);
@@ -599,16 +633,18 @@ mod test {
         for permutation in permutations {
             permutation.into_iter().for_each(|i| state.infer(array_tv, i.clone()));
 
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(array_tv, state.result());
 
             assert!(result.is_some());
             assert!(matches!(result.unwrap(), TE::Conflict { .. }));
         }
+
+        Ok(())
     }
 
     #[test]
-    fn can_infer_dynamic_arrays_with_compatible_element_types() {
+    fn can_infer_dynamic_arrays_with_compatible_element_types() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let array = RSV::new_value(0, Provenance::Synthetic);
@@ -635,7 +671,7 @@ mod test {
             permutation.into_iter().for_each(|i| state.infer(array_tv, i.clone()));
 
             // Check the result is right
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(array_tv, state.result());
 
             match result.unwrap() {
@@ -645,10 +681,12 @@ mod test {
                 _ => panic!("Bad payload in result"),
             }
         }
+
+        Ok(())
     }
 
     #[test]
-    fn conflicts_for_dynamic_arrays_with_incompatible_element_types() {
+    fn conflicts_for_dynamic_arrays_with_incompatible_element_types() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let array = RSV::new_value(0, Provenance::Synthetic);
@@ -675,7 +713,7 @@ mod test {
             permutation.into_iter().for_each(|i| state.infer(array_tv, i.clone()));
 
             // Check the array is right
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(array_tv, state.result());
 
             match result.unwrap() {
@@ -689,10 +727,12 @@ mod test {
             let result = util::get_inference(elem_1_tv, state.result());
             assert!(matches!(result.unwrap(), TE::Conflict { .. }));
         }
+
+        Ok(())
     }
 
     #[test]
-    fn can_infer_fixed_arrays_with_compatible_element_types() {
+    fn can_infer_fixed_arrays_with_compatible_element_types() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let array = RSV::new_value(0, Provenance::Synthetic);
@@ -725,7 +765,7 @@ mod test {
             // Register the array inferences in the state
             permutation.into_iter().for_each(|i| state.infer(array_tv, i.clone()));
 
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(array_tv, state.result());
 
             // Check the result is right
@@ -736,10 +776,12 @@ mod test {
                 _ => panic!("Bad payload in result"),
             }
         }
+
+        Ok(())
     }
 
     #[test]
-    fn conflicts_for_fixed_arrays_with_incompatible_element_types() {
+    fn conflicts_for_fixed_arrays_with_incompatible_element_types() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let array = RSV::new_value(0, Provenance::Synthetic);
@@ -772,7 +814,7 @@ mod test {
             // Register the array inferences in the state
             permutation.into_iter().for_each(|i| state.infer(array_tv, i.clone()));
 
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(array_tv, state.result());
 
             // Check the result is right
@@ -786,10 +828,12 @@ mod test {
             let result = util::get_inference(elem_1_tv, state.result());
             assert!(matches!(result.unwrap(), TE::Conflict { .. }));
         }
+
+        Ok(())
     }
 
     #[test]
-    fn conflicts_for_fixed_arrays_with_incompatible_lengths() {
+    fn conflicts_for_fixed_arrays_with_incompatible_lengths() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let array = RSV::new_value(0, Provenance::Synthetic);
@@ -821,14 +865,16 @@ mod test {
             // Register the array inferences in the state
             permutation.into_iter().for_each(|i| state.infer(array_tv, i.clone()));
 
-            unify(&mut state);
+            unify(&mut state, &LazyWatchdog.in_rc())?;
             let result = util::get_inference(array_tv, state.result());
             assert!(matches!(result.unwrap(), TE::Conflict { .. }));
         }
+
+        Ok(())
     }
 
     #[test]
-    fn can_infer_mappings_with_compatible_types() {
+    fn can_infer_mappings_with_compatible_types() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let mapping = RSV::new_value(0, Provenance::Synthetic);
@@ -862,7 +908,7 @@ mod test {
         state.infer(value_1_tv, TE::signed_word(Some(32)));
 
         // Check that we get a sane result out
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
         let result = util::get_inference(mapping_tv, state.result());
         match result.unwrap() {
             TE::Mapping { key, value } => {
@@ -871,10 +917,12 @@ mod test {
             }
             _ => panic!("Invalid payload"),
         }
+
+        Ok(())
     }
 
     #[test]
-    fn errors_for_mappings_with_incompatible_key_types() {
+    fn errors_for_mappings_with_incompatible_key_types() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let mapping = RSV::new_value(0, Provenance::Synthetic);
@@ -908,7 +956,7 @@ mod test {
         state.infer(value_1_tv, TE::signed_word(Some(32)));
 
         // Check that we get a sane result out
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
         let result = util::get_inference(mapping_tv, state.result());
         match result.unwrap() {
             TE::Mapping { key, value } => {
@@ -920,10 +968,12 @@ mod test {
 
         let result = util::get_inference(key_1_tv, state.result());
         assert!(matches!(result.unwrap(), TE::Conflict { .. }));
+
+        Ok(())
     }
 
     #[test]
-    fn errors_for_mappings_with_incompatible_value_types() {
+    fn errors_for_mappings_with_incompatible_value_types() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let mapping = RSV::new_value(0, Provenance::Synthetic);
@@ -957,7 +1007,7 @@ mod test {
         state.infer(value_2_tv, TE::address());
 
         // Check that we get a sane result out
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
         let result = util::get_inference(mapping_tv, state.result());
         match result.unwrap() {
             TE::Mapping { key, value } => {
@@ -969,10 +1019,12 @@ mod test {
 
         let result = util::get_inference(value_1_tv, state.result());
         assert!(matches!(result.unwrap(), TE::Conflict { .. }));
+
+        Ok(())
     }
 
     #[test]
-    fn can_infer_any_when_alone() {
+    fn can_infer_any_when_alone() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let value = RSV::new_value(0, Provenance::Synthetic);
@@ -983,13 +1035,15 @@ mod test {
         state.infer(value_tv, TE::Any);
 
         // Check the result makes sense
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
         let result = util::get_inference(value_tv, state.result());
         assert_eq!(result.unwrap(), TE::Any);
+
+        Ok(())
     }
 
     #[test]
-    fn can_infer_other_value_with_any() {
+    fn can_infer_other_value_with_any() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let value = RSV::new_value(0, Provenance::Synthetic);
@@ -1001,14 +1055,16 @@ mod test {
         state.infer(value_tv, TE::Any);
 
         // Check the result makes sense
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
         let result = util::get_inference(value_tv, state.result());
         assert_eq!(result.unwrap(), inference);
+
+        Ok(())
     }
 
     #[test]
     #[allow(clippy::similar_names)] // Intentional
-    fn can_infer_packed_with_packed() {
+    fn can_infer_packed_with_packed() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let elem_1 = RSV::new_value(0, Provenance::Synthetic);
@@ -1043,7 +1099,7 @@ mod test {
         state.infer(p1_tv, TE::eq(p2_tv));
 
         // Check the result makes sense
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
         let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
         assert_eq!(
             p1_tv_type,
@@ -1055,11 +1111,13 @@ mod test {
             e3_tv_type,
             TE::packed_of(vec![Span::new(e1_tv, 0, 64), Span::new(e2_tv, 64, 64)])
         );
+
+        Ok(())
     }
 
     #[test]
     #[allow(clippy::similar_names)] // Intentional
-    fn conflicts_if_packed_types_are_incompatible() {
+    fn conflicts_if_packed_types_are_incompatible() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let elem_1 = RSV::new_value(0, Provenance::Synthetic);
@@ -1094,14 +1152,16 @@ mod test {
         state.infer(p1_tv, TE::eq(p2_tv));
 
         // Check the result makes sense
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
         let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
         assert!(matches!(p1_tv_type, TE::Conflict { .. }));
+
+        Ok(())
     }
 
     #[test]
     #[allow(clippy::similar_names)] // Intentional
-    fn can_infer_packed_with_bytes() {
+    fn can_infer_packed_with_bytes() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let elem_1 = RSV::new_value(0, Provenance::Synthetic);
@@ -1128,7 +1188,7 @@ mod test {
         state.infer(p1_tv, TE::eq(e3_tv));
 
         // Run inference and check the result makes sense
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
 
         let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
         assert_eq!(
@@ -1137,11 +1197,13 @@ mod test {
         );
         let e3_tv_type = util::get_inference(e3_tv, state.result()).unwrap();
         assert_eq!(e3_tv_type, p1_tv_type);
+
+        Ok(())
     }
 
     #[test]
     #[allow(clippy::similar_names)] // Intentional
-    fn can_infer_packed_with_bytes_with_offset() {
+    fn can_infer_packed_with_bytes_with_offset() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let elem_1 = RSV::new_value(0, Provenance::Synthetic);
@@ -1168,7 +1230,7 @@ mod test {
         state.infer(p1_tv, TE::eq(e3_tv));
 
         // Run inference and check the result makes sense
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
 
         let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
         assert_eq!(
@@ -1177,11 +1239,13 @@ mod test {
         );
         let e3_tv_type = util::get_inference(e3_tv, state.result()).unwrap();
         assert_eq!(e3_tv_type, p1_tv_type);
+
+        Ok(())
     }
 
     #[test]
     #[allow(clippy::similar_names)] // Intentional
-    fn conflicts_if_packed_and_bytes_are_incompatible() {
+    fn conflicts_if_packed_and_bytes_are_incompatible() -> anyhow::Result<()> {
         // Set up the state
         let mut state = InferenceState::empty();
         let elem_1 = RSV::new_value(0, Provenance::Synthetic);
@@ -1208,10 +1272,12 @@ mod test {
         state.infer(p1_tv, TE::eq(e3_tv));
 
         // Run inference and check the result makes sense
-        unify(&mut state);
+        unify(&mut state, &LazyWatchdog.in_rc())?;
 
         let p1_tv_type = util::get_inference(p1_tv, state.result()).unwrap();
         assert!(matches!(p1_tv_type, TE::Conflict { .. }));
+
+        Ok(())
     }
 
     mod util {

@@ -23,6 +23,7 @@ use crate::{
         value::{RuntimeBoxedVal, TCBoxedVal, TCSVD},
         ExecutionResult,
     },
+    watchdog::DynWatchdog,
     StorageLayout,
 };
 
@@ -47,13 +48,17 @@ pub struct InferenceEngine {
 
     /// The internal state for the unifier,
     state: InferenceState,
+
+    /// A watchdog that gets polled at intervals to check whether the analysis
+    /// needs to exit.
+    watchdog: DynWatchdog,
 }
 
 impl InferenceEngine {
     /// Constructs a new inference engine configured by the provided `config`
     /// and working on the data in the provided `execution_result`.
     #[must_use]
-    pub fn new(config: Config, execution_result: ExecutionResult) -> Self {
+    pub fn new(config: Config, execution_result: ExecutionResult, watchdog: DynWatchdog) -> Self {
         // Create the state and register all initial values into it.
         let state = InferenceState::empty();
 
@@ -62,6 +67,7 @@ impl InferenceEngine {
             config,
             execution_result,
             state,
+            watchdog,
         }
     }
 
@@ -92,10 +98,18 @@ impl InferenceEngine {
         // remove any exact duplicates to make the type checking process faster.
         let result_values = self.execution_result.all_values().into_iter().unique().collect_vec();
 
+        let polling_interval = self.watchdog.poll_every();
         let mut new_values = Vec::new();
         let mut errors = Errors::new();
-        for value in result_values {
-            match self.config.sugar_passes.run(value, &self.state) {
+
+        for (counter, value) in result_values.into_iter().enumerate() {
+            // If we have been told to stop, stop and return an error.
+            if counter % polling_interval == 0 && self.watchdog.should_stop() {
+                Err(Error::StoppedByWatchdog).locate(value.instruction_pointer())?;
+            }
+
+            // Actually run the lifting passes.
+            match self.config.lifting_passes.run(value, &self.state) {
                 Ok(v) => new_values.push(v),
                 Err(e) => errors.add_many_located(e),
             }
@@ -132,7 +146,15 @@ impl InferenceEngine {
     /// Returns [`Err`] if one or more of the rules returns an error.
     pub fn infer(&mut self) -> Result<()> {
         let values = self.state.values().into_iter().cloned().collect::<Vec<_>>();
-        for value in values {
+
+        let polling_interval = self.watchdog.poll_every();
+
+        for (counter, value) in values.into_iter().enumerate() {
+            // If we have been told to stop, stop and return an error.
+            if counter % polling_interval == 0 && self.watchdog.should_stop() {
+                Err(Error::StoppedByWatchdog).locate(value.instruction_pointer())?;
+            }
+
             self.config.inference_rules.infer(&value, &mut self.state)?;
         }
 
@@ -152,7 +174,7 @@ impl InferenceEngine {
     /// Returns [`Err`] if the unification process fails.
     pub fn unify(&mut self) -> Result<StorageLayout> {
         // Actually run unification
-        unification::unify(&mut self.state);
+        unification::unify(&mut self.state, &self.watchdog)?;
 
         // Create an empty layout
         let mut layout = StorageLayout::default();
@@ -520,7 +542,7 @@ pub struct Config {
     /// The lifting passes that will be run.
     ///
     /// Defaults to [`LiftingPasses::default()`].
-    pub sugar_passes: LiftingPasses,
+    pub lifting_passes: LiftingPasses,
 
     /// The inference rules that the unifier will use.
     ///
@@ -529,10 +551,10 @@ pub struct Config {
 }
 
 impl Config {
-    /// Sets the `sugar_passes` config parameter to `value`.
+    /// Sets the `lifting_passes` config parameter to `value`.
     #[must_use]
-    pub fn with_sugar_passes(mut self, value: LiftingPasses) -> Config {
-        self.sugar_passes = value;
+    pub fn with_lifting_passes(mut self, value: LiftingPasses) -> Config {
+        self.lifting_passes = value;
         self
     }
 
@@ -547,10 +569,10 @@ impl Config {
 /// Creates a default inference engine configuration.
 impl Default for Config {
     fn default() -> Self {
-        let sugar_passes = LiftingPasses::default();
+        let lifting_passes = LiftingPasses::default();
         let inference_rules = InferenceRules::default();
         Self {
-            sugar_passes,
+            lifting_passes,
             inference_rules,
         }
     }
@@ -624,6 +646,7 @@ pub mod test {
     use crate::{
         inference::{abi::AbiType, Config, InferenceEngine},
         vm::value::{known::KnownWord, Provenance, RSV, RSVD},
+        watchdog::LazyWatchdog,
     };
 
     #[test]
@@ -679,6 +702,7 @@ pub mod test {
         let mut unifier = InferenceEngine::new(
             config,
             util::execution_result_with_values(vec![store.clone()]),
+            LazyWatchdog.in_rc(),
         );
 
         // First we run the lifting, and check the results
@@ -779,7 +803,11 @@ pub mod test {
         let values = vec![mapping.clone(), var_3.clone()];
 
         let config = Config::default();
-        let mut unifier = InferenceEngine::new(config, util::default_execution_result());
+        let mut unifier = InferenceEngine::new(
+            config,
+            util::default_execution_result(),
+            LazyWatchdog.in_rc(),
+        );
 
         unifier.assign_vars(values);
         let state = unifier.state();

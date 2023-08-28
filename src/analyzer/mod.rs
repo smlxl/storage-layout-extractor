@@ -12,6 +12,7 @@ use crate::{
     inference::InferenceEngine,
     vm,
     vm::VM,
+    watchdog::DynWatchdog,
     StorageLayout,
 };
 
@@ -22,10 +23,12 @@ pub fn new(
     contract: Contract,
     vm_config: vm::Config,
     unifier_config: inference::Config,
+    watchdog: DynWatchdog,
 ) -> Analyzer<state::HasContract> {
     let state = state::HasContract {
         vm_config,
         unifier_config,
+        watchdog,
     };
     Analyzer { contract, state }
 }
@@ -172,10 +175,12 @@ impl Analyzer<state::HasContract> {
             self.transform_state(|old_state| {
                 let vm_config = old_state.vm_config;
                 let unifier_config = old_state.unifier_config;
+                let watchdog = old_state.watchdog;
                 Ok(state::DisassemblyComplete {
                     bytecode,
                     vm_config,
                     unifier_config,
+                    watchdog,
                 })
             })
         }
@@ -195,8 +200,13 @@ impl Analyzer<state::DisassemblyComplete> {
         unsafe {
             self.transform_state(|old_state| {
                 let unifier_config = old_state.unifier_config;
-                let vm = VM::new(old_state.bytecode, old_state.vm_config)?;
-                Ok(state::VMReady { vm, unifier_config })
+                let watchdog = old_state.watchdog;
+                let vm = VM::new(old_state.bytecode, old_state.vm_config, watchdog.clone())?;
+                Ok(state::VMReady {
+                    vm,
+                    unifier_config,
+                    watchdog,
+                })
             })
         }
     }
@@ -218,9 +228,11 @@ impl Analyzer<state::VMReady> {
                 old_state.vm.execute()?;
                 let execution_result = old_state.vm.consume();
                 let unifier_config = old_state.unifier_config;
+                let watchdog = old_state.watchdog;
                 Ok(state::ExecutionComplete {
                     execution_result,
                     unifier_config,
+                    watchdog,
                 })
             })
         }
@@ -237,9 +249,13 @@ impl Analyzer<state::ExecutionComplete> {
         unsafe {
             // Safe to unwrap as we guarantee that the internal operations cannot fail.
             self.transform_state(|old_state| {
-                let unifier =
-                    InferenceEngine::new(old_state.unifier_config, old_state.execution_result);
-                Ok(state::InferenceReady { engine: unifier })
+                let watchdog = old_state.watchdog;
+                let engine = InferenceEngine::new(
+                    old_state.unifier_config,
+                    old_state.execution_result,
+                    watchdog.clone(),
+                );
+                Ok(state::InferenceReady { engine, watchdog })
             })
             .expect("Explicit closure cannot return Err")
         }
@@ -259,11 +275,8 @@ impl Analyzer<state::InferenceReady> {
         unsafe {
             self.transform_state(|mut old_state| {
                 let layout = old_state.engine.run()?;
-                let unifier = old_state.engine;
-                Ok(state::InferenceComplete {
-                    engine: unifier,
-                    layout,
-                })
+                let engine = old_state.engine;
+                Ok(state::InferenceComplete { engine, layout })
             })
         }
     }
