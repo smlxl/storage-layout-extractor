@@ -26,7 +26,7 @@ impl InferenceRule for ShiftedHasElementTypeRule {
         let TCSVD::Shifted {
             value: shifted_value,
             ..
-        } = &value.data
+        } = value.data()
         else {
             return Ok(());
         };

@@ -28,12 +28,12 @@ pub struct CallDataRule;
 
 impl InferenceRule for CallDataRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        let TCSVD::CallData { size, .. } = &value.data else {
+        let TCSVD::CallData { size, .. } = value.data() else {
             return Ok(());
         };
 
         // If we can make the size into a constant we can work with it
-        let TCSVD::KnownData { value: byte_size } = size.data.clone().constant_fold() else {
+        let TCSVD::KnownData { value: byte_size } = size.data().clone().constant_fold() else {
             return Ok(());
         };
 
@@ -86,7 +86,7 @@ mod test {
     fn writes_inferences_for_constant_sizes() -> anyhow::Result<()> {
         // Create the values to run inference on
         let offset = RSV::new_value(0, Provenance::Synthetic);
-        let size = RSV::new_known_value(1, KnownWord::from_le(16u32), Provenance::Synthetic);
+        let size = RSV::new_known_value(1, KnownWord::from_le(16u32), Provenance::Synthetic, None);
         let call_data = RSV::new_synthetic(2, RSVD::call_data(offset.clone(), size.clone()));
 
         // Register them in the state
@@ -115,8 +115,10 @@ mod test {
     fn writes_inferences_when_size_needs_folding() -> anyhow::Result<()> {
         // Create the values to run inference on
         let offset = RSV::new_value(0, Provenance::Synthetic);
-        let left_val = RSV::new_known_value(1, KnownWord::from_le(7u32), Provenance::Synthetic);
-        let right_val = RSV::new_known_value(2, KnownWord::from_le(9u32), Provenance::Synthetic);
+        let left_val =
+            RSV::new_known_value(1, KnownWord::from_le(7u32), Provenance::Synthetic, None);
+        let right_val =
+            RSV::new_known_value(2, KnownWord::from_le(9u32), Provenance::Synthetic, None);
         let size = RSV::new_synthetic(
             3,
             RSVD::Add {

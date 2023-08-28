@@ -91,7 +91,7 @@ impl InferenceState {
     /// return value of _that_ function, making traversal linear again.
     #[must_use]
     fn is_stable_typed(value: &RuntimeBoxedVal) -> bool {
-        match &value.data {
+        match value.data() {
             RSVD::StorageSlot { .. } | RSVD::Value { .. } | RSVD::CallData { .. } => true,
             _ => value.children().into_iter().any(Self::is_stable_typed),
         }
@@ -113,7 +113,9 @@ impl InferenceState {
         }
 
         // We need to perform registration recursively to transform the type.
-        let new_data = match value.data {
+        let instruction_pointer = value.instruction_pointer();
+        let provenance = value.provenance();
+        let new_data = match value.consume().data {
             RSVD::Value { id } => TCSVD::Value { id },
             RSVD::KnownData { value } => TCSVD::KnownData { value },
             RSVD::Add { left, right } => TCSVD::Add {
@@ -353,12 +355,7 @@ impl InferenceState {
             },
         };
         let type_var = TypeVariable::fresh();
-        let new_value = TCSV::new(
-            value.instruction_pointer,
-            new_data,
-            value.provenance,
-            type_var,
-        );
+        let new_value = TCSV::new(instruction_pointer, new_data, provenance, type_var);
 
         // Register the result
         self.expressions.entry(type_var).or_insert(new_value.clone());
@@ -452,7 +449,7 @@ impl InferenceState {
         value: &TCBoxedVal,
         expression: impl Into<TypeExpression>,
     ) -> TypeVariable {
-        let var = value.aux_data;
+        let var = value.type_var();
         self.infer(var, expression);
         var
     }
@@ -550,7 +547,7 @@ impl InferenceState {
     /// [`None`] otherwise.
     #[must_use]
     pub fn var(&self, value: &TCBoxedVal) -> Option<TypeVariable> {
-        Some(value.aux_data)
+        Some(value.type_var())
     }
 
     /// Gets the type variable associated with `value`, or panics if the typing
@@ -565,7 +562,7 @@ impl InferenceState {
     /// typing state.
     #[must_use]
     pub fn var_unchecked(&self, value: &TCBoxedVal) -> TypeVariable {
-        value.aux_data
+        value.type_var()
     }
 
     /// Gets the value associated with a type variable, if it exists, returning

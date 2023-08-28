@@ -15,7 +15,7 @@ pub struct HashRule;
 
 impl InferenceRule for HashRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::Sha3 { .. } => {
                 state.infer_for(value, TE::bytes(Some(WORD_SIZE_BITS)));
             }

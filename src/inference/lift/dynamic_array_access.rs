@@ -47,31 +47,32 @@ impl Lift for DynamicArrayAccess {
             let RSVD::StorageWrite { key, value } = &value else {
                 return None;
             };
-            let RSVD::Add { left, right } = &key.data else {
+            let RSVD::Add { left, right } = key.data() else {
                 return None;
             };
 
             // Important to check if either side of the addition is the hash
-            let data = if let RSVD::Sha3 { data } = &left.data {
+            let data = if let RSVD::Sha3 { data } = left.data() {
                 data
-            } else if let RSVD::Sha3 { data } = &right.data {
+            } else if let RSVD::Sha3 { data } = right.data() {
                 data
             } else {
                 return None;
             }
             .clone()
             .constant_fold();
-            let RSVD::KnownData { .. } = &data.data else {
+            let RSVD::KnownData { .. } = data.data() else {
                 return None;
             };
 
             let access = RSV::new(
-                key.instruction_pointer,
+                key.instruction_pointer(),
                 RSVD::DynamicArrayAccess {
                     slot:  data.transform_data(lift_dyn_array_accesses),
                     index: right.clone().transform_data(lift_dyn_array_accesses),
                 },
-                key.provenance,
+                key.provenance(),
+                None,
             );
 
             let value = RSVD::StorageWrite {
@@ -100,13 +101,14 @@ mod test {
     fn lifts_dyn_array_accesses() -> anyhow::Result<()> {
         let input_value = RSV::new_value(0, Provenance::Synthetic);
         let input_index = RSV::new_value(1, Provenance::Synthetic);
-        let input_slot = RSV::new_known_value(3, KnownWord::from(3), Provenance::Synthetic);
+        let input_slot = RSV::new_known_value(3, KnownWord::from(3), Provenance::Synthetic, None);
         let hash = RSV::new(
             2,
             RSVD::Sha3 {
                 data: input_slot.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
         let add = RSV::new(
             3,
@@ -115,6 +117,7 @@ mod test {
                 right: input_index.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
         let store = RSV::new(
             4,
@@ -123,6 +126,7 @@ mod test {
                 value: input_value.clone(),
             },
             Provenance::Synthetic,
+            None,
         );
 
         // Run the pass
@@ -130,14 +134,14 @@ mod test {
         let result = DynamicArrayAccess.run(store, &state)?;
 
         // Inspect the result
-        match result.data {
+        match result.data() {
             RSVD::StorageWrite { key, value } => {
-                assert_eq!(value, input_value);
+                assert_eq!(value, &input_value);
 
-                match key.data {
+                match key.data() {
                     RSVD::DynamicArrayAccess { slot, index } => {
-                        assert_eq!(index, input_index);
-                        assert_eq!(slot, input_slot);
+                        assert_eq!(index, &input_index);
+                        assert_eq!(slot, &input_slot);
                     }
                     _ => panic!("Incorrect payload"),
                 }

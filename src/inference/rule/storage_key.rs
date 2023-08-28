@@ -19,7 +19,7 @@ pub struct StorageKeyRule;
 
 impl InferenceRule for StorageKeyRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        let TCSVD::StorageSlot { key } = &value.data else {
+        let TCSVD::StorageSlot { key } = value.data() else {
             return Ok(());
         };
         state.infer_for(key, TE::unsigned_word(None));

@@ -80,9 +80,10 @@ impl Lift for StorageSlotHashes {
             // value if it is one.
             if let Some(slot_index) = hashes.get_by_left(&known_value.value_le()) {
                 let data = RSV::new_known_value(
-                    value_clone.instruction_pointer,
+                    value_clone.instruction_pointer(),
                     KnownWord::from(*slot_index),
-                    value_clone.provenance,
+                    value_clone.provenance(),
+                    None,
                 );
 
                 Some(RSVD::Sha3 { data })
@@ -133,17 +134,17 @@ mod test {
         let word = KnownWord::from_le(util::expected_hash_from_be_hex_string(
             "c2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b",
         ));
-        let value = RSV::new_known_value(0, word, Provenance::Synthetic);
+        let value = RSV::new_known_value(0, word, Provenance::Synthetic, None);
 
         // Run the pass
         let state = InferenceState::empty();
         let result = StorageSlotHashes::new().run(value, &state)?;
 
         // Check the structure
-        match result.data {
-            RSVD::Sha3 { data } => match data.data {
+        match result.data() {
+            RSVD::Sha3 { data } => match data.data() {
                 RSVD::KnownData { value } => {
-                    assert_eq!(value, KnownWord::from(3));
+                    assert_eq!(value, &KnownWord::from(3));
                 }
 
                 _ => panic!("Incorrect payload"),

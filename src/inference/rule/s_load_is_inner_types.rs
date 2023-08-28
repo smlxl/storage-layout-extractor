@@ -27,7 +27,7 @@ impl InferenceRule for SLoadIsInnerTypesRule {
         let TCSVD::SLoad {
             value: inner_value,
             key,
-        } = &value.data
+        } = value.data()
         else {
             return Ok(());
         };

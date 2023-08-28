@@ -22,8 +22,8 @@ pub struct MappingAccessRule;
 
 impl InferenceRule for MappingAccessRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        if let TCSVD::StorageSlot { key } = &value.data {
-            let TCSVD::MappingAccess { key, slot } = &key.data else {
+        if let TCSVD::StorageSlot { key } = value.data() {
+            let TCSVD::MappingAccess { key, slot } = key.data() else {
                 return Ok(());
             };
 

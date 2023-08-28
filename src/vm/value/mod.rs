@@ -56,23 +56,71 @@ pub struct SymbolicValue<AuxData> {
     /// The instruction pointer's value at the location where this part of the
     /// symbolic execution tree was recorded.
     #[derivative(PartialEq = "ignore", Hash = "ignore")]
-    pub instruction_pointer: u32,
+    instruction_pointer: u32,
 
     /// Where the data at this level came from.
     #[derivative(PartialEq = "ignore", Hash = "ignore")]
-    pub provenance: Provenance,
+    provenance: Provenance,
 
     /// The actual execution tree that forms this value.
-    pub data: SymbolicValueData<AuxData>,
+    data: SymbolicValueData<AuxData>,
 
     /// Auxiliary data to be included with the value.
-    pub aux_data: AuxData,
+    aux_data: AuxData,
+
+    /// The number of nodes in the tree beginning at the node in `data`.
+    ///
+    /// Note that this value _includes_ the node that it is being called on in
+    /// the total count.
+    size: usize,
 }
 
 impl<AuxData> SymbolicValue<AuxData>
 where
     AuxData: Clone + PartialEq,
 {
+    /// Gets the instruction pointer value for the location where this portion
+    /// of the value was constructed.
+    #[must_use]
+    pub fn instruction_pointer(&self) -> u32 {
+        self.instruction_pointer
+    }
+
+    /// Gets the provenance for the value, namely where it came from during
+    /// execution.
+    #[must_use]
+    pub fn provenance(&self) -> Provenance {
+        self.provenance
+    }
+
+    /// Gets the execution tree that makes up this value.
+    #[must_use]
+    pub fn data(&self) -> &SymbolicValueData<AuxData> {
+        &self.data
+    }
+
+    /// Gets the auxiliary data associated with this value.
+    #[must_use]
+    pub fn aux_data(&self) -> &AuxData {
+        &self.aux_data
+    }
+
+    /// Gets the number of nodes in the tree beginning at the node in `data`.
+    ///
+    /// Note that this value _includes_ the node that it is being called on in
+    /// the total count.
+    #[must_use]
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    /// Consumes the symbolic value, returning its data and auxiliary data
+    /// payloads.
+    #[must_use]
+    pub fn consume(self) -> ValuePayload<AuxData> {
+        ValuePayload::new(self.data, self.aux_data)
+    }
+
     /// Compares two symbolic values for strict equality, _including_ the value
     /// of the `instruction_pointer`.
     #[must_use]
@@ -96,12 +144,14 @@ where
         let instruction_pointer = self.instruction_pointer;
         let provenance = self.provenance;
         let aux_data = self.aux_data;
+        let size = data.child_size() + 1;
 
         Box::new(Self {
             instruction_pointer,
             provenance,
             data,
             aux_data,
+            size,
         })
     }
 
@@ -127,11 +177,14 @@ where
         self,
         transform: impl Fn(&SymbolicValueData<AuxData>) -> Option<SymbolicValueData<AuxData>> + Copy,
     ) -> Box<Self> {
+        let data = self.data.transform(transform);
+        let size = data.child_size() + 1;
         Box::new(Self {
             instruction_pointer: self.instruction_pointer,
-            data:                self.data.transform(transform),
-            provenance:          self.provenance,
-            aux_data:            self.aux_data,
+            data,
+            provenance: self.provenance,
+            aux_data: self.aux_data,
+            size,
         })
     }
 
@@ -150,13 +203,43 @@ impl RSV {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    ///
+    /// # Size Limits
+    ///
+    /// The size of the value tree being constructed is checked against the
+    /// `value_size_limit` parameter. If it exceeds that limit, the provided
+    /// `data` is ignored, instead being replaced by a [`RSVD::Value`] to give
+    /// the new tree a size of 1.
+    ///
+    /// This does throw data away, which has the potential to impact inference
+    /// operations later.
+    ///
+    /// If you want to disable this behaviour, set `value_size_limit` to
+    /// [`None`].
     #[must_use]
-    pub fn new(instruction_pointer: u32, data: RSVD, provenance: Provenance) -> Box<Self> {
+    pub fn new(
+        instruction_pointer: u32,
+        data: RSVD,
+        provenance: Provenance,
+        value_size_limit: Option<usize>,
+    ) -> Box<Self> {
+        let size = data.child_size() + 1;
+        let data = if let Some(limit) = value_size_limit {
+            if size > limit {
+                RSVD::new_value()
+            } else {
+                data
+            }
+        } else {
+            data
+        };
+
         Box::new(Self {
             instruction_pointer,
             provenance,
             data,
             aux_data: (),
+            size,
         })
     }
 
@@ -167,9 +250,31 @@ impl RSV {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    ///
+    /// # Size Limits
+    ///
+    /// The size of the value tree being constructed is checked against the
+    /// `value_size_limit` parameter. If it exceeds that limit, the provided
+    /// `data` is ignored, instead being replaced by a [`RSVD::Value`] to give
+    /// the new tree a size of 1.
+    ///
+    /// This does throw data away, which has the potential to impact inference
+    /// operations later.
+    ///
+    /// If you want to disable this behaviour, set `value_size_limit` to
+    /// [`None`].
     #[must_use]
-    pub fn new_from_execution(instruction_pointer: u32, data: RSVD) -> Box<Self> {
-        Self::new(instruction_pointer, data, Provenance::Execution)
+    pub fn new_from_execution(
+        instruction_pointer: u32,
+        data: RSVD,
+        value_size_limit: Option<usize>,
+    ) -> Box<Self> {
+        Self::new(
+            instruction_pointer,
+            data,
+            Provenance::Execution,
+            value_size_limit,
+        )
     }
 
     /// Constructs a new, synthetic, `SymbolicValue` representing the operation
@@ -181,7 +286,7 @@ impl RSV {
     /// used in a recursive data type and hence indirection is needed.
     #[must_use]
     pub fn new_synthetic(instruction_pointer: u32, data: RSVD) -> Box<Self> {
-        Self::new(instruction_pointer, data, Provenance::Synthetic)
+        Self::new(instruction_pointer, data, Provenance::Synthetic, None)
     }
 
     /// Constructs a new `SymbolicValue` representing a symbolic value created
@@ -195,6 +300,7 @@ impl RSV {
             instruction_pointer,
             SymbolicValueData::new_value(),
             provenance,
+            None,
         )
     }
 
@@ -204,16 +310,31 @@ impl RSV {
     ///
     /// It returns [`Box<Self>`] as in the vast majority of cases this type is
     /// used in a recursive data type and hence indirection is needed.
+    ///
+    /// # Size Limits
+    ///
+    /// The size of the value tree being constructed is checked against the
+    /// `value_size_limit` parameter. If it exceeds that limit, the provided
+    /// `data` is ignored, instead being replaced by a [`RSVD::Value`] to give
+    /// the new tree a size of 1.
+    ///
+    /// This does throw data away, which has the potential to impact inference
+    /// operations later.
+    ///
+    /// If you want to disable this behaviour, set `value_size_limit` to
+    /// [`None`].
     #[must_use]
     pub fn new_known_value(
         instruction_pointer: u32,
         value_data: KnownWord,
         provenance: Provenance,
+        value_size_limit: Option<usize>,
     ) -> Box<Self> {
         Self::new(
             instruction_pointer,
             SymbolicValueData::KnownData { value: value_data },
             provenance,
+            value_size_limit,
         )
     }
 }
@@ -232,12 +353,20 @@ impl TCSV {
         provenance: Provenance,
         aux_data: TCAuxData,
     ) -> Box<Self> {
+        let size = data.child_size() + 1;
         Box::new(Self {
             instruction_pointer,
             provenance,
             data,
             aux_data,
+            size,
         })
+    }
+
+    /// Gets the type variable associated with this type-checker symbolic value.
+    #[must_use]
+    pub fn type_var(&self) -> TypeVariable {
+        self.aux_data
     }
 }
 
@@ -550,6 +679,121 @@ impl<AuxData> SymbolicValueData<AuxData>
 where
     AuxData: Clone + PartialEq,
 {
+    /// Gets the number of nodes in the tree that are children of `self.`
+    ///
+    /// This _does not_ include `self` in the count.
+    ///
+    /// Computing this value does _not_ require traversing the entire tree as
+    /// the value is memoized in [`SymbolicValue`] instead. This _does_ mean
+    /// that transformations of symbolic values must recompute the result.
+    ///
+    /// If you want to compute this value dynamically, instead call
+    /// [`Self::children`] and get the size of the result.
+    #[allow(clippy::match_same_arms)] // Merging doesn't make sense here
+    #[must_use]
+    pub fn child_size(&self) -> usize {
+        match self {
+            SVD::Value { .. } => 0,
+            SVD::KnownData { .. } => 0,
+            SVD::Add { left, right } => left.size() + right.size(),
+            SVD::Multiply { left, right } => left.size() + right.size(),
+            SVD::Subtract { left, right } => left.size() + right.size(),
+            SVD::Divide { dividend, divisor } => dividend.size() + divisor.size(),
+            SVD::SignedDivide { dividend, divisor } => dividend.size() + divisor.size(),
+            SVD::Modulo { dividend, divisor } => dividend.size() + divisor.size(),
+            SVD::SignedModulo { dividend, divisor } => dividend.size() + divisor.size(),
+            SVD::Exp { value, exponent } => value.size() + exponent.size(),
+            SVD::SignExtend { size, value } => size.size() + value.size(),
+            SVD::CallWithValue {
+                gas,
+                address,
+                value,
+                argument_data,
+                ret_offset,
+                ret_size,
+            } => {
+                gas.size()
+                    + address.size()
+                    + value.size()
+                    + argument_data.size()
+                    + ret_offset.size()
+                    + ret_size.size()
+            }
+            SVD::CallWithoutValue {
+                gas,
+                address,
+                argument_data,
+                ret_offset,
+                ret_size,
+            } => {
+                gas.size()
+                    + address.size()
+                    + argument_data.size()
+                    + ret_offset.size()
+                    + ret_size.size()
+            }
+            SVD::Sha3 { data } => data.size(),
+            SVD::Address => 0,
+            SVD::Balance { address } => address.size(),
+            SVD::Origin => 0,
+            SVD::Caller => 0,
+            SVD::CallValue => 0,
+            SVD::GasPrice => 0,
+            SVD::ExtCodeHash { address } => address.size(),
+            SVD::BlockHash { block_number } => block_number.size(),
+            SVD::CoinBase => 0,
+            SVD::BlockTimestamp => 0,
+            SVD::BlockNumber => 0,
+            SVD::Prevrandao => 0,
+            SVD::GasLimit => 0,
+            SVD::ChainId => 0,
+            SVD::SelfBalance => 0,
+            SVD::BaseFee => 0,
+            SVD::Gas => 0,
+            SVD::Log { data, topics } => {
+                data.size() + topics.iter().map(|t| t.size()).sum::<usize>()
+            }
+            SVD::Create { value, data } => value.size() + data.size(),
+            SVD::Create2 { value, salt, data } => value.size() + salt.size() + data.size(),
+            SVD::SelfDestruct { target } => target.size(),
+            SVD::LessThan { left, right } => left.size() + right.size(),
+            SVD::GreaterThan { left, right } => left.size() + right.size(),
+            SVD::SignedLessThan { left, right } => left.size() + right.size(),
+            SVD::SignedGreaterThan { left, right } => left.size() + right.size(),
+            SVD::Equals { left, right } => left.size() + right.size(),
+            SVD::IsZero { number } => number.size(),
+            SVD::And { left, right } => left.size() + right.size(),
+            SVD::Or { left, right } => left.size() + right.size(),
+            SVD::Xor { left, right } => left.size() + right.size(),
+            SVD::Not { value } => value.size(),
+            SVD::LeftShift { shift, value } => shift.size() + value.size(),
+            SVD::RightShift { shift, value } => shift.size() + value.size(),
+            SVD::ArithmeticRightShift { shift, value } => shift.size() + value.size(),
+            SVD::CallData { offset, size, .. } => offset.size() + size.size(),
+            SVD::CallDataSize => 0,
+            SVD::CodeCopy { offset, size } => offset.size() + size.size(),
+            SVD::ExtCodeSize { address } => address.size(),
+            SVD::ExtCodeCopy {
+                address,
+                offset,
+                size,
+            } => address.size() + offset.size() + size.size(),
+            SVD::ReturnData { offset, size } => offset.size() + size.size(),
+            SVD::Return { data } => data.size(),
+            SVD::Revert { data } => data.size(),
+            SVD::UnwrittenStorageValue { key } => key.size(),
+            SVD::SLoad { key, value } => key.size() + value.size(),
+            SVD::StorageSlot { key } => key.size(),
+            SVD::StorageWrite { key, value } => key.size() + value.size(),
+            SVD::Concat { values } => values.iter().map(|v| v.size()).sum(),
+            SVD::MappingAccess { slot, key } => slot.size() + key.size(),
+            SVD::DynamicArrayAccess { slot, index } => slot.size() + index.size(),
+            SVD::SubWord { value, .. } => value.size(),
+            SVD::Shifted { value, .. } => value.size(),
+            SVD::Packed { elements } => elements.iter().map(|s| s.value.size()).sum(),
+        }
+    }
+
     /// Transforms the data payload by applying `transform` to it.
     ///
     /// It operates recursively on the entire tree, applying the transformation
@@ -1327,6 +1571,31 @@ pub enum Provenance {
     Unknown,
 }
 
+/// A value payload that is constructed when consuming a symbolic value.
+#[derive(Clone, Debug, Eq, Derivative)]
+#[derivative(
+    Hash(bound = "AuxData: std::hash::Hash"),
+    PartialEq(bound = "AuxData: std::cmp::PartialEq")
+)]
+pub struct ValuePayload<AuxData> {
+    /// The data payload of the symbolic value.
+    pub data: SymbolicValueData<AuxData>,
+
+    /// The auxiliary data payload of the symbolic value.
+    pub aux: AuxData,
+}
+
+impl<AuxData> ValuePayload<AuxData>
+where
+    AuxData: Clone + PartialEq,
+{
+    /// Constructs a new value payload wrapping `data` and `aux`.
+    #[must_use]
+    pub fn new(data: SymbolicValueData<AuxData>, aux: AuxData) -> Self {
+        Self { data, aux }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use ethnum::U256;
@@ -1348,7 +1617,7 @@ mod test {
     fn equality_ignores_provenance() {
         let id = Uuid::new_v4();
         let data = RSVD::Value { id };
-        let value_1 = RSV::new_from_execution(0, data.clone());
+        let value_1 = RSV::new_from_execution(0, data.clone(), None);
         let value_2 = RSV::new_synthetic(1, data);
 
         assert_eq!(value_1, value_2);
@@ -1368,7 +1637,7 @@ mod test {
     fn strict_equality_ignores_provenance() {
         let id = Uuid::new_v4();
         let data = RSVD::Value { id };
-        let value_1 = RSV::new_from_execution(0, data.clone());
+        let value_1 = RSV::new_from_execution(0, data.clone(), None);
         let value_2 = RSV::new_synthetic(1, data);
 
         assert!(!value_1.strict_eq(&value_2));
@@ -1376,261 +1645,300 @@ mod test {
 
     #[test]
     fn constant_folds_add() {
-        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Add { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
+        let add = RSV::new(2, RSVD::Add { left, right }, Provenance::Synthetic, None);
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(8), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(8), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_mul() {
-        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Multiply { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::Multiply { left, right },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(7), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_sub() {
-        let left = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Subtract { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::Subtract { left, right },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(6), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(6), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_div() {
-        let dividend = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
-        let divisor = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Divide { dividend, divisor }, Provenance::Synthetic);
+        let dividend = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
+        let divisor = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::Divide { dividend, divisor },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(7), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_signed_div() {
-        let dividend = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
-        let divisor = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic);
+        let dividend = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
+        let divisor = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic, None);
         let add = RSV::new(
             2,
             RSVD::SignedDivide { dividend, divisor },
             Provenance::Synthetic,
+            None,
         );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(7), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(7), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_mod() {
-        let dividend = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
-        let divisor = RSV::new_known_value(1, KnownWord::from(2), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Modulo { dividend, divisor }, Provenance::Synthetic);
+        let dividend = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
+        let divisor = RSV::new_known_value(1, KnownWord::from(2), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::Modulo { dividend, divisor },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(1), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(1), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_signed_mod() {
-        let dividend = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
-        let divisor = RSV::new_known_value(1, KnownWord::from(2), Provenance::Synthetic);
+        let dividend = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
+        let divisor = RSV::new_known_value(1, KnownWord::from(2), Provenance::Synthetic, None);
         let add = RSV::new(
             2,
             RSVD::SignedModulo { dividend, divisor },
             Provenance::Synthetic,
+            None,
         );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(1), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(1), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_exp() {
-        let value = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic);
-        let exponent = RSV::new_known_value(1, KnownWord::from(2), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Exp { value, exponent }, Provenance::Synthetic);
+        let value = RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
+        let exponent = RSV::new_known_value(1, KnownWord::from(2), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::Exp { value, exponent },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(49), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(49), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_less_than() {
-        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::LessThan { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::LessThan { left, right },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(true), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(true), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_greater_than() {
-        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::GreaterThan { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::GreaterThan { left, right },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(false), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_signed_less_than() {
-        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
         let add = RSV::new(
             2,
             RSVD::SignedLessThan { left, right },
             Provenance::Synthetic,
+            None,
         );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(true), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(true), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_signed_greater_than() {
-        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
         let add = RSV::new(
             2,
             RSVD::SignedGreaterThan { left, right },
             Provenance::Synthetic,
+            None,
         );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(false), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_equals() {
-        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Equals { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
+        let add = RSV::new(2, RSVD::Equals { left, right }, Provenance::Synthetic, None);
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(false), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_is_zero() {
-        let number = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::IsZero { number }, Provenance::Synthetic);
+        let number = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
+        let add = RSV::new(2, RSVD::IsZero { number }, Provenance::Synthetic, None);
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(false), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(false), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_and() {
-        let left = RSV::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::And { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic, None);
+        let add = RSV::new(2, RSVD::And { left, right }, Provenance::Synthetic, None);
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(0b0100), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(0b0100), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_or() {
-        let left = RSV::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Or { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic, None);
+        let add = RSV::new(2, RSVD::Or { left, right }, Provenance::Synthetic, None);
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(0b1111), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(0b1111), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_xor() {
-        let left = RSV::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic);
-        let right = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Xor { left, right }, Provenance::Synthetic);
+        let left = RSV::new_known_value(0, KnownWord::from(0b0101), Provenance::Synthetic, None);
+        let right = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic, None);
+        let add = RSV::new(2, RSVD::Xor { left, right }, Provenance::Synthetic, None);
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(0b1011), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(0b1011), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_not() {
-        let value = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::Not { value }, Provenance::Synthetic);
+        let value = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic, None);
+        let add = RSV::new(2, RSVD::Not { value }, Provenance::Synthetic, None);
 
         let folded = add.constant_fold();
 
@@ -1639,61 +1947,75 @@ mod test {
             RSV::new_known_value(
                 2,
                 KnownWord::from_le(!U256::from(1u8)),
-                Provenance::Synthetic
+                Provenance::Synthetic,
+                None
             )
         );
     }
 
     #[test]
     fn constant_folds_left_shift() {
-        let shift = RSV::new_known_value(0, KnownWord::from(2), Provenance::Synthetic);
-        let value = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::LeftShift { shift, value }, Provenance::Synthetic);
+        let shift = RSV::new_known_value(0, KnownWord::from(2), Provenance::Synthetic, None);
+        let value = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::LeftShift { shift, value },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(0b11_1000), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(0b11_1000), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_right_shift() {
-        let shift = RSV::new_known_value(0, KnownWord::from(2), Provenance::Synthetic);
-        let value = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
-        let add = RSV::new(2, RSVD::RightShift { shift, value }, Provenance::Synthetic);
+        let shift = RSV::new_known_value(0, KnownWord::from(2), Provenance::Synthetic, None);
+        let value = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic, None);
+        let add = RSV::new(
+            2,
+            RSVD::RightShift { shift, value },
+            Provenance::Synthetic,
+            None,
+        );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from_le(0b11u32), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from_le(0b11u32), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_arithmetic_right_shift() {
-        let shift = RSV::new_known_value(0, KnownWord::from(2), Provenance::Synthetic);
-        let value = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic);
+        let shift = RSV::new_known_value(0, KnownWord::from(2), Provenance::Synthetic, None);
+        let value = RSV::new_known_value(1, KnownWord::from(0b1110), Provenance::Synthetic, None);
         let add = RSV::new(
             2,
             RSVD::ArithmeticRightShift { shift, value },
             Provenance::Synthetic,
+            None,
         );
 
         let folded = add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(0b11), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(0b11), Provenance::Synthetic, None)
         );
     }
 
     #[test]
     fn constant_folds_deeply() {
-        let inner_add_left = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic);
-        let inner_add_right = RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic);
+        let inner_add_left =
+            RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
+        let inner_add_right =
+            RSV::new_known_value(1, KnownWord::from(7), Provenance::Synthetic, None);
         let inner_add = RSV::new(
             2,
             RSVD::Add {
@@ -1701,8 +2023,10 @@ mod test {
                 right: inner_add_right,
             },
             Provenance::Synthetic,
+            None,
         );
-        let outer_add_left = RSV::new_known_value(3, KnownWord::from(8), Provenance::Synthetic);
+        let outer_add_left =
+            RSV::new_known_value(3, KnownWord::from(8), Provenance::Synthetic, None);
         let outer_add = RSV::new(
             2,
             RSVD::Add {
@@ -1710,13 +2034,115 @@ mod test {
                 right: inner_add,
             },
             Provenance::Synthetic,
+            None,
         );
 
         let folded = outer_add.constant_fold();
 
         assert_eq!(
             folded,
-            RSV::new_known_value(2, KnownWord::from(16), Provenance::Synthetic)
+            RSV::new_known_value(2, KnownWord::from(16), Provenance::Synthetic, None)
         );
+    }
+
+    #[test]
+    fn can_compute_size() {
+        // Construct some data
+        let value_1 = RSV::new_value(0, Provenance::Synthetic);
+        let value_2 = RSV::new_value(1, Provenance::Synthetic);
+        let value_3 = RSV::new_value(2, Provenance::Synthetic);
+        let add = RSV::new_synthetic(
+            3,
+            RSVD::Add {
+                left:  value_1.clone(),
+                right: value_2.clone(),
+            },
+        );
+        let mul = RSV::new_synthetic(
+            4,
+            RSVD::Multiply {
+                left:  add.clone(),
+                right: value_3.clone(),
+            },
+        );
+
+        // Check they all have the right size
+        assert_eq!(value_1.size(), 1);
+        assert_eq!(value_2.size(), 1);
+        assert_eq!(value_3.size(), 1);
+        assert_eq!(add.size(), 3);
+        assert_eq!(mul.size(), 5);
+    }
+
+    #[test]
+    fn computes_size_correctly_when_transformed() {
+        // Construct some data
+        let value_1 = RSV::new_value(0, Provenance::Synthetic);
+        let value_2 = RSV::new_value(1, Provenance::Synthetic);
+        let value_3 = RSV::new_value(2, Provenance::Synthetic);
+        let add = RSV::new_synthetic(
+            3,
+            RSVD::Add {
+                left:  value_1.clone(),
+                right: value_2.clone(),
+            },
+        );
+        let mul = RSV::new_synthetic(
+            4,
+            RSVD::Multiply {
+                left:  add.clone(),
+                right: value_3.clone(),
+            },
+        );
+
+        // Check they all have the right size
+        assert_eq!(value_1.size(), 1);
+        assert_eq!(value_2.size(), 1);
+        assert_eq!(value_3.size(), 1);
+        assert_eq!(add.size(), 3);
+        assert_eq!(mul.size(), 5);
+
+        // Transform it, which will implicitly change the depth
+        let transformed = mul.transform_data(|data| match data {
+            RSVD::Add { .. } => Some(RSVD::new_value()),
+            _ => None,
+        });
+
+        // Check that the size is correct
+        assert_eq!(transformed.size, 3);
+    }
+
+    #[test]
+    fn culls_value_trees_above_limit() {
+        let value_1 = RSV::new_value(0, Provenance::Synthetic);
+        let value_2 = RSV::new_value(1, Provenance::Synthetic);
+        let value_3 = RSV::new_value(2, Provenance::Synthetic);
+        let add = RSV::new_synthetic(
+            3,
+            RSVD::Add {
+                left:  value_1.clone(),
+                right: value_2.clone(),
+            },
+        );
+        let mul = RSV::new_synthetic(
+            4,
+            RSVD::Multiply {
+                left:  add.clone(),
+                right: value_3.clone(),
+            },
+        );
+
+        // Check they all have the right size
+        assert_eq!(value_1.size(), 1);
+        assert_eq!(value_2.size(), 1);
+        assert_eq!(value_3.size(), 1);
+        assert_eq!(add.size(), 3);
+        assert_eq!(mul.size(), 5);
+
+        // Wrap in a node with a very low limit
+        let not = RSV::new(5, RSVD::Not { value: mul }, Provenance::Synthetic, Some(2));
+
+        // Check the payload is just a bare value
+        assert!(matches!(not.data, RSVD::Value { .. }));
     }
 }

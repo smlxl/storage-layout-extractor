@@ -48,7 +48,7 @@ impl Storage {
     ///
     /// The `value` is treated as being 256 bits wide.
     pub fn store(&mut self, key: RuntimeBoxedVal, value: RuntimeBoxedVal) {
-        let target_map = match key.data {
+        let target_map = match key.data() {
             RSVD::KnownData { .. } => &mut self.known_slots,
             _ => &mut self.symbolic_slots,
         };
@@ -71,7 +71,7 @@ impl Storage {
     #[must_use]
     pub fn load(&mut self, key: &RuntimeBoxedVal) -> RuntimeBoxedVal {
         // First we need to work out which of the maps to read from.
-        let target_map = match key.data {
+        let target_map = match key.data() {
             RSVD::KnownData { .. } => &mut self.known_slots,
             _ => &mut self.symbolic_slots,
         };
@@ -86,6 +86,7 @@ impl Storage {
                 0,
                 RSVD::UnwrittenStorageValue { key: key.clone() },
                 Provenance::NonWrittenStorage,
+                None,
             )]
         });
 
@@ -101,16 +102,17 @@ impl Storage {
         // storage slots are not truly used, as they will contain near-direct loads from
         // the same slot.
         RSV::new(
-            most_recent.instruction_pointer,
-            if let RSVD::SLoad { .. } = &most_recent.data {
-                most_recent.data.clone()
+            most_recent.instruction_pointer(),
+            if let RSVD::SLoad { .. } = &most_recent.data() {
+                most_recent.data().clone()
             } else {
                 RSVD::SLoad {
                     key:   key.clone(),
                     value: most_recent.clone(),
                 }
             },
-            most_recent.provenance,
+            most_recent.provenance(),
+            None,
         )
     }
 
@@ -121,7 +123,7 @@ impl Storage {
     /// otherwise returns [`None`].
     #[must_use]
     pub fn generations(&self, key: &RuntimeBoxedVal) -> Option<Vec<&RuntimeBoxedVal>> {
-        let target_map = match key.data {
+        let target_map = match key.data() {
             RSVD::KnownData { .. } => &self.known_slots,
             _ => &self.symbolic_slots,
         };
@@ -177,12 +179,13 @@ impl Storage {
                 vs.iter()
                     .map(|v| {
                         RSV::new(
-                            v.instruction_pointer,
+                            v.instruction_pointer(),
                             RSVD::StorageWrite {
                                 key:   k.clone(),
                                 value: v.clone(),
                             },
-                            v.provenance,
+                            v.provenance(),
+                            None,
                         )
                     })
                     .collect::<Vec<RuntimeBoxedVal>>()
@@ -196,12 +199,13 @@ impl Storage {
                 vs.iter()
                     .map(|v| {
                         RSV::new(
-                            v.instruction_pointer,
+                            v.instruction_pointer(),
                             RSVD::StorageWrite {
                                 key:   k.clone(),
                                 value: v.clone(),
                             },
-                            v.provenance,
+                            v.provenance(),
+                            None,
                         )
                     })
                     .collect::<Vec<RuntimeBoxedVal>>()
@@ -247,7 +251,7 @@ mod test {
         storage.store(input_key.clone(), input_value.clone());
 
         assert_eq!(storage.entry_count(), 1);
-        match &storage.load(&input_key).data {
+        match storage.load(&input_key).data() {
             RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
@@ -265,7 +269,7 @@ mod test {
 
         storage.store(input_key.clone(), value_1.clone());
         assert_eq!(storage.entry_count(), 1);
-        match &storage.load(&input_key).data {
+        match storage.load(&input_key).data() {
             RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &value_1);
@@ -275,7 +279,7 @@ mod test {
 
         storage.store(input_key.clone(), value_2.clone());
         assert_eq!(storage.entry_count(), 1);
-        match &storage.load(&input_key).data {
+        match storage.load(&input_key).data() {
             RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &value_2);
@@ -287,12 +291,12 @@ mod test {
     #[test]
     fn can_store_word_under_known_key() {
         let mut storage = Storage::new();
-        let input_key = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
+        let input_key = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic, None);
         let input_value = new_synthetic_value(1);
 
         storage.store(input_key.clone(), input_value.clone());
         assert_eq!(storage.entry_count(), 1);
-        match &storage.load(&input_key).data {
+        match storage.load(&input_key).data() {
             RSVD::SLoad { key, value } => {
                 assert_eq!(key, &input_key);
                 assert_eq!(value, &input_value);
@@ -304,54 +308,51 @@ mod test {
     #[test]
     fn can_get_zero_if_slot_never_written() {
         let mut storage = Storage::new();
-        let key_1 = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
+        let key_1 = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic, None);
         let key_2 = new_synthetic_value(1);
 
-        match *storage.load(&key_1) {
-            RSV {
-                data: RSVD::SLoad { key, value },
-                provenance,
-                ..
-            } => {
-                assert_eq!(key, key_1);
+        let load = storage.load(&key_1);
+        assert_eq!(load.provenance(), Provenance::NonWrittenStorage);
+        match load.data() {
+            RSVD::SLoad { key, value } => {
+                assert_eq!(key, &key_1);
                 assert_eq!(
                     value,
-                    RSV::new(
+                    &RSV::new(
                         0,
                         RSVD::UnwrittenStorageValue { key: key_1 },
-                        Provenance::NonWrittenStorage
+                        Provenance::NonWrittenStorage,
+                        None,
                     )
                 );
-                assert_eq!(provenance, Provenance::NonWrittenStorage);
             }
-            _ => panic!("Test failure"),
+            _ => panic!("Invalid payload"),
         }
 
-        match *storage.load(&key_2) {
-            RSV {
-                data: RSVD::SLoad { key, value },
-                provenance,
-                ..
-            } => {
-                assert_eq!(key, key_2);
+        let load = storage.load(&key_2);
+        assert_eq!(load.provenance(), Provenance::NonWrittenStorage);
+        assert_eq!(load.provenance(), Provenance::NonWrittenStorage);
+        match load.data() {
+            RSVD::SLoad { key, value } => {
+                assert_eq!(key, &key_2);
                 assert_eq!(
                     value,
-                    RSV::new(
+                    &RSV::new(
                         0,
                         RSVD::UnwrittenStorageValue { key: key_2 },
-                        Provenance::NonWrittenStorage
+                        Provenance::NonWrittenStorage,
+                        None,
                     )
                 );
-                assert_eq!(provenance, Provenance::NonWrittenStorage);
             }
-            _ => panic!("Test failure"),
+            _ => panic!("Invalid payload"),
         }
     }
 
     #[test]
     fn can_get_all_keys() {
         let mut storage = Storage::new();
-        let key_1 = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic);
+        let key_1 = RSV::new_known_value(0, KnownWord::zero(), Provenance::Synthetic, None);
         let key_2 = new_synthetic_value(1);
         let value = new_synthetic_value(2);
         storage.store(key_1.clone(), value.clone());

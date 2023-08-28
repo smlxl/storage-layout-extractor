@@ -17,7 +17,7 @@ pub struct BooleanOpsRule;
 
 impl InferenceRule for BooleanOpsRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             // LT and GT are numeric comparisons, so we know that the operands are numeric, and not
             // treated as signed
             TCSVD::LessThan { left, right } | TCSVD::GreaterThan { left, right } => {

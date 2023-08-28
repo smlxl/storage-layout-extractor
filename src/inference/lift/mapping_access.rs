@@ -38,7 +38,7 @@ impl Lift for MappingAccess {
             let RSVD::Sha3 { data } = data else {
                 return None;
             };
-            let RSVD::Concat { values } = &data.data else {
+            let RSVD::Concat { values } = data.data() else {
                 return None;
             };
             let [key, slot] = &values[..] else {
@@ -68,23 +68,24 @@ mod test {
     #[test]
     fn resolves_mapping_accesses_at_top_level() -> anyhow::Result<()> {
         let input_key = RSV::new_value(0, Provenance::Synthetic);
-        let input_slot = RSV::new_known_value(1, KnownWord::from(10), Provenance::Synthetic);
+        let input_slot = RSV::new_known_value(1, KnownWord::from(10), Provenance::Synthetic, None);
         let concat = RSV::new(
             2,
             RSVD::Concat {
                 values: vec![input_key.clone(), input_slot.clone()],
             },
             Provenance::Synthetic,
+            None,
         );
-        let hash = RSV::new(3, RSVD::Sha3 { data: concat }, Provenance::Synthetic);
+        let hash = RSV::new(3, RSVD::Sha3 { data: concat }, Provenance::Synthetic, None);
 
         let state = InferenceState::empty();
         let result = MappingAccess.run(hash, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::MappingAccess { key, slot } => {
-                assert_eq!(key, input_key);
-                assert_eq!(slot, input_slot);
+                assert_eq!(key, &input_key);
+                assert_eq!(slot, &input_slot);
             }
             _ => panic!("Invalid payload"),
         }
@@ -95,35 +96,42 @@ mod test {
     #[test]
     fn resolves_mapping_accesses_while_nested() -> anyhow::Result<()> {
         let input_key = RSV::new_value(0, Provenance::Synthetic);
-        let input_slot = RSV::new_known_value(1, KnownWord::from(10), Provenance::Synthetic);
+        let input_slot = RSV::new_known_value(1, KnownWord::from(10), Provenance::Synthetic, None);
         let concat = RSV::new(
             2,
             RSVD::Concat {
                 values: vec![input_key.clone(), input_slot.clone()],
             },
             Provenance::Synthetic,
+            None,
         );
-        let inner_hash = RSV::new(3, RSVD::Sha3 { data: concat }, Provenance::Synthetic);
+        let inner_hash = RSV::new(3, RSVD::Sha3 { data: concat }, Provenance::Synthetic, None);
         let outer_concat = RSV::new(
             2,
             RSVD::Concat {
                 values: vec![input_key.clone(), inner_hash],
             },
             Provenance::Synthetic,
+            None,
         );
-        let outer_hash = RSV::new(3, RSVD::Sha3 { data: outer_concat }, Provenance::Synthetic);
+        let outer_hash = RSV::new(
+            3,
+            RSVD::Sha3 { data: outer_concat },
+            Provenance::Synthetic,
+            None,
+        );
 
         let state = InferenceState::empty();
         let result = MappingAccess.run(outer_hash, &state)?;
 
-        match result.data {
+        match result.data() {
             RSVD::MappingAccess { key, slot } => {
-                assert_eq!(key, input_key);
+                assert_eq!(key, &input_key);
 
-                match slot.data {
+                match slot.data() {
                     RSVD::MappingAccess { key, slot } => {
-                        assert_eq!(key, input_key);
-                        assert_eq!(slot, input_slot);
+                        assert_eq!(key, &input_key);
+                        assert_eq!(slot, &input_slot);
                     }
                     _ => panic!("Invalid payload"),
                 }

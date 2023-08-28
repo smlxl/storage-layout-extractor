@@ -3,7 +3,7 @@
 use crate::{
     opcode::{ExecuteResult, Opcode},
     vm::{
-        value::{known::KnownWord, Provenance, RSV, RSVD},
+        value::{known::KnownWord, Provenance, RSVD},
         VM,
     },
 };
@@ -35,8 +35,10 @@ impl Opcode for Lt {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result =
-            RSV::new_from_execution(instruction_pointer, RSVD::LessThan { left: a, right: b });
+        let result = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::LessThan { left: a, right: b });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -87,8 +89,10 @@ impl Opcode for Gt {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result =
-            RSV::new_from_execution(instruction_pointer, RSVD::GreaterThan { left: a, right: b });
+        let result = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::GreaterThan { left: a, right: b });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -140,10 +144,11 @@ impl Opcode for SLt {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(
+        let result = vm.build().symbolic_exec(
             instruction_pointer,
             RSVD::SignedLessThan { left: a, right: b },
         );
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -195,10 +200,11 @@ impl Opcode for SGt {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(
+        let result = vm.build().symbolic_exec(
             instruction_pointer,
             RSVD::SignedGreaterThan { left: a, right: b },
         );
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -249,8 +255,10 @@ impl Opcode for Eq {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result =
-            RSV::new_from_execution(instruction_pointer, RSVD::Equals { left: a, right: b });
+        let result = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::Equals { left: a, right: b });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -299,7 +307,8 @@ impl Opcode for IsZero {
         let number = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(instruction_pointer, RSVD::IsZero { number });
+        let result = vm.build().symbolic_exec(instruction_pointer, RSVD::IsZero { number });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -350,7 +359,10 @@ impl Opcode for And {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(instruction_pointer, RSVD::And { left: a, right: b });
+        let result = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::And { left: a, right: b });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -401,7 +413,10 @@ impl Opcode for Or {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(instruction_pointer, RSVD::Or { left: a, right: b });
+        let result = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::Or { left: a, right: b });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -452,7 +467,10 @@ impl Opcode for Xor {
         let b = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(instruction_pointer, RSVD::Xor { left: a, right: b });
+        let result = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::Xor { left: a, right: b });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -501,7 +519,8 @@ impl Opcode for Not {
         let value = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(instruction_pointer, RSVD::Not { value });
+        let result = vm.build().symbolic_exec(instruction_pointer, RSVD::Not { value });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -559,40 +578,41 @@ impl Opcode for Byte {
         let value = stack.pop()?;
 
         // Construct the constants
-        let const_0x08 = RSV::new_known_value(
+        let const_0x08 = vm.build().known(
             instruction_pointer,
             KnownWord::from_le(0x08u8),
             Provenance::Bytecode,
         );
-        let const_0xf8 = RSV::new_known_value(
+        let const_0xf8 = vm.build().known(
             instruction_pointer,
             KnownWord::from_le(0xf8u8),
             Provenance::Bytecode,
         );
-        let const_0xff = RSV::new_known_value(
+        let const_0xff = vm.build().known(
             instruction_pointer,
             KnownWord::from_le(0xffu8),
             Provenance::Bytecode,
         );
 
         // Construct the intermediates
-        let offset_times_0x08 = RSV::new_from_execution(
+        let offset_times_0x08 = vm.build().symbolic_exec(
             instruction_pointer,
             RSVD::Multiply {
                 left:  offset,
                 right: const_0x08,
             },
         );
-        let shift = RSV::new_from_execution(
+        let shift = vm.build().symbolic_exec(
             instruction_pointer,
             RSVD::Subtract {
                 left:  const_0xf8,
                 right: offset_times_0x08,
             },
         );
-        let shifted =
-            RSV::new_from_execution(instruction_pointer, RSVD::RightShift { value, shift });
-        let result = RSV::new_from_execution(
+        let shifted = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::RightShift { value, shift });
+        let result = vm.build().symbolic_exec(
             instruction_pointer,
             RSVD::And {
                 left:  shifted,
@@ -601,6 +621,7 @@ impl Opcode for Byte {
         );
 
         // Push the result onto the stack
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -658,7 +679,10 @@ impl Opcode for Shl {
         let value = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(instruction_pointer, RSVD::LeftShift { shift, value });
+        let result = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::LeftShift { shift, value });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -717,8 +741,10 @@ impl Opcode for Shr {
         let value = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result =
-            RSV::new_from_execution(instruction_pointer, RSVD::RightShift { shift, value });
+        let result = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::RightShift { shift, value });
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -779,10 +805,11 @@ impl Opcode for Sar {
         let value = stack.pop()?;
 
         // Construct the result and push it to the stack
-        let result = RSV::new_from_execution(
+        let result = vm.build().symbolic_exec(
             instruction_pointer,
             RSVD::ArithmeticRightShift { shift, value },
         );
+        let mut stack = vm.stack_handle()?;
         stack.push(result)?;
 
         // Done, so return ok
@@ -829,8 +856,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::LessThan { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
@@ -857,8 +884,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::GreaterThan { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
@@ -885,8 +912,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::SignedLessThan { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
@@ -913,8 +940,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::SignedGreaterThan { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
@@ -941,8 +968,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::Equals { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
@@ -967,8 +994,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::IsZero { number } => {
                 assert_eq!(number, &operand);
             }
@@ -994,8 +1021,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::And { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
@@ -1022,8 +1049,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::Or { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
@@ -1050,8 +1077,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::Xor { left, right } => {
                 assert_eq!(left, &input_left);
                 assert_eq!(right, &input_right);
@@ -1076,8 +1103,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::Not { value } => {
                 assert_eq!(value, &operand);
             }
@@ -1103,16 +1130,16 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
+        assert_eq!(result.provenance(), Provenance::Execution);
 
         // At the top level the value should be a logical conjunction
-        match &result.data {
+        match result.data() {
             RSVD::And { left, right } => {
-                assert_eq!(left.provenance, Provenance::Execution);
-                assert_eq!(right.provenance, Provenance::Bytecode);
+                assert_eq!(left.provenance(), Provenance::Execution);
+                assert_eq!(right.provenance(), Provenance::Bytecode);
 
                 // The right operand should be a constant 0xff
-                match &right.data {
+                match right.data() {
                     RSVD::KnownData { value, .. } => {
                         assert_eq!(value, &KnownWord::from_le(0xffu8));
                     }
@@ -1120,21 +1147,21 @@ mod test {
                 }
 
                 // The left operand should be an unsigned right shift
-                match &left.data {
+                match left.data() {
                     RSVD::RightShift { value, shift } => {
-                        assert_eq!(shift.provenance, Provenance::Execution);
+                        assert_eq!(shift.provenance(), Provenance::Execution);
 
                         // The value should come from the inputs
                         assert_eq!(value, &input_value);
 
                         // The shift size is computed
-                        match &shift.data {
+                        match shift.data() {
                             RSVD::Subtract { left, right } => {
-                                assert_eq!(left.provenance, Provenance::Bytecode);
-                                assert_eq!(right.provenance, Provenance::Execution);
+                                assert_eq!(left.provenance(), Provenance::Bytecode);
+                                assert_eq!(right.provenance(), Provenance::Execution);
 
                                 // The left operand is a constant 0xf8
-                                match &left.data {
+                                match left.data() {
                                     RSVD::KnownData { value, .. } => {
                                         assert_eq!(value, &KnownWord::from_le(0xf8u8));
                                     }
@@ -1142,15 +1169,15 @@ mod test {
                                 }
 
                                 // The right operand is computed
-                                match &right.data {
+                                match right.data() {
                                     RSVD::Multiply { left, right } => {
-                                        assert_eq!(right.provenance, Provenance::Bytecode);
+                                        assert_eq!(right.provenance(), Provenance::Bytecode);
 
                                         // The left is the input offset
                                         assert_eq!(left, &input_offset);
 
                                         // The right is a constant 0x08
-                                        match &right.data {
+                                        match right.data() {
                                             RSVD::KnownData { value, .. } => {
                                                 assert_eq!(value, &KnownWord::from_le(0x08u8));
                                             }
@@ -1188,8 +1215,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::LeftShift { shift, value } => {
                 assert_eq!(shift, &input_left);
                 assert_eq!(value, &input_right);
@@ -1216,8 +1243,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::RightShift { shift, value } => {
                 assert_eq!(shift, &input_left);
                 assert_eq!(value, &input_right);
@@ -1244,8 +1271,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::ArithmeticRightShift { shift, value } => {
                 assert_eq!(shift, &input_left);
                 assert_eq!(value, &input_right);

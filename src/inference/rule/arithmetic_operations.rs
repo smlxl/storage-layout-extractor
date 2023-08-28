@@ -15,7 +15,7 @@ pub struct ArithmeticOperationRule;
 
 impl InferenceRule for ArithmeticOperationRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
-        match &value.data {
+        match value.data() {
             TCSVD::Add { left, right }
             | TCSVD::Multiply { left, right }
             | TCSVD::Subtract { left, right } => {
@@ -42,7 +42,7 @@ impl InferenceRule for ArithmeticOperationRule {
                 state.infer_for(size, TE::unsigned_word(None));
 
                 // If we can unpick the size itself to a known value, we can get a width
-                let width = if let TCSVD::KnownData { value } = &size.data {
+                let width = if let TCSVD::KnownData { value } = size.data() {
                     let width: usize = value.into();
 
                     if width <= WORD_SIZE_BITS {

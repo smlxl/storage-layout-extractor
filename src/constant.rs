@@ -69,16 +69,6 @@ pub const DEFAULT_ITERATIONS_PER_OPCODE: usize = 10;
 /// during a conditional jump to a given jump target.
 pub const DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT: usize = 50;
 
-/// The valid widths in bits of value types in solidity.
-///
-/// These are defined by the language specification to have widths `8 <= N <=
-/// 256` where `N % 8 == 0`.
-pub const SOLIDITY_VALUE_TYPE_WIDTHS: [usize; WORD_SIZE_BYTES] = {
-    let mut array: [usize; WORD_SIZE_BYTES] = [0; WORD_SIZE_BYTES];
-    let mut counter = 0usize;
-    while counter < WORD_SIZE_BYTES {
-        array[counter] = (counter + 1) * BYTE_SIZE_BITS;
-        counter += 1;
-    }
-    array
-};
+/// The default number of nodes that a symbolic value can contain before it is
+/// culled.
+pub const DEFAULT_VALUE_SIZE_LIMIT: usize = 250;

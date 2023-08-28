@@ -87,16 +87,16 @@ impl SubWordValue {
 
     #[must_use]
     pub fn get_shift(value: &RuntimeBoxedVal) -> (&RuntimeBoxedVal, usize) {
-        match &value.data {
-            RSVD::RightShift { value, .. } => match value.clone().constant_fold().data {
+        match &value.data() {
+            RSVD::RightShift { value, .. } => match value.clone().constant_fold().data() {
                 RSVD::KnownData { value: shift } => (value, shift.into()),
                 _ => (value, 0),
             },
-            RSVD::Divide { dividend, divisor } => match &divisor.data {
+            RSVD::Divide { dividend, divisor } => match divisor.data() {
                 RSVD::Exp {
                     value: base,
                     exponent: exp,
-                } => match (&base.data, &exp.data) {
+                } => match (base.data(), exp.data()) {
                     (RSVD::KnownData { value: base }, RSVD::KnownData { value: exp }) => {
                         if usize::from(base) == 2 {
                             (dividend, usize::from(exp))
@@ -106,17 +106,14 @@ impl SubWordValue {
                     }
                     _ => (value, 0),
                 },
-                RSVD::LeftShift { value: base, shift } => {
-                    println!("this triggered {:?} {:?}", base.data, shift.data);
-                    match (&base.data, &shift.data) {
-                        (RSVD::KnownData { value: base }, RSVD::KnownData { value: shift })
-                            if usize::from(base) == 1 =>
-                        {
-                            (dividend, shift.into())
-                        }
-                        _ => (value, 0),
+                RSVD::LeftShift { value: base, shift } => match (base.data(), shift.data()) {
+                    (RSVD::KnownData { value: base }, RSVD::KnownData { value: shift })
+                        if usize::from(base) == 1 =>
+                    {
+                        (dividend, shift.into())
                     }
-                }
+                    _ => (value, 0),
+                },
                 RSVD::KnownData { value: divisor } => {
                     if let Some(shift) = MulShiftedValue::which_power_of_2(*divisor) {
                         (dividend, shift)
@@ -147,9 +144,9 @@ impl Lift for SubWordValue {
             // These can be ordered either way around the `and`, so we have to check both
             // sides
             let (value, SubWord { offset, length }) =
-                if let Some(word) = SubWordValue::get_region(&left.data) {
+                if let Some(word) = SubWordValue::get_region(left.data()) {
                     (right, word)
-                } else if let Some(word) = SubWordValue::get_region(&right.data) {
+                } else if let Some(word) = SubWordValue::get_region(right.data()) {
                     (left, word)
                 } else {
                     return None;
@@ -157,12 +154,12 @@ impl Lift for SubWordValue {
             let (value, shift) = SubWordValue::get_shift(value);
             let value = value.clone().transform_data(insert_sub_words);
 
-            let value = match value.data {
+            let value = match value.data() {
                 RSVD::SubWord {
                     offset: i_ofs,
                     size: i_sz,
                     value: i_val,
-                } if offset == i_ofs && length == i_sz => i_val,
+                } if offset == *i_ofs && length == *i_sz => i_val.clone(),
                 _ => value,
             };
 
@@ -263,8 +260,8 @@ mod test {
     fn computes_correct_mask_from_expression() {
         // A mask that is the lowest 192 bits of the word
         let shift_amount =
-            SV::new_known_value(0, KnownWord::from_le(0xc0u32), Provenance::Synthetic);
-        let one = SV::new_known_value(1, KnownWord::from_le(1u32), Provenance::Synthetic);
+            SV::new_known_value(0, KnownWord::from_le(0xc0u32), Provenance::Synthetic, None);
+        let one = SV::new_known_value(1, KnownWord::from_le(1u32), Provenance::Synthetic, None);
         let shift = SV::new_synthetic(
             2,
             SVD::LeftShift {
@@ -281,7 +278,7 @@ mod test {
         );
 
         // Run the decomposition process on the mask
-        let result = SubWordValue::get_region(&subtract.data).expect("Mask resolution failed");
+        let result = SubWordValue::get_region(subtract.data()).expect("Mask resolution failed");
 
         // Check that it is correct
         assert_eq!(result.offset, 0);
@@ -294,7 +291,7 @@ mod test {
         let mask = SV::new_value(0, Provenance::Synthetic);
 
         // Run the decomposition process on the mask
-        let result = SubWordValue::get_region(&mask.data);
+        let result = SubWordValue::get_region(mask.data());
 
         // Check it fails out
         assert!(result.is_none());
@@ -304,8 +301,8 @@ mod test {
     fn resolves_word_masks() -> anyhow::Result<()> {
         // Construct the mask value itself (lowest 192 bits of the word)
         let shift_amount =
-            SV::new_known_value(0, KnownWord::from_le(0xc0u32), Provenance::Synthetic);
-        let one = SV::new_known_value(1, KnownWord::from_le(1u32), Provenance::Synthetic);
+            SV::new_known_value(0, KnownWord::from_le(0xc0u32), Provenance::Synthetic, None);
+        let one = SV::new_known_value(1, KnownWord::from_le(1u32), Provenance::Synthetic, None);
         let shift = SV::new_synthetic(
             2,
             SVD::LeftShift {
@@ -348,15 +345,15 @@ mod test {
         // Check that it is correct
         assert_eq!(result_on_left, result_on_right);
 
-        match result_on_left.data {
+        match result_on_left.data() {
             SVD::SubWord {
                 value,
                 offset,
                 size,
             } => {
-                assert_eq!(value, input_value);
-                assert_eq!(offset, 0);
-                assert_eq!(size, 192);
+                assert_eq!(value, &input_value);
+                assert_eq!(offset, &0);
+                assert_eq!(size, &192);
             }
             _ => panic!("Incorrect payload"),
         }
@@ -368,8 +365,8 @@ mod test {
     fn collapses_directly_identical_masks() -> anyhow::Result<()> {
         // Construct the mask value itself (lowest 192 bits of the word)
         let shift_amount =
-            SV::new_known_value(0, KnownWord::from_le(0xc0u32), Provenance::Synthetic);
-        let one = SV::new_known_value(1, KnownWord::from_le(1u32), Provenance::Synthetic);
+            SV::new_known_value(0, KnownWord::from_le(0xc0u32), Provenance::Synthetic, None);
+        let one = SV::new_known_value(1, KnownWord::from_le(1u32), Provenance::Synthetic, None);
         let shift = SV::new_synthetic(
             2,
             SVD::LeftShift {
@@ -419,15 +416,15 @@ mod test {
         // Check that it is correct
         assert_eq!(result_on_left, result_on_right);
 
-        match result_on_left.data {
+        match result_on_left.data() {
             SVD::SubWord {
                 value,
                 offset,
                 size,
             } => {
-                assert_eq!(offset, 0);
-                assert_eq!(size, 192);
-                assert_eq!(value, input_value);
+                assert_eq!(offset, &0);
+                assert_eq!(size, &192);
+                assert_eq!(value, &input_value);
             }
             _ => panic!("Incorrect payload"),
         }

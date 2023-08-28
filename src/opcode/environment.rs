@@ -5,7 +5,7 @@ use crate::{
     error::disassembly,
     opcode::{ExecuteResult, Opcode},
     vm::{
-        value::{RuntimeBoxedVal, RSV, RSVD},
+        value::{RuntimeBoxedVal, RSVD},
         VM,
     },
 };
@@ -49,7 +49,7 @@ impl Opcode for Sha3 {
         let data = memory.load_slice(&offset, &size, instruction_pointer);
 
         // Build the result and push it onto the stack
-        let result = RSV::new_from_execution(instruction_pointer, RSVD::Sha3 { data });
+        let result = vm.build().symbolic_exec(instruction_pointer, RSVD::Sha3 { data });
         vm.stack_handle()?.push(result)?;
 
         // Done, so return ok
@@ -92,10 +92,11 @@ impl Opcode for Address {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::Address))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::Address);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -148,10 +149,11 @@ impl Opcode for Balance {
         let address = stack.pop()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(
-            instruction_pointer,
-            RSVD::Balance { address },
-        ))?;
+        let value = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::Balance { address });
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -197,10 +199,11 @@ impl Opcode for Origin {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::Origin))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::Origin);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -246,10 +249,11 @@ impl Opcode for Caller {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::Caller))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::Caller);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -295,13 +299,11 @@ impl Opcode for CallValue {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(
-            instruction_pointer,
-            RSVD::CallValue,
-        ))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::CallValue);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -347,10 +349,11 @@ impl Opcode for GasPrice {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::GasPrice))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::GasPrice);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -406,10 +409,11 @@ impl Opcode for ExtCodeHash {
         let address = stack.pop()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(
-            instruction_pointer,
-            RSVD::ExtCodeHash { address },
-        ))?;
+        let value = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::ExtCodeHash { address });
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -465,10 +469,11 @@ impl Opcode for BlockHash {
         let block_number = stack.pop()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(
-            instruction_pointer,
-            RSVD::BlockHash { block_number },
-        ))?;
+        let value = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::BlockHash { block_number });
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -514,10 +519,11 @@ impl Opcode for CoinBase {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::CoinBase))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::CoinBase);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -563,13 +569,11 @@ impl Opcode for Timestamp {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(
-            instruction_pointer,
-            RSVD::BlockTimestamp,
-        ))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::BlockTimestamp);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -611,13 +615,11 @@ impl Opcode for Number {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(
-            instruction_pointer,
-            RSVD::BlockNumber,
-        ))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::BlockNumber);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -659,13 +661,11 @@ impl Opcode for Prevrandao {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(
-            instruction_pointer,
-            RSVD::Prevrandao,
-        ))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::Prevrandao);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -707,10 +707,11 @@ impl Opcode for GasLimit {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::GasLimit))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::GasLimit);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -753,10 +754,11 @@ impl Opcode for ChainId {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::ChainId))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::ChainId);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -803,13 +805,11 @@ impl Opcode for SelfBalance {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(
-            instruction_pointer,
-            RSVD::SelfBalance,
-        ))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::SelfBalance);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -855,10 +855,11 @@ impl Opcode for BaseFee {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::BaseFee))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::BaseFee);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -905,10 +906,11 @@ impl Opcode for Gas {
     fn execute(&self, vm: &mut VM) -> ExecuteResult {
         // Get the stack and environment data
         let instruction_pointer = vm.instruction_pointer()?;
-        let mut stack = vm.stack_handle()?;
 
         // Create and push the value onto the stack
-        stack.push(RSV::new_from_execution(instruction_pointer, RSVD::Gas))?;
+        let value = vm.build().symbolic_exec(instruction_pointer, RSVD::Gas);
+        let mut stack = vm.stack_handle()?;
+        stack.push(value)?;
 
         // Done, so return ok
         Ok(())
@@ -1004,7 +1006,9 @@ impl Opcode for LogN {
             .load_slice(&offset, &size, instruction_pointer);
 
         // Build the log call
-        let log = RSV::new_from_execution(instruction_pointer, RSVD::Log { data, topics });
+        let log = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::Log { data, topics });
 
         // Write it to the log buffer
         vm.state()?.log_value(log);
@@ -1086,7 +1090,9 @@ impl Opcode for Create {
             .load_slice(&offset, &size, instruction_pointer);
 
         // Construct the intermediate and push it onto the stack
-        let address = RSV::new_from_execution(instruction_pointer, RSVD::Create { value, data });
+        let address = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::Create { value, data });
         vm.stack_handle()?.push(address)?;
 
         // Done, so return ok
@@ -1169,8 +1175,9 @@ impl Opcode for Create2 {
             .load_slice(&offset, &size, instruction_pointer);
 
         // Construct the intermediate and push it onto the stack
-        let address =
-            RSV::new_from_execution(instruction_pointer, RSVD::Create2 { value, salt, data });
+        let address = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::Create2 { value, salt, data });
         vm.stack_handle()?.push(address)?;
 
         // Done, so return ok
@@ -1225,7 +1232,9 @@ impl Opcode for SelfDestruct {
         let target = stack.pop()?;
 
         // Construct the result
-        let destroy = RSV::new_from_execution(instruction_pointer, RSVD::SelfDestruct { target });
+        let destroy = vm
+            .build()
+            .symbolic_exec(instruction_pointer, RSVD::SelfDestruct { target });
 
         // Store it in the recorded values store, as otherwise it would be dropped and
         // we would lose info
@@ -1276,8 +1285,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::Sha3 { data } => {
                 assert_eq!(data, &stored_value);
             }
@@ -1300,8 +1309,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::Address);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::Address);
 
         Ok(())
     }
@@ -1320,8 +1329,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::Balance { address } => {
                 assert_eq!(address, &input_address);
             }
@@ -1344,8 +1353,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::Origin);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::Origin);
 
         Ok(())
     }
@@ -1363,8 +1372,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::Caller);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::Caller);
 
         Ok(())
     }
@@ -1382,8 +1391,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::CallValue);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::CallValue);
 
         Ok(())
     }
@@ -1401,8 +1410,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::GasPrice);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::GasPrice);
 
         Ok(())
     }
@@ -1421,8 +1430,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::ExtCodeHash { address } => {
                 assert_eq!(address, &input_address);
             }
@@ -1446,8 +1455,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        match &result.data {
+        assert_eq!(result.provenance(), Provenance::Execution);
+        match result.data() {
             RSVD::BlockHash { block_number } => {
                 assert_eq!(block_number, &input_block_number);
             }
@@ -1470,8 +1479,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::CoinBase);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::CoinBase);
 
         Ok(())
     }
@@ -1489,8 +1498,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::BlockTimestamp);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::BlockTimestamp);
 
         Ok(())
     }
@@ -1508,8 +1517,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::BlockNumber);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::BlockNumber);
 
         Ok(())
     }
@@ -1527,8 +1536,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::Prevrandao);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::Prevrandao);
 
         Ok(())
     }
@@ -1546,8 +1555,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::GasLimit);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::GasLimit);
 
         Ok(())
     }
@@ -1565,8 +1574,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::ChainId);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::ChainId);
 
         Ok(())
     }
@@ -1584,8 +1593,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::SelfBalance);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::SelfBalance);
 
         Ok(())
     }
@@ -1603,8 +1612,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::BaseFee);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::BaseFee);
 
         Ok(())
     }
@@ -1622,8 +1631,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let result = stack.read(0)?;
-        assert_eq!(result.provenance, Provenance::Execution);
-        assert_eq!(result.data, RSVD::Gas);
+        assert_eq!(result.provenance(), Provenance::Execution);
+        assert_eq!(result.data(), &RSVD::Gas);
 
         Ok(())
     }
@@ -1661,8 +1670,8 @@ mod test {
             let state = vm.state()?;
             assert_eq!(state.logged_values().len(), 1);
             let log_message = &state.logged_values()[0];
-            assert_eq!(log_message.provenance, Provenance::Execution);
-            match &log_message.data {
+            assert_eq!(log_message.provenance(), Provenance::Execution);
+            match log_message.data() {
                 RSVD::Log { data, topics } => {
                     assert_eq!(data, &stored_data);
                     assert_eq!(topics, topics);
@@ -1700,8 +1709,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let address = stack.read(0)?;
-        assert_eq!(address.provenance, Provenance::Execution);
-        match &address.data {
+        assert_eq!(address.provenance(), Provenance::Execution);
+        match address.data() {
             RSVD::Create { value, data } => {
                 assert_eq!(value, &input_value);
                 assert_eq!(data, &input_data);
@@ -1736,8 +1745,8 @@ mod test {
         let stack = vm.state()?.stack_mut();
         assert_eq!(stack.depth(), 1);
         let address = stack.read(0)?;
-        assert_eq!(address.provenance, Provenance::Execution);
-        match &address.data {
+        assert_eq!(address.provenance(), Provenance::Execution);
+        match address.data() {
             RSVD::Create2 { value, salt, data } => {
                 assert_eq!(value, &input_value);
                 assert_eq!(salt, &input_salt);
@@ -1767,8 +1776,8 @@ mod test {
         let state = vm.state()?;
         assert_eq!(state.recorded_values().len(), 1);
         let value = &state.recorded_values()[0];
-        assert_eq!(value.provenance, Provenance::Execution);
-        match &value.data {
+        assert_eq!(value.provenance(), Provenance::Execution);
+        match value.data() {
             RSVD::SelfDestruct { target } => {
                 assert_eq!(target, &input_address);
             }
