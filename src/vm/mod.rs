@@ -153,10 +153,7 @@ impl VM {
 
             // If we have been told to stop, stop and return an error.
             if counter % poll_interval == 0 && self.watchdog.should_stop() {
-                Err(Error::StoppedByWatchdog {
-                    iterations: counter,
-                })
-                .locate(instruction_pointer)?;
+                Err(Error::StoppedByWatchdog).locate(instruction_pointer)?;
             }
 
             // We have to mark as being visited beforehand, so this is reflected in any
@@ -466,6 +463,20 @@ impl VM {
     #[must_use]
     pub fn build(&self) -> &ValueBuilder {
         &self.builder
+    }
+
+    /// Gets a reference to the virtual machine's watchdog instance, allowing it
+    /// to be used for monitoring during loops in the opcode implementations.
+    #[must_use]
+    pub fn watchdog(&self) -> &DynWatchdog {
+        &self.watchdog
+    }
+
+    /// Gets a reference to the virtual machine's watchdog instance, allowing it
+    /// to be used for monitoring during loops in the opcode implementations.
+    #[must_use]
+    pub fn watchdog_mut(&mut self) -> &mut DynWatchdog {
+        &mut self.watchdog
     }
 
     /// Consumes the virtual machine to convert it into the data necessary for

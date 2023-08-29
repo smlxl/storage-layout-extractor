@@ -994,6 +994,8 @@ impl Opcode for LogN {
         let offset = stack.pop()?;
         let size = stack.pop()?;
         let mut topics: Vec<RuntimeBoxedVal> = Vec::new();
+
+        // Safely bounded during disassembly
         let upper_bound = u32::from(self.n()) + 2;
         for _ in 2..upper_bound {
             topics.push(stack.pop()?);

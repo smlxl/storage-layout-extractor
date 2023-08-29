@@ -4,12 +4,14 @@ use std::mem;
 
 use crate::{
     constant::{
+        CONTRACT_MAXIMUM_SIZE_BYTES,
         DUP_OPCODE_BASE_VALUE,
+        MEMORY_SINGLE_OPERATION_MAX_BYTES,
         PUSH_OPCODE_BASE_VALUE,
         PUSH_OPCODE_MAX_BYTES,
         SWAP_OPCODE_BASE_VALUE,
     },
-    error::disassembly,
+    error::{container::Locatable, disassembly, execution::Error},
     opcode::{ExecuteResult, Opcode},
     vm::{
         value::{known::KnownWord, Provenance, RSV, RSVD},
@@ -171,8 +173,20 @@ impl Opcode for CallDataCopy {
         // Modify the memory
         if let RSVD::KnownData { value } = size.data() {
             let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
+
+            // We bound the copied size to the contract size as anything bigger is going to
+            // be impossible at runtime
             let actual_size: usize = value.into();
-            for internal_offset in (0..actual_size).step_by(32) {
+            let size_limit = actual_size.min(MEMORY_SINGLE_OPERATION_MAX_BYTES);
+
+            let polling_interval = vm.watchdog().poll_every();
+
+            for (count, internal_offset) in (0..size_limit).step_by(32).enumerate() {
+                // If we have been told to stop, stop and return an error
+                if count % polling_interval == 0 && vm.watchdog().should_stop() {
+                    Err(Error::StoppedByWatchdog).locate(instruction_pointer)?;
+                }
+
                 let to_add_to_offset = vm
                     .build()
                     .known_exec(instruction_pointer, KnownWord::from(internal_offset));
@@ -315,8 +329,20 @@ impl Opcode for CodeCopy {
         // Modify the memory
         if let RSVD::KnownData { value } = size.data() {
             let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
+
+            // We bound the copied size to the contract size as anything bigger is going to
+            // be impossible at runtime
             let actual_size: usize = value.into();
-            for internal_offset in (0..actual_size).step_by(32) {
+            let size_limit = actual_size.min(CONTRACT_MAXIMUM_SIZE_BYTES);
+
+            let polling_interval = vm.watchdog().poll_every();
+
+            for (count, internal_offset) in (0..size_limit).step_by(32).enumerate() {
+                // If we have been told to stop, stop and return an error
+                if count % polling_interval == 0 && vm.watchdog().should_stop() {
+                    Err(Error::StoppedByWatchdog).locate(instruction_pointer)?;
+                }
+
                 let to_add_to_offset = vm
                     .build()
                     .known_exec(instruction_pointer, KnownWord::from(internal_offset));
@@ -472,8 +498,20 @@ impl Opcode for ExtCodeCopy {
         // Modify the memory
         if let RSVD::KnownData { value } = size.data() {
             let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
+
+            // We bound the copied size to the contract size as anything bigger is going to
+            // be impossible at runtime
             let actual_size: usize = value.into();
-            for internal_offset in (0..actual_size).step_by(32) {
+            let size_limit = actual_size.min(CONTRACT_MAXIMUM_SIZE_BYTES);
+
+            let polling_interval = vm.watchdog().poll_every();
+
+            for (count, internal_offset) in (0..size_limit).step_by(32).enumerate() {
+                // If we have been told to stop, stop and return an error
+                if count % polling_interval == 0 && vm.watchdog().should_stop() {
+                    Err(Error::StoppedByWatchdog).locate(instruction_pointer)?;
+                }
+
                 let to_add_to_offset = vm
                     .build()
                     .known_exec(instruction_pointer, KnownWord::from(internal_offset));
@@ -627,8 +665,20 @@ impl Opcode for ReturnDataCopy {
         // Modify the memory
         if let RSVD::KnownData { value } = size.data() {
             let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
+
+            // We bound the copied size to the contract size as anything bigger is going to
+            // be impossible at runtime
             let actual_size: usize = value.into();
-            for internal_offset in (0..actual_size).step_by(32) {
+            let size_limit = actual_size.min(MEMORY_SINGLE_OPERATION_MAX_BYTES);
+
+            let polling_interval = vm.watchdog().poll_every();
+
+            for (count, internal_offset) in (0..size_limit).step_by(32).enumerate() {
+                // If we have been told to stop, stop and return an error
+                if count % polling_interval == 0 && vm.watchdog().should_stop() {
+                    Err(Error::StoppedByWatchdog).locate(instruction_pointer)?;
+                }
+
                 let to_add_to_offset = vm
                     .build()
                     .known_exec(instruction_pointer, KnownWord::from(internal_offset));

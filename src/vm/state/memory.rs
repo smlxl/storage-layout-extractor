@@ -3,7 +3,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::{
-    constant::WORD_SIZE_BITS,
+    constant::{MEMORY_SINGLE_OPERATION_MAX_BYTES, WORD_SIZE_BITS},
     vm::value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
 };
 
@@ -151,9 +151,10 @@ impl Memory {
                 Some(size) => {
                     let offset: usize = value.into();
                     let mut values = vec![];
+                    let bounded_size = size.min(MEMORY_SINGLE_OPERATION_MAX_BYTES);
 
                     // Step by 32 bytes at once as each "write" happens at 32-byte alignment
-                    for word_offset in (offset..offset + size).step_by(32) {
+                    for word_offset in (offset..offset + bounded_size).step_by(32) {
                         values.push(
                             Self::get_or_initialize(&mut self.constant_offsets, &word_offset)
                                 .clone(),
