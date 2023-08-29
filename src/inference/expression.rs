@@ -333,6 +333,12 @@ impl WordUse {
                 Self::SignedNumeric
             }
 
+            // Addresses are often used numerically
+            (Self::Numeric, Self::Address) | (Self::Address, Self::Numeric) => Self::Address,
+            (Self::UnsignedNumeric, Self::Address) | (Self::Address, Self::UnsignedNumeric) => {
+                Self::Address
+            }
+
             _ => return None,
         })
     }

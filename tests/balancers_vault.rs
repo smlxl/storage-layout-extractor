@@ -21,8 +21,9 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // Get the final storage layout for the input contract
     let layout = analyzer.analyze()?;
 
-    // We should see 13 entries once we account for packing
-    assert_eq!(layout.slots().len(), 13);
+    // We should see 13 entries once we account for packing, but we currently also
+    // see remainders of packed slots, so there are 14
+    assert_eq!(layout.slots().len(), 14);
 
     // `uint256` but we infer `bytesUnknown`
     assert!(
@@ -31,12 +32,19 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             .contains(&StorageSlot::new(0, 0, AbiType::Bytes { length: None }))
     );
 
-    // `mapping(bytes32 => struct)` but we infer `mapping(uint16 => uintUnknown)`
+    // `mapping(bytes32 => struct)` but we infer `mapping(struct(any, uint16,
+    // bytes20) => uintUnknown)`
     assert!(layout.slots().contains(&StorageSlot::new(
         1,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(16) }),
+            key_type:   Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::Bytes { length: Some(10) }),
+                    StructElement::new(80, AbiType::UInt { size: Some(16) }),
+                    StructElement::new(96, AbiType::Bytes { length: Some(20) })
+                ],
+            }),
             value_type: Box::new(AbiType::UInt { size: None }),
         }
     )));
@@ -52,18 +60,14 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `packed(bool, address)` but we infer `packed(number8, conflict)`
+    // `packed(bool, address)` but we infer `packed(number8, address, any)`
     assert!(
         layout
             .slots()
             .contains(&StorageSlot::new(3, 0, AbiType::Number { size: Some(8) }))
     );
-    assert_eq!(layout.slots()[4].index, 3);
-    assert_eq!(layout.slots()[4].offset, 8);
-    assert!(matches!(
-        &layout.slots()[4].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    assert!(layout.slots().contains(&StorageSlot::new(3, 8, AbiType::Address)));
+    assert!(layout.slots().contains(&StorageSlot::new(3, 168, AbiType::Any)));
 
     // `mapping(address => mapping(address => bool))` but we infer `mapping(bytes20
     // => mapping(bytes20 => struct(number8, bytes31))`
@@ -73,7 +77,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Bytes { length: Some(20) }),
             value_type: Box::new(AbiType::Mapping {
-                key_type:   Box::new(AbiType::Bytes { length: Some(20) }),
+                key_type:   Box::new(AbiType::Address),
                 value_type: Box::new(AbiType::Struct {
                     elements: vec![
                         StructElement::new(0, AbiType::Number { size: Some(8) }),
@@ -84,13 +88,19 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `mapping(bytes32 => bool)` but we infer `mapping(uint16 => struct(number8,
-    // bytes31)`
+    // `mapping(bytes32 => bool)` but we infer `mapping(struct(any, uint16, bytes20)
+    // => struct(number8, bytes31)`
     assert!(layout.slots().contains(&StorageSlot::new(
         5,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(16) }),
+            key_type:   Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::Bytes { length: Some(10) }),
+                    StructElement::new(80, AbiType::UInt { size: Some(16) }),
+                    StructElement::new(96, AbiType::Bytes { length: Some(20) })
+                ],
+            }),
             value_type: Box::new(AbiType::Struct {
                 elements: vec![
                     StructElement::new(0, AbiType::Number { size: Some(8) }),
@@ -100,69 +110,86 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `uint256` but we infer `conflict`
-    assert_eq!(layout.slots()[7].index, 6);
-    assert_eq!(layout.slots()[7].offset, 0);
-    assert!(matches!(
-        &layout.slots()[7].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    // `uint256` but we infer `bytes10`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(6, 0, AbiType::Bytes { length: Some(10) }))
+    );
 
-    // `mapping(bytes32 => mapping(address => bytes32)` but we infer `mapping(uint16
-    // => mapping(bytes20 => conflict))`
-    assert_eq!(layout.slots()[8].index, 7);
-    assert_eq!(layout.slots()[8].offset, 0);
-    match &layout.slots()[8].typ {
+    // `mapping(bytes32 => mapping(address => bytes32)` but we infer
+    // `mapping(struct(any, uint16, bytes20) => mapping(bytes20 =>
+    // struct(bytes14, bytes14)))`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        7,
+        0,
         AbiType::Mapping {
-            key_type,
-            value_type,
-        } => {
-            assert_eq!(key_type.as_ref(), &AbiType::UInt { size: Some(16) });
-
-            match value_type.as_ref() {
-                AbiType::Mapping {
-                    key_type,
-                    value_type,
-                } => {
-                    assert_eq!(key_type.as_ref(), &AbiType::Bytes { length: Some(20) });
-                    assert!(matches!(
-                        value_type.as_ref(),
-                        AbiType::ConflictedType { .. }
-                    ));
-                }
-                _ => panic!("Incorrect type"),
-            }
+            key_type:   Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::Bytes { length: Some(10) }),
+                    StructElement::new(80, AbiType::UInt { size: Some(16) }),
+                    StructElement::new(96, AbiType::Bytes { length: Some(20) })
+                ],
+            }),
+            value_type: Box::new(AbiType::Mapping {
+                key_type:   Box::new(AbiType::Bytes { length: Some(20) }),
+                value_type: Box::new(AbiType::Struct {
+                    elements: vec![
+                        StructElement::new(0, AbiType::Bytes { length: Some(14) }),
+                        StructElement::new(112, AbiType::Bytes { length: Some(14) })
+                    ],
+                }),
+            }),
         }
-        _ => panic!("Incorrect type"),
-    }
+    )));
 
-    // `mapping(bytes32 => struct)` but we infer `mapping(uint16 => uintUnknown)`
+    // `mapping(bytes32 => struct)` but we infer `mapping(struct(uint16, any) =>
+    // uintUnknown)`
     assert!(layout.slots().contains(&StorageSlot::new(
         8,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(16) }),
+            key_type:   Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::Bytes { length: Some(10) }),
+                    StructElement::new(80, AbiType::UInt { size: Some(16) }),
+                    StructElement::new(96, AbiType::Bytes { length: Some(20) })
+                ],
+            }),
             value_type: Box::new(AbiType::UInt { size: None }),
         }
     )));
 
-    // `mapping(bytes32 => struct)` but we infer `mapping(uint16 => number160)`
+    // `mapping(bytes32 => struct)` but we infer `mapping(struct(uint16, any) =>
+    // number160)`
     assert!(layout.slots().contains(&StorageSlot::new(
         9,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(16) }),
+            key_type:   Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::Bytes { length: Some(10) }),
+                    StructElement::new(80, AbiType::UInt { size: Some(16) }),
+                    StructElement::new(96, AbiType::Bytes { length: Some(20) })
+                ],
+            }),
             value_type: Box::new(AbiType::Number { size: Some(160) }),
         }
     )));
 
     // `mapping(bytes32 => mapping(address => address))` but we infer
-    // `mapping(uint16 => mapping(bytes20 => bytes20))`
+    // `mapping(struct(uint16, any) => mapping(bytes20 => bytes20))`
     assert!(layout.slots().contains(&StorageSlot::new(
         10,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(16) }),
+            key_type:   Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::Bytes { length: Some(10) }),
+                    StructElement::new(80, AbiType::UInt { size: Some(16) }),
+                    StructElement::new(96, AbiType::Bytes { length: Some(20) })
+                ],
+            }),
             value_type: Box::new(AbiType::Mapping {
                 key_type:   Box::new(AbiType::Bytes { length: Some(20) }),
                 value_type: Box::new(AbiType::Bytes { length: Some(20) }),

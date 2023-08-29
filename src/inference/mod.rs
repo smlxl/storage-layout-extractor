@@ -394,7 +394,9 @@ impl InferenceEngine {
                 let mut pairs = Vec::new();
                 for Span { typ, offset, .. } in types {
                     match self.abi_type_for_impl(typ, seen_exprs, ParentType::Packed)? {
-                        AbiValue::Packed(xs) => pairs.extend(xs),
+                        AbiValue::Packed(xs) => {
+                            pairs.extend(xs.into_iter().map(|(ty, ofs)| (ty, ofs + offset)));
+                        }
                         AbiValue::Type(ty) => pairs.push((ty.clone(), offset)),
                     }
                 }
@@ -415,7 +417,15 @@ impl InferenceEngine {
                         // But if it isn't, it's actually a packed where we don't know its
                         // elements so we have to insert a synthetic
                         // element to make the spacing work
-                        AbiValue::Packed(vec![(AbiType::Any, 0), pair.clone()])
+                        AbiValue::Packed(vec![
+                            (
+                                AbiType::Bytes {
+                                    length: Some(offset / BYTE_SIZE_BITS),
+                                },
+                                0,
+                            ),
+                            pair.clone(),
+                        ])
                     }
                 } else if is_struct {
                     // If it is a struct it is a single element, so we turn it into one
@@ -608,12 +618,28 @@ impl AbiValue {
     pub fn expect_type(self, _: &'static str) -> AbiType {
         match self {
             Self::Type(tp) => tp,
-            Self::Packed(tps) => AbiType::Struct {
-                elements: tps
+            Self::Packed(tps) => {
+                let mut elements = tps
                     .iter()
                     .map(|(tp, off)| StructElement::new(*off, tp.clone()))
-                    .collect(),
-            },
+                    .collect_vec();
+
+                // Make sure we start at offset 0
+                match elements.first() {
+                    Some(first) if first.offset != 0 => elements.insert(
+                        0,
+                        StructElement::new(
+                            0,
+                            AbiType::Bytes {
+                                length: Some(first.offset / BYTE_SIZE_BITS),
+                            },
+                        ),
+                    ),
+                    _ => (),
+                }
+
+                AbiType::Struct { elements }
+            }
         }
     }
 }

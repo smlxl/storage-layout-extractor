@@ -24,10 +24,10 @@ fn analyses_packed_encodings() -> anyhow::Result<()> {
     let expected_bytes_8_slot = StorageSlot::new(0, 0, expected_bytes_8);
     assert!(layout.slots().contains(&expected_bytes_8_slot));
 
-    // Check that we see a slot 0 offset 64 containing bytes16
-    let expected_bytes_16 = AbiType::Bytes { length: Some(16) };
-    let expected_bytes_16_slot = StorageSlot::new(0, 64, expected_bytes_16);
-    assert!(layout.slots().contains(&expected_bytes_16_slot));
+    // Check that we see a slot 0 offset 64
+    let expected_second_half = AbiType::Bytes { length: Some(16) };
+    let expected_second_half_slot = StorageSlot::new(0, 64, expected_second_half);
+    assert!(layout.slots().contains(&expected_second_half_slot));
 
     // All done
     Ok(())

@@ -80,7 +80,9 @@ impl Lift for PackedEncoding {
                 .map(|e| match &e.data() {
                     RSVD::SubWord { offset, size, .. } => PackedSpan::new(*offset, *size, e),
                     RSVD::Shifted { offset, value } => match &value.data() {
-                        RSVD::SubWord { size, .. } => PackedSpan::new(*offset, *size, e),
+                        RSVD::SubWord { size, .. } => {
+                            PackedSpan::new(*offset, *size, value.clone())
+                        }
                         _ => panic!("Shift of non-sub-word"),
                     },
                     _ => unreachable!("Element was of impossible type"),
@@ -310,7 +312,7 @@ mod test {
             4,
             RSVD::Shifted {
                 offset: 64,
-                value:  sub_word_3,
+                value:  sub_word_3.clone(),
             },
         );
         let inner_or = RSV::new_synthetic(
@@ -349,7 +351,7 @@ mod test {
                         assert_eq!(elements.len(), 3);
                         assert!(elements.contains(&PackedSpan::new(128, 128, sub_word_1)));
                         assert!(elements.contains(&PackedSpan::new(0, 64, sub_word_2)));
-                        assert!(elements.contains(&PackedSpan::new(64, 64, shifted)));
+                        assert!(elements.contains(&PackedSpan::new(64, 64, sub_word_3)));
                     }
                     _ => panic!("Incorrect payload"),
                 }

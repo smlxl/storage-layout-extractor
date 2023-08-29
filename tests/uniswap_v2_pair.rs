@@ -21,9 +21,8 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // Get the final storage layout for the input contract
     let layout = analyzer.analyze()?;
 
-    // We should see 18 entries as we output packing in slots as separate slots, but
-    // we only see 16 due to not seeing part of a packed.
-    assert_eq!(layout.slots().len(), 16);
+    // We should see 18 entries as we output packing in slots as separate slots
+    assert_eq!(layout.slots().len(), 18);
 
     // For the ones we can infer to a non-conflict, let's make sure we keep getting
     // them 'right'
@@ -71,13 +70,8 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `address` but we infer `conflict`
-    assert_eq!(layout.slots()[5].index, 5);
-    assert_eq!(layout.slots()[5].offset, 0);
-    assert!(matches!(
-        &layout.slots()[5].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(5, 0, AbiType::Address)));
 
     // `address`
     assert!(layout.slots().contains(&StorageSlot::new(6, 0, AbiType::Address)));
@@ -85,16 +79,23 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `address`
     assert!(layout.slots().contains(&StorageSlot::new(7, 0, AbiType::Address)));
 
-    // `packed(uint112, uint112)`, but we infer `conflict`
-    assert_eq!(layout.slots()[8].index, 8);
-    assert_eq!(layout.slots()[8].offset, 0);
-    assert!(matches!(
-        &layout.slots()[8].typ,
-        AbiType::ConflictedType { .. }
-    ));
-
-    // `uint32`, but we miss it entirely
-    assert!(!layout.slots().iter().any(|s| s.index == 8 && s.offset == 224));
+    // `packed(uint112, uint112, uint32)`, but we infer `packed(uint112, uint112,
+    // bytes4)`
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(8, 0, AbiType::UInt { size: Some(112) }))
+    );
+    assert!(
+        layout
+            .slots()
+            .contains(&StorageSlot::new(8, 112, AbiType::UInt { size: Some(112) }))
+    );
+    assert!(layout.slots().contains(&StorageSlot::new(
+        8,
+        224,
+        AbiType::Bytes { length: Some(4) }
+    )));
 
     // `uint256`, but we infer `number`
     assert!(

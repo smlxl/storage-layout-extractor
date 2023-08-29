@@ -15,7 +15,7 @@ use crate::{
         unification::UnificationForest,
     },
     utility::clip_uuid,
-    vm::value::{PackedSpan, RuntimeBoxedVal, TCBoxedVal, RSVD, TCSV, TCSVD},
+    vm::value::{PackedSpan, Provenance, RuntimeBoxedVal, TCBoxedVal, RSVD, TCSV, TCSVD},
 };
 
 /// The internal state of the inference engine, used to track modifications to
@@ -73,6 +73,22 @@ impl InferenceState {
     pub fn register(&mut self, value: RuntimeBoxedVal) -> TypeVariable {
         let returned_val = self.register_internal(value);
         self.var_unchecked(&returned_val)
+    }
+
+    /// Force registers `var` in the state, adding a default value to be
+    /// associated with it.
+    ///
+    /// # Safety
+    ///
+    /// Use of this function introduces values and variables that did not occur
+    /// in the execution of the program, and can violate assumptions about
+    /// sources of type variables.
+    pub unsafe fn register_ty_var(&mut self, var: TypeVariable) {
+        let value_for_var = TCSV::new(0, TCSVD::new_value(), Provenance::Synthetic, var);
+
+        // Register the result
+        self.expressions.entry(var).or_insert(value_for_var);
+        self.inferences.entry(var).or_insert(HashSet::new());
     }
 
     /// Checks if `value` has a stable type.
