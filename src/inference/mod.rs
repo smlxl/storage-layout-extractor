@@ -79,7 +79,7 @@ impl InferenceEngine {
     /// Returns [`Err`] if the engine's execution fails for any reason.
     pub fn run(&mut self) -> Result<StorageLayout> {
         let transformed_values = self.lift()?;
-        self.assign_vars(transformed_values);
+        self.assign_vars(transformed_values)?;
         self.infer()?;
         self.unify()
     }
@@ -128,10 +128,23 @@ impl InferenceEngine {
     ///
     /// This function must be run after any operations (such as
     /// [`Self::lift`]) that mutate the values.
-    pub fn assign_vars(&mut self, values: Vec<RuntimeBoxedVal>) {
-        for value in values {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if killed by the watchdog.
+    pub fn assign_vars(&mut self, values: Vec<RuntimeBoxedVal>) -> Result<()> {
+        let polling_interval = self.watchdog.poll_every();
+
+        for (count, value) in values.into_iter().enumerate() {
+            // If we have been told to stop, stop and return an error
+            if count % polling_interval == 0 && self.watchdog.should_stop() {
+                Err(Error::StoppedByWatchdog).locate(value.instruction_pointer())?;
+            }
+
             let _ = self.state.register(value);
         }
+
+        Ok(())
     }
 
     /// Runs the inference engine's configured inference rules on all of the
@@ -191,7 +204,14 @@ impl InferenceEngine {
             .cloned()
             .collect();
 
-        for slot in constant_storage_slots {
+        let polling_interval = self.watchdog.poll_every();
+
+        for (count, slot) in constant_storage_slots.into_iter().enumerate() {
+            // If we have been told to stop, stop and return an error
+            if count % polling_interval == 0 && self.watchdog.should_stop() {
+                Err(Error::StoppedByWatchdog).locate(slot.instruction_pointer())?;
+            }
+
             let ty_var = self.state.var_unchecked(&slot);
             let TCSVD::StorageSlot { key } = slot.data() else {
                 Err(Error::InvalidTree {
@@ -745,7 +765,7 @@ pub mod test {
         assert_eq!(results[0], processed_store);
 
         // Now we can run type variable assignment and inference
-        unifier.assign_vars(results);
+        unifier.assign_vars(results)?;
         unifier.infer()?;
 
         // We can check on the layout to make sure things are correct
@@ -768,7 +788,7 @@ pub mod test {
     }
 
     #[test]
-    fn assigns_type_variables_to_all_sub_expressions() {
+    fn assigns_type_variables_to_all_sub_expressions() -> anyhow::Result<()> {
         let var_1 = RSV::new_value(0, Provenance::Synthetic);
         let var_2 = RSV::new_value(1, Provenance::Synthetic);
         let add = RSV::new(
@@ -809,10 +829,12 @@ pub mod test {
             LazyWatchdog.in_rc(),
         );
 
-        unifier.assign_vars(values);
+        unifier.assign_vars(values)?;
         let state = unifier.state();
 
         assert_eq!(state.values().len(), 7);
+
+        Ok(())
     }
 
     /// Utilities for these tests

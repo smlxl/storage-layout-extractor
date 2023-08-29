@@ -4,10 +4,28 @@
 /// blockchain.
 ///
 /// This is specified in [EIP-170](https://eips.ethereum.org/EIPS/eip-170).
-pub const CONTRACT_MAXIMUM_SIZE_BYTES: usize = 24576;
+pub const CONTRACT_MAXIMUM_SIZE_BYTES: usize = 24_576;
 
 /// The maximum amount of gas that can be spent in a given block on the EVM.
 pub const BLOCK_GAS_LIMIT: usize = 30_000_000;
+
+/// The maximum size that memory can be within the block gas limit.
+///
+/// Obtained by solving:
+///
+/// ```text
+/// 3 * a + (a^2 / 512) = 30,000,000
+/// ```
+pub const MAX_MEMORY_SIZE_WORDS: usize = 123_170;
+
+/// The maximum memory size within the block limit in bits.
+pub const MAX_MEMORY_SIZE_BITS: usize = MAX_MEMORY_SIZE_WORDS * WORD_SIZE_BITS;
+
+/// The maximum amount of data that will be copied in a single memory operation.
+///
+/// This is used to bound execution and ensure that we don't end up allocating
+/// too much data into memory.
+pub const MEMORY_SINGLE_OPERATION_MAX_BYTES: usize = MAX_MEMORY_SIZE_WORDS * 32 / 1_000;
 
 /// The base byte value for the `PUSH` opcode, for `N > 0`.
 ///
