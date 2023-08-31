@@ -6,7 +6,6 @@ use crate::{
     constant::{
         CONTRACT_MAXIMUM_SIZE_BYTES,
         DUP_OPCODE_BASE_VALUE,
-        MEMORY_SINGLE_OPERATION_MAX_BYTES,
         PUSH_OPCODE_BASE_VALUE,
         PUSH_OPCODE_MAX_BYTES,
         SWAP_OPCODE_BASE_VALUE,
@@ -177,7 +176,7 @@ impl Opcode for CallDataCopy {
             // We bound the copied size to the contract size as anything bigger is going to
             // be impossible at runtime
             let actual_size: usize = value.into();
-            let size_limit = actual_size.min(MEMORY_SINGLE_OPERATION_MAX_BYTES);
+            let size_limit = actual_size.min(vm.config().single_memory_operation_size_limit);
 
             let polling_interval = vm.watchdog().poll_every();
 
@@ -669,7 +668,7 @@ impl Opcode for ReturnDataCopy {
             // We bound the copied size to the contract size as anything bigger is going to
             // be impossible at runtime
             let actual_size: usize = value.into();
-            let size_limit = actual_size.min(MEMORY_SINGLE_OPERATION_MAX_BYTES);
+            let size_limit = actual_size.min(vm.config().single_memory_operation_size_limit);
 
             let polling_interval = vm.watchdog().poll_every();
 

@@ -25,7 +25,7 @@ pub const MAX_MEMORY_SIZE_BITS: usize = MAX_MEMORY_SIZE_WORDS * WORD_SIZE_BITS;
 ///
 /// This is used to bound execution and ensure that we don't end up allocating
 /// too much data into memory.
-pub const MEMORY_SINGLE_OPERATION_MAX_BYTES: usize = MAX_MEMORY_SIZE_WORDS * 32 / 1_000;
+pub const DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES: usize = MAX_MEMORY_SIZE_WORDS * 32 / 10_000;
 
 /// The base byte value for the `PUSH` opcode, for `N > 0`.
 ///

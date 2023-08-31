@@ -9,6 +9,7 @@ use crate::vm::{
     data::VisitedOpcodes,
     state::{memory::Memory, stack::Stack, storage::Storage},
     value::RuntimeBoxedVal,
+    Config,
 };
 
 /// The state representation for the [`super::VM`].
@@ -38,6 +39,9 @@ pub struct VMState {
     /// Values that were logged to the EVM's logging subsystem.
     logged_values: Vec<RuntimeBoxedVal>,
 
+    /// The virtual machine's configuration.
+    config: Config,
+
     /// The set of opcodes (by their index in `instructions`) that have been
     /// executed by the virtual machine on this thread.
     ///
@@ -53,13 +57,14 @@ impl VMState {
     /// Constructs a new virtual machine state originating at the provided
     /// `fork_point`, with all memory locations set to their default values.
     #[must_use]
-    pub fn new(fork_point: u32, instructions_len: u32, iterations_per_opcode: usize) -> Self {
+    pub fn new(fork_point: u32, instructions_len: u32, config: Config) -> Self {
         let stack = Stack::new();
-        let memory = Memory::new();
+        let memory = Memory::new(config.single_memory_operation_size_limit);
         let storage = Storage::new();
         let recorded_values = Vec::default();
         let logged_values = Vec::default();
-        let visited_instructions = VisitedOpcodes::new(instructions_len, iterations_per_opcode);
+        let visited_instructions =
+            VisitedOpcodes::new(instructions_len, config.maximum_iterations_per_opcode);
 
         Self {
             fork_point,
@@ -68,6 +73,7 @@ impl VMState {
             storage,
             recorded_values,
             logged_values,
+            config,
             visited_instructions,
         }
     }
@@ -75,8 +81,8 @@ impl VMState {
     /// Creates a new virtual machine state originating at the start of
     /// execution, with all memory locations set to their default values.
     #[must_use]
-    pub fn new_at_start(instructions_len: u32, iterations_per_opcode: usize) -> Self {
-        Self::new(0, instructions_len, iterations_per_opcode)
+    pub fn new_at_start(instructions_len: u32, config: Config) -> Self {
+        Self::new(0, instructions_len, config)
     }
 
     /// Gets the stack associated with this virtual machine state.
@@ -194,23 +200,21 @@ impl VMState {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        constant::DEFAULT_ITERATIONS_PER_OPCODE,
-        vm::{
-            state::VMState,
-            value::{RSV, RSVD},
-        },
+    use crate::vm::{
+        state::VMState,
+        value::{RSV, RSVD},
+        Config,
     };
 
     #[test]
     fn can_construct_vm_state() {
-        let state = VMState::new(10, 20, DEFAULT_ITERATIONS_PER_OPCODE);
+        let state = VMState::new(10, 20, Config::default());
         assert_eq!(state.fork_point(), 10);
     }
 
     #[test]
     fn can_record_symbolic_value() {
-        let mut state = VMState::new_at_start(20, DEFAULT_ITERATIONS_PER_OPCODE);
+        let mut state = VMState::new_at_start(20, Config::default());
         let value = RSV::new_synthetic(0, RSVD::new_value());
         state.record_value(value.clone());
 
@@ -222,7 +226,7 @@ mod test {
     #[test]
     fn can_fork_state() -> anyhow::Result<()> {
         let value = RSV::new_synthetic(0, RSVD::new_value());
-        let state = VMState::new_at_start(200, DEFAULT_ITERATIONS_PER_OPCODE);
+        let state = VMState::new_at_start(200, Config::default());
         let mut forked_state = state.fork(78);
 
         // The fork points should differ.

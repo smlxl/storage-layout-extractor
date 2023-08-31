@@ -3,7 +3,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::{
-    constant::{MEMORY_SINGLE_OPERATION_MAX_BYTES, WORD_SIZE_BITS},
+    constant::WORD_SIZE_BITS,
     vm::value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
 };
 
@@ -32,17 +32,22 @@ pub struct Memory {
     /// Stores at locations that are described by a symbolic value that cannot
     /// be treated specially.
     symbolic_offsets: HashMap<RuntimeBoxedVal, Vec<MemStore>>,
+
+    /// The maximum number of symbolic "bytes" that the memory can copy in a
+    /// single operation.
+    max_single_operation_bytes: usize,
 }
 
 impl Memory {
     /// Constructs a new memory container that currently stores no data.
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(max_single_operation_bytes: usize) -> Self {
         let constant_offsets = HashMap::default();
         let symbolic_offsets = HashMap::default();
         Self {
             constant_offsets,
             symbolic_offsets,
+            max_single_operation_bytes,
         }
     }
 
@@ -151,7 +156,7 @@ impl Memory {
                 Some(size) => {
                     let offset: usize = value.into();
                     let mut values = vec![];
-                    let bounded_size = size.min(MEMORY_SINGLE_OPERATION_MAX_BYTES);
+                    let bounded_size = size.min(self.max_single_operation_bytes);
 
                     // Step by 32 bytes at once as each "write" happens at 32-byte alignment
                     for word_offset in (offset..offset + bounded_size).step_by(32) {
@@ -282,12 +287,6 @@ impl Memory {
     }
 }
 
-impl Default for Memory {
-    fn default() -> Self {
-        Memory::new()
-    }
-}
-
 /// The data that actually gets stored into memory.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct MemStore {
@@ -316,9 +315,12 @@ impl MemStoreSize {
 
 #[cfg(test)]
 mod test {
-    use crate::vm::{
-        state::memory::{MemStoreSize, Memory},
-        value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
+    use crate::{
+        constant::DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES,
+        vm::{
+            state::memory::{MemStoreSize, Memory},
+            value::{known::KnownWord, Provenance, RuntimeBoxedVal, RSV, RSVD},
+        },
     };
 
     /// Creates a new synthetic value for testing purposes.
@@ -329,13 +331,13 @@ mod test {
 
     #[test]
     fn can_construct_new_memory() {
-        let memory = Memory::new();
+        let memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         assert_eq!(memory.entry_count(), 0);
     }
 
     #[test]
     fn can_store_word_to_memory() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let offset = new_synthetic_value(0);
         let value = new_synthetic_value(1);
         memory.store(offset.clone(), value.clone());
@@ -350,7 +352,7 @@ mod test {
 
     #[test]
     fn can_overwrite_word_in_memory() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let offset = new_synthetic_value(0);
         let value_1 = new_synthetic_value(1);
         let value_2 = new_synthetic_value(2);
@@ -366,7 +368,7 @@ mod test {
 
     #[test]
     fn can_store_byte_to_memory() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let offset = new_synthetic_value(0);
         let value = new_synthetic_value(1);
         memory.store_8(offset.clone(), value.clone());
@@ -381,7 +383,7 @@ mod test {
 
     #[test]
     fn can_overwrite_byte_in_memory() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let offset = new_synthetic_value(0);
         let value_1 = new_synthetic_value(1);
         let value_2 = new_synthetic_value(2);
@@ -397,7 +399,7 @@ mod test {
 
     #[test]
     fn can_get_written_entry_in_memory() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let offset = new_synthetic_value(0);
         let value = new_synthetic_value(1);
 
@@ -409,7 +411,7 @@ mod test {
 
     #[test]
     fn can_get_zero_if_memory_offset_never_written() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let offset = new_synthetic_value(0);
 
         let loaded = memory.load(&offset);
@@ -426,7 +428,7 @@ mod test {
 
     #[test]
     fn can_load_multiple_words_if_known_size() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let zero = KnownWord::zero();
         let thirty_two = KnownWord::from(32);
         let offset_1 = RSV::new_known_value(0, zero, Provenance::Synthetic, None);
@@ -452,7 +454,7 @@ mod test {
 
     #[test]
     fn can_load_word_at_known_offset_with_symbolic_size() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let zero = KnownWord::zero();
         let offset = RSV::new_known_value(0, zero, Provenance::Synthetic, None);
         let value = new_synthetic_value(1);
@@ -468,7 +470,7 @@ mod test {
 
     #[test]
     fn can_get_entry_count_of_memory() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let offset_1 = new_synthetic_value(0);
         let value_1 = new_synthetic_value(1);
         let offset_2 = new_synthetic_value(0);
@@ -486,7 +488,7 @@ mod test {
     #[test]
     #[allow(clippy::similar_names)] // The names are actually perfectly descriptive
     fn can_store_and_retrieve_more_complex_values() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let left = new_synthetic_value(0);
         let right = new_synthetic_value(1);
         let sum = RSV::new_synthetic(
@@ -529,7 +531,7 @@ mod test {
 
     #[test]
     fn can_access_generations_at_offset() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES);
         let offset = new_synthetic_value(0);
         let value_1 = new_synthetic_value(1);
         let value_2 = new_synthetic_value(2);

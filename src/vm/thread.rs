@@ -101,9 +101,8 @@ impl From<VMThread> for VMState {
 #[cfg(test)]
 mod test {
     use crate::{
-        constant::DEFAULT_ITERATIONS_PER_OPCODE,
         disassembly::InstructionStream,
-        vm::{state::VMState, thread::VMThread},
+        vm::{state::VMState, thread::VMThread, Config},
     };
 
     #[test]
@@ -113,7 +112,7 @@ mod test {
         )?;
         let state = VMState::new_at_start(
             u32::try_from(instruction_stream.len()).unwrap(),
-            DEFAULT_ITERATIONS_PER_OPCODE,
+            Config::default(),
         );
         let execution_thread = instruction_stream.new_thread(0)?;
         let mut vm_thread = VMThread::new(state, execution_thread);

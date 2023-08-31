@@ -86,6 +86,9 @@ pub struct InferenceReady {
 
     /// The watchdog that is monitoring the progress of the analyzer.
     pub watchdog: DynWatchdog,
+
+    /// The result of executing the virtual machine on the config.
+    pub execution_result: ExecutionResult,
 }
 impl State for InferenceReady {}
 

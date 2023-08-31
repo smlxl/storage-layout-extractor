@@ -1,7 +1,6 @@
 //! Opcodes that perform control(-flow) operations on the EVM.
 
 use crate::{
-    constant::MEMORY_SINGLE_OPERATION_MAX_BYTES,
     error::{container::Locatable, execution, execution::Error},
     opcode::{util, ExecuteResult, Opcode},
     vm::{
@@ -369,7 +368,7 @@ fn store_return_data(
         // We bound the copied size to the contract size as anything bigger is going to
         // be impossible at runtime
         let actual_size: usize = value.into();
-        let size_limit = actual_size.min(MEMORY_SINGLE_OPERATION_MAX_BYTES);
+        let size_limit = actual_size.min(vm.config().single_memory_operation_size_limit);
 
         let polling_interval = vm.watchdog().poll_every();
 
