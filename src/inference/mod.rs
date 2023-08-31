@@ -42,10 +42,6 @@ pub struct InferenceEngine {
     /// The configuration of the inference engine.
     config: Config,
 
-    /// The results of executing the symbolic virtual machine on the contract's
-    /// bytecode.
-    execution_result: ExecutionResult,
-
     /// The internal state for the unifier,
     state: InferenceState,
 
@@ -58,14 +54,12 @@ impl InferenceEngine {
     /// Constructs a new inference engine configured by the provided `config`
     /// and working on the data in the provided `execution_result`.
     #[must_use]
-    pub fn new(config: Config, execution_result: ExecutionResult, watchdog: DynWatchdog) -> Self {
-        // Create the state and register all initial values into it.
+    pub fn new(config: Config, watchdog: DynWatchdog) -> Self {
         let state = InferenceState::empty();
 
         // Create the unifier
         Self {
             config,
-            execution_result,
             state,
             watchdog,
         }
@@ -77,15 +71,16 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// Returns [`Err`] if the engine's execution fails for any reason.
-    pub fn run(&mut self) -> Result<StorageLayout> {
-        let transformed_values = self.lift()?;
+    pub fn run(&mut self, execution_result: &ExecutionResult) -> Result<StorageLayout> {
+        let transformed_values = self.lift(execution_result)?;
         self.assign_vars(transformed_values)?;
         self.infer()?;
         self.unify()
     }
 
-    /// Executes the lifting passes on all of the available symbolic values,
-    /// potentially transforming them, returning the transformed values.
+    /// Executes the lifting passes on all of the available symbolic values in
+    /// the `execution_result`, potentially transforming them, returning the
+    /// transformed values.
     ///
     /// Executing this method inserts all of the transformed values into the
     /// state of the inference engine.
@@ -93,10 +88,10 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// Returns [`Err`] if one or more of the lifting passes returns an error.
-    pub fn lift(&mut self) -> Result<Vec<RuntimeBoxedVal>> {
+    pub fn lift(&mut self, execution_result: &ExecutionResult) -> Result<Vec<RuntimeBoxedVal>> {
         // Identically structured values tell us the same thing at inference time, so we
         // remove any exact duplicates to make the type checking process faster.
-        let result_values = self.execution_result.all_values().into_iter().unique().collect_vec();
+        let result_values = execution_result.all_values().into_iter().unique().collect_vec();
 
         let polling_interval = self.watchdog.poll_every();
         let mut new_values = Vec::new();
@@ -495,12 +490,6 @@ impl InferenceEngine {
         &self.config
     }
 
-    /// Gets the execution result over which the inference engine is operating.
-    #[must_use]
-    pub fn execution_result(&self) -> &ExecutionResult {
-        &self.execution_result
-    }
-
     /// Gets the state of the inference engine.
     #[must_use]
     pub fn state(&self) -> &InferenceState {
@@ -719,14 +708,10 @@ pub mod test {
 
         // Create the unifier
         let config = Config::default();
-        let mut unifier = InferenceEngine::new(
-            config,
-            util::execution_result_with_values(vec![store.clone()]),
-            LazyWatchdog.in_rc(),
-        );
+        let mut unifier = InferenceEngine::new(config, LazyWatchdog.in_rc());
 
         // First we run the lifting, and check the results
-        let results = unifier.lift()?;
+        let results = unifier.lift(&util::execution_result_with_values(vec![store.clone()]))?;
         assert_eq!(results.len(), 1);
 
         let c_1_slot = RSV::new(
@@ -823,11 +808,7 @@ pub mod test {
         let values = vec![mapping.clone(), var_3.clone()];
 
         let config = Config::default();
-        let mut unifier = InferenceEngine::new(
-            config,
-            util::default_execution_result(),
-            LazyWatchdog.in_rc(),
-        );
+        let mut unifier = InferenceEngine::new(config, LazyWatchdog.in_rc());
 
         unifier.assign_vars(values)?;
         let state = unifier.state();
@@ -844,7 +825,7 @@ pub mod test {
             disassembly::InstructionStream,
             error::execution,
             opcode::control::Invalid,
-            vm::{state::VMState, value::RuntimeBoxedVal, ExecutionResult},
+            vm::{state::VMState, value::RuntimeBoxedVal, Config, ExecutionResult},
         };
 
         /// Creates a default execution result.
@@ -862,7 +843,7 @@ pub mod test {
         /// somewhere in it for analysis.
         #[must_use]
         pub fn execution_result_with_values(values: Vec<RuntimeBoxedVal>) -> ExecutionResult {
-            let mut state_with_values = VMState::new(0, 0, 0);
+            let mut state_with_values = VMState::new(0, 0, Config::default());
             values.into_iter().for_each(|v| state_with_values.record_value(v));
 
             ExecutionResult {

@@ -12,6 +12,7 @@ use crate::{
         BLOCK_GAS_LIMIT,
         DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT,
         DEFAULT_ITERATIONS_PER_OPCODE,
+        DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES,
         DEFAULT_VALUE_SIZE_LIMIT,
     },
     disassembly::{ExecutionThread, InstructionStream},
@@ -91,8 +92,7 @@ impl VM {
             .len()
             .try_into()
             .unwrap_or_else(|_| panic!("Instruction length should not exceed {}", u32::MAX));
-        let initial_state =
-            VMState::new_at_start(instructions_len, config.maximum_iterations_per_opcode);
+        let initial_state = VMState::new_at_start(instructions_len, config.clone());
         let initial_instruction_thread = instructions.new_thread(0)?;
         let initial_thread = VMThread::new(initial_state, initial_instruction_thread);
         let jump_targets = JumpTargets::new(
@@ -479,6 +479,12 @@ impl VM {
         &mut self.watchdog
     }
 
+    /// Gets a reference to the virtual machine's configuration.
+    #[must_use]
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
     /// Consumes the virtual machine to convert it into the data necessary for
     /// the analysis in the [`crate::inference::InferenceEngine`].
     #[must_use]
@@ -546,36 +552,68 @@ pub struct Config {
 
     /// The maximum number of nodes that a symbolic value can contain before it
     /// is culled.
+    ///
+    /// Defaults to [`DEFAULT_VALUE_SIZE_LIMIT`].
     pub value_size_limit: usize,
+
+    /// The maximum number of symbolic "bytes" that can be copied in a single
+    /// memory operation.
+    ///
+    /// Defaults to [`DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES`].
+    pub single_memory_operation_size_limit: usize,
 }
 
 impl Config {
     /// Sets the `maximum_forks_per_fork_target` config parameter to `value`.
     #[must_use]
-    pub fn with_max_forks_per_fork_target(mut self, value: usize) -> Config {
+    pub fn with_max_forks_per_fork_target(mut self, value: usize) -> Self {
         self.maximum_forks_per_fork_target = value;
         self
     }
 
     /// Sets the `maximum_iterations_per_opcode` config parameter to `value`.
     #[must_use]
-    pub fn with_max_iterations_per_opcode(mut self, value: usize) -> Config {
+    pub fn with_max_iterations_per_opcode(mut self, value: usize) -> Self {
         self.maximum_iterations_per_opcode = value;
         self
     }
 
     /// Sets the `gas_limit` config parameter to `value`.
     #[must_use]
-    pub fn with_gas_limit(mut self, value: usize) -> Config {
+    pub fn with_gas_limit(mut self, value: usize) -> Self {
         self.gas_limit = value;
         self
     }
 
     /// Sets the value size limit configuration parameter to `value`.
     #[must_use]
-    pub fn with_value_size_limit(mut self, value: usize) -> Config {
+    pub fn with_value_size_limit(mut self, value: usize) -> Self {
         self.value_size_limit = value;
         self
+    }
+
+    /// Sets the memory max bytes configuration parameter to `value`.
+    #[must_use]
+    pub fn with_memory_max_bytes(mut self, value: usize) -> Self {
+        self.single_memory_operation_size_limit = value;
+        self
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        let gas_limit = BLOCK_GAS_LIMIT;
+        let maximum_iterations_per_opcode = DEFAULT_ITERATIONS_PER_OPCODE;
+        let maximum_forks_per_fork_target = DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT;
+        let value_size_limit = DEFAULT_VALUE_SIZE_LIMIT;
+        let single_memory_operation_size_limit = DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES;
+        Self {
+            gas_limit,
+            maximum_iterations_per_opcode,
+            maximum_forks_per_fork_target,
+            value_size_limit,
+            single_memory_operation_size_limit,
+        }
     }
 }
 
@@ -680,21 +718,6 @@ impl ValueBuilder {
             Provenance::Execution,
             Some(self.config.value_size_limit),
         )
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        let gas_limit = BLOCK_GAS_LIMIT;
-        let maximum_iterations_per_opcode = DEFAULT_ITERATIONS_PER_OPCODE;
-        let maximum_forks_per_fork_target = DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT;
-        let value_size_limit = DEFAULT_VALUE_SIZE_LIMIT;
-        Self {
-            gas_limit,
-            maximum_iterations_per_opcode,
-            maximum_forks_per_fork_target,
-            value_size_limit,
-        }
     }
 }
 

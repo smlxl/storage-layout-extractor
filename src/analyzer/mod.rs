@@ -250,12 +250,13 @@ impl Analyzer<state::ExecutionComplete> {
             // Safe to unwrap as we guarantee that the internal operations cannot fail.
             self.transform_state(|old_state| {
                 let watchdog = old_state.watchdog;
-                let engine = InferenceEngine::new(
-                    old_state.unifier_config,
-                    old_state.execution_result,
-                    watchdog.clone(),
-                );
-                Ok(state::InferenceReady { engine, watchdog })
+                let execution_result = old_state.execution_result;
+                let engine = InferenceEngine::new(old_state.unifier_config, watchdog.clone());
+                Ok(state::InferenceReady {
+                    engine,
+                    watchdog,
+                    execution_result,
+                })
             })
             .expect("Explicit closure cannot return Err")
         }
@@ -274,7 +275,7 @@ impl Analyzer<state::InferenceReady> {
     pub fn infer(self) -> error::Result<Analyzer<state::InferenceComplete>> {
         unsafe {
             self.transform_state(|mut old_state| {
-                let layout = old_state.engine.run()?;
+                let layout = old_state.engine.run(&old_state.execution_result)?;
                 let engine = old_state.engine;
                 Ok(state::InferenceComplete { engine, layout })
             })
