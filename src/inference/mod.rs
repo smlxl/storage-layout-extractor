@@ -361,6 +361,7 @@ impl InferenceEngine {
                     AbiType::Function.into()
                 }
             },
+            TE::Bytes => AbiType::DynBytes.into(),
             TE::FixedArray { element, length } => {
                 let tp = self
                     .abi_type_for_impl(element, seen_exprs, ParentType::Other)?

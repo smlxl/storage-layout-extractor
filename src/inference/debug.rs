@@ -181,7 +181,7 @@ pub fn collect_vars_in_tree_of(
     while let Some(tv) = tyvar_queue.pop_front() {
         let inferences = state.inferences_for(tv);
         inferences.iter().for_each(|i| match i {
-            TE::Any | TE::Word { .. } | TE::Conflict { .. } => (),
+            TE::Any | TE::Word { .. } | TE::Conflict { .. } | TE::Bytes => (),
             TE::Equal { id } => {
                 if !seen.contains(id) {
                     tyvar_queue.push_back(*id);
