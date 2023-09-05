@@ -58,18 +58,15 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `string` but we infer `bytes`
     assert!(layout.slots().contains(&StorageSlot::new(6, 0, AbiType::DynBytes)));
 
-    // `address` but we infer `bytes20`
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(7, 0, AbiType::Bytes { length: Some(20) }))
-    );
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(7, 0, AbiType::Address)));
 
-    // `packed(address, bool)` but we infer `bytes20`
+    // `packed(address, bool)` but we infer `packed(address, number8)`
+    assert!(layout.slots().contains(&StorageSlot::new(8, 0, AbiType::Address)));
     assert!(
         layout
             .slots()
-            .contains(&StorageSlot::new(8, 0, AbiType::Bytes { length: Some(20) }))
+            .contains(&StorageSlot::new(8, 160, AbiType::Number { size: Some(8) }))
     );
 
     // `uint256`
@@ -92,13 +89,35 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `string` but we infer `bytes`
     assert!(layout.slots().contains(&StorageSlot::new(12, 0, AbiType::DynBytes)));
 
-    // `mapping(uint256 => struct)` but we infer `mapping(uint256 => uint256)`
+    // `mapping(uint256 => struct)` but we infer `mapping(uint256 => struct)` but
+    // the struct is not quite the same
     assert!(layout.slots().contains(&StorageSlot::new(
         13,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Number { size: Some(256) }),
-            value_type: Box::new(AbiType::Number { size: Some(256) }),
+            value_type: Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::Number { size: Some(256) }),
+                    StructElement::new(256, AbiType::Address),
+                    StructElement::new(416, AbiType::Number { size: Some(8) }),
+                    StructElement::new(512, AbiType::Bytes { length: Some(32) }),
+                    StructElement::new(768, AbiType::Bytes { length: Some(32) }),
+                    StructElement::new(1024, AbiType::Bytes { length: Some(32) }),
+                    StructElement::new(1280, AbiType::Number { size: Some(8) }),
+                    StructElement::new(1288, AbiType::Bytes { length: Some(31) }),
+                    StructElement::new(1536, AbiType::UInt { size: Some(256) }),
+                    StructElement::new(1792, AbiType::UInt { size: None }),
+                    StructElement::new(2048, AbiType::Number { size: Some(8) }),
+                    StructElement::new(2056, AbiType::Bytes { length: Some(31) }),
+                    StructElement::new(2304, AbiType::UInt { size: Some(256) }),
+                    StructElement::new(2560, AbiType::UInt { size: Some(256) }),
+                    StructElement::new(2816, AbiType::Number { size: Some(256) }),
+                    StructElement::new(3072, AbiType::Bytes { length: Some(20) }),
+                    StructElement::new(3232, AbiType::Bytes { length: Some(1) }),
+                    StructElement::new(3240, AbiType::Any),
+                ],
+            }),
         }
     )));
 

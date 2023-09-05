@@ -45,9 +45,10 @@ impl Lift for MappingAccess {
                 return None;
             };
 
-            Some(RSVD::MappingAccess {
-                key:  key.clone().transform_data(insert_mapping_accesses),
-                slot: slot.clone().transform_data(insert_mapping_accesses),
+            Some(RSVD::MappingIndex {
+                key:        key.clone().transform_data(insert_mapping_accesses),
+                slot:       slot.clone().transform_data(insert_mapping_accesses),
+                projection: None,
             })
         }
 
@@ -83,7 +84,12 @@ mod test {
         let result = MappingAccess.run(hash, &state)?;
 
         match result.data() {
-            RSVD::MappingAccess { key, slot } => {
+            RSVD::MappingIndex {
+                key,
+                slot,
+                projection,
+            } => {
+                assert!(projection.is_none());
                 assert_eq!(key, &input_key);
                 assert_eq!(slot, &input_slot);
             }
@@ -125,11 +131,21 @@ mod test {
         let result = MappingAccess.run(outer_hash, &state)?;
 
         match result.data() {
-            RSVD::MappingAccess { key, slot } => {
+            RSVD::MappingIndex {
+                key,
+                slot,
+                projection,
+            } => {
+                assert!(projection.is_none());
                 assert_eq!(key, &input_key);
 
                 match slot.data() {
-                    RSVD::MappingAccess { key, slot } => {
+                    RSVD::MappingIndex {
+                        key,
+                        slot,
+                        projection,
+                    } => {
+                        assert!(projection.is_none());
                         assert_eq!(key, &input_key);
                         assert_eq!(slot, &input_slot);
                     }

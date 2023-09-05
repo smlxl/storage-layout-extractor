@@ -621,7 +621,7 @@ pub enum SymbolicValueData<AuxData> {
     /// [`Self::UnwrittenStorageValue`].
     SLoad { key: BoxedVal<AuxData>, value: BoxedVal<AuxData> },
 
-    /// A storage slot at `index`.
+    /// A storage slot at `key`.
     StorageSlot { key: BoxedVal<AuxData> },
 
     /// A representation of the storing of `value` at `key` in storage
@@ -630,10 +630,16 @@ pub enum SymbolicValueData<AuxData> {
     /// The concatenation of multiple values.
     Concat { values: Vec<BoxedVal<AuxData>> },
 
-    /// The value is a mapping address for storage `slot` with `key`.
-    MappingAccess { slot: BoxedVal<AuxData>, key: BoxedVal<AuxData> },
+    /// The value is a mapping index with `slot` as its base and the particular
+    /// location specified by `key` offset by `projection`.
+    MappingIndex {
+        slot:       BoxedVal<AuxData>,
+        key:        BoxedVal<AuxData>,
+        projection: Option<usize>,
+    },
 
-    /// The value is an access to a dynamic array in `slot` at `index`.
+    /// The value is a dynamic array access for the array with its length stored
+    /// at `slot` and the `index` specifying the element in the array.
     DynamicArrayAccess { slot: BoxedVal<AuxData>, index: BoxedVal<AuxData> },
 
     /// An operation that masks `value` to construct a sub-word value.
@@ -786,7 +792,7 @@ where
             SVD::StorageSlot { key } => key.size(),
             SVD::StorageWrite { key, value } => key.size() + value.size(),
             SVD::Concat { values } => values.iter().map(|v| v.size()).sum(),
-            SVD::MappingAccess { slot, key } => slot.size() + key.size(),
+            SVD::MappingIndex { slot, key, .. } => slot.size() + key.size(),
             SVD::DynamicArrayAccess { slot, index } => slot.size() + index.size(),
             SVD::SubWord { value, .. } => value.size(),
             SVD::Shifted { value, .. } => value.size(),
@@ -1018,9 +1024,14 @@ where
                 Self::Concat { values } => Self::Concat {
                     values: values.into_iter().map(|v| v.transform_data(transform)).collect(),
                 },
-                Self::MappingAccess { slot, key } => Self::MappingAccess {
+                Self::MappingIndex {
+                    slot,
+                    key,
+                    projection,
+                } => Self::MappingIndex {
                     slot: slot.transform_data(transform),
-                    key:  key.transform_data(transform),
+                    key: key.transform_data(transform),
+                    projection,
                 },
                 Self::DynamicArrayAccess { slot, index } => Self::DynamicArrayAccess {
                     slot:  slot.transform_data(transform),
@@ -1330,7 +1341,7 @@ where
             Self::StorageSlot { key } => vec![key],
             Self::StorageWrite { key, value } => vec![key, value],
             Self::Concat { values } => values.iter().collect(),
-            Self::MappingAccess { slot, key } => vec![slot, key],
+            Self::MappingIndex { slot, key, .. } => vec![slot, key],
             Self::DynamicArrayAccess { slot, index } => vec![slot, index],
             Self::SubWord { value, .. } => vec![value],
             Self::Shifted { value, .. } => vec![value],
@@ -1414,25 +1425,25 @@ where
             Self::RightShift { shift, value } => write!(f, "({value} >> {shift})"),
             Self::ArithmeticRightShift { shift, value } => write!(f, "({value} >>> {shift})"),
             Self::CallData { id, offset, size } => {
-                write!(f, "call_data[{}]({offset}, {size})", clip_uuid(id))
+                write!(f, "call_data({})[{offset}, {size}]", clip_uuid(id))
             }
             Self::CallDataSize => write!(f, "call_data_size"),
-            Self::CodeCopy { offset, size } => write!(f, "code_copy({offset}, {size})"),
+            Self::CodeCopy { offset, size } => write!(f, "code_copy[{offset}, {size}]"),
             Self::ExtCodeSize { address } => write!(f, "ext_code_size({address})"),
             Self::ExtCodeCopy {
                 address,
                 offset,
                 size,
-            } => write!(f, "ext_code_copy({address}, {offset}, {size})"),
+            } => write!(f, "ext_code_copy({address})[{offset}, {size}]"),
             Self::ReturnData { offset, size } => {
-                write!(f, "return_data_copy({offset}, {size})")
+                write!(f, "return_data_copy[{offset}, {size}]")
             }
             Self::Return { data } => write!(f, "return({data})"),
             Self::Revert { data } => write!(f, "revert({data})"),
             Self::UnwrittenStorageValue { key } => write!(f, "uninit_storage({key})"),
-            Self::SLoad { key, value } => write!(f, "s_load({key}, {value})"),
-            Self::StorageSlot { key } => write!(f, "slot<{key}>"),
-            Self::StorageWrite { key, value } => write!(f, "s_store({key}, {value})"),
+            Self::SLoad { key, value } => write!(f, "(s_load[{key}] => {value})"),
+            Self::StorageSlot { key } => write!(f, "slot({key})"),
+            Self::StorageWrite { key, value } => write!(f, "(s_store[{key}] = {value})"),
             Self::Concat { values } => {
                 write!(f, "concat(")?;
                 for (i, value) in values.iter().enumerate() {
@@ -1443,14 +1454,20 @@ where
                 }
                 write!(f, ")")
             }
-            Self::MappingAccess { slot, key } => write!(f, "mapping_ix<{slot}>[{key}]"),
-            Self::DynamicArrayAccess { slot, index } => write!(f, "dynamic_array<{slot}>[{index}]"),
+            Self::MappingIndex {
+                slot,
+                key,
+                projection,
+            } => {
+                write!(f, "mapping_ix({slot})[{}][{key}]", projection.unwrap_or(0))
+            }
+            Self::DynamicArrayAccess { slot, index } => write!(f, "dynamic_array({slot})[{index}]"),
             Self::SubWord {
                 value,
                 offset,
                 size,
-            } => write!(f, "sub_word({value}, {offset}, {size})"),
-            Self::Shifted { offset, value } => write!(f, "shifted({offset}, {value})"),
+            } => write!(f, "sub_word({value})[{offset}, {size}]"),
+            Self::Shifted { offset, value } => write!(f, "shifted({value})[{offset}]"),
             Self::Packed { elements } => {
                 write!(f, "packed(")?;
                 for (i, value) in elements.iter().enumerate() {
@@ -1517,7 +1534,7 @@ where
     AuxData: Debug,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "span({}, {}, {})", self.offset, self.size, self.value)
+        write!(f, "span({})[{}, {}]", self.value, self.offset, self.size)
     }
 }
 

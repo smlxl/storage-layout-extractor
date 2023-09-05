@@ -4,6 +4,7 @@
 
 pub mod dynamic_array_access;
 pub mod mapping_access;
+pub mod mapping_offset;
 pub mod mul_shifted;
 pub mod packed_encoding;
 pub mod recognise_hashed_slots;
@@ -23,6 +24,7 @@ use crate::{
         lift::{
             dynamic_array_access::DynamicArrayAccess,
             mapping_access::MappingAccess,
+            mapping_offset::MappingOffset,
             mul_shifted::MulShiftedValue,
             packed_encoding::PackedEncoding,
             recognise_hashed_slots::StorageSlotHashes,
@@ -134,6 +136,7 @@ impl Default for LiftingPasses {
                 PackedEncoding::new(),
                 DynamicArrayAccess::new(),
                 StorageSlots::new(),
+                MappingOffset::new(),
             ],
         }
     }

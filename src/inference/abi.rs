@@ -1,6 +1,7 @@
 //! This module contains the definition of the solidity ABI types that the
 //! analyzer is currently capable of dealing with.
 
+use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
 use crate::utility::U256Wrapper;
@@ -19,7 +20,8 @@ use crate::utility::U256Wrapper;
 /// Solidity supports a `fixed` and `ufixed` type in the ABI, but the language
 /// support for them is lacking. For that reason we do not include them here for
 /// now.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Derivative, Deserialize, Eq, Hash, Serialize)]
+#[derivative(PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum AbiType {
     /// An unknown type, useful for the container types where we know something
@@ -92,11 +94,33 @@ pub enum AbiType {
     ///
     /// While the conflict is not usually useful itself, treating them as types
     /// ensures that we still complete unification as well as is possible.
-    ConflictedType { conflicts: Vec<String>, reasons: Vec<String> },
+    ///
+    /// Conflicted types compare equal regardless of the `conflicts` and
+    /// `reasons` that they contain.
+    ConflictedType {
+        #[derivative(PartialEq = "ignore")]
+        conflicts: Vec<String>,
+        #[derivative(PartialEq = "ignore")]
+        reasons:   Vec<String>,
+    },
+}
+
+impl AbiType {
+    /// Creates an empty conflict.
+    ///
+    /// This is useful for testing purposes, as conflicted types compare equal
+    /// regardless of the payloads they contain.
+    #[must_use]
+    pub fn conflict() -> Self {
+        Self::ConflictedType {
+            conflicts: Vec::new(),
+            reasons:   Vec::new(),
+        }
+    }
 }
 
 /// An element of a struct in the ABI.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Hash, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct StructElement {
     // The offset for the element.

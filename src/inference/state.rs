@@ -91,20 +91,24 @@ impl InferenceState {
         self.inferences.entry(var).or_insert(HashSet::new());
     }
 
+    /// Forces the allocation of a new type variable in the state, adding a
+    /// default value to be associated with it.
+    ///
+    /// # Safety
+    ///
+    /// Use of this function introduces values and variables that did not occur
+    /// in the execution of the program, and can violate assumptions about
+    /// sources of type variables.
+    pub unsafe fn allocate_ty_var(&mut self) -> TypeVariable {
+        let new_tv = TypeVariable::fresh();
+        self.register_ty_var(new_tv);
+        new_tv
+    }
+
     /// Checks if `value` has a stable type.
     ///
     /// A stable type is one that should not change based on occurrence if the
     /// structure of the value is the same.
-    ///
-    /// # Performance
-    ///
-    /// TODO Improve performance here.
-    ///
-    /// Currently this function is called inside [`Self::register`] which
-    /// results in quadratic traversal of values during registration.
-    ///
-    /// Instead, the data returned by this function could become part of the
-    /// return value of _that_ function, making traversal linear again.
     #[must_use]
     pub fn is_stable_typed(value: &RuntimeBoxedVal) -> bool {
         match value.data() {
@@ -336,9 +340,14 @@ impl InferenceState {
             RSVD::Concat { values } => TCSVD::Concat {
                 values: values.into_iter().map(|v| self.register_internal(v)).collect(),
             },
-            RSVD::MappingAccess { slot, key } => TCSVD::MappingAccess {
+            RSVD::MappingIndex {
+                slot,
+                key,
+                projection,
+            } => TCSVD::MappingIndex {
                 slot: self.register_internal(slot),
-                key:  self.register_internal(key),
+                key: self.register_internal(key),
+                projection,
             },
             RSVD::DynamicArrayAccess { slot, index } => TCSVD::DynamicArrayAccess {
                 slot:  self.register_internal(slot),

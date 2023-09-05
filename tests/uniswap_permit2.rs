@@ -24,9 +24,6 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // We should see 2 slots
     assert_eq!(layout.slots().len(), 2);
 
-    // Currently all slots are suffering from being conflicts, so we can only assert
-    // the portions of the inferred type that are correct
-
     // `mapping(address => mapping(uint256 => uint256))` but we infer
     // `mapping(address => mapping(bytes32 => bytesUnknown))`
     assert!(layout.slots().contains(&StorageSlot::new(
