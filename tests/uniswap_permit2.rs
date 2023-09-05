@@ -2,9 +2,9 @@
 //! contract`.
 #![cfg(test)]
 
-use itertools::Itertools;
 use storage_layout_analyzer::{
     inference::abi::{AbiType, StructElement},
+    layout::StorageSlot,
     watchdog::LazyWatchdog,
 };
 
@@ -21,97 +21,49 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // Get the final storage layout for the input contract
     let layout = analyzer.analyze()?;
 
-    // We should see 16 slots (while there are 16 slots we should actually see 18
-    // entries due to packing)
+    // We should see 2 slots
     assert_eq!(layout.slots().len(), 2);
 
     // Currently all slots are suffering from being conflicts, so we can only assert
     // the portions of the inferred type that are correct
 
-    // `mapping(conflict => mapping(bytes32 => bytesUnknown)`
-    assert_eq!(layout.slots()[0].index, 0);
-    assert_eq!(layout.slots()[0].offset, 0);
-    match &layout.slots()[0].typ {
+    // `mapping(address => mapping(uint256 => uint256))` but we infer
+    // `mapping(address => mapping(bytes32 => bytesUnknown))`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        0,
+        0,
         AbiType::Mapping {
-            key_type,
-            value_type,
-        } => {
-            assert!(matches!(key_type.as_ref(), AbiType::ConflictedType { .. }));
-
-            let expected_value_type = AbiType::Mapping {
+            key_type:   Box::new(AbiType::Address),
+            value_type: Box::new(AbiType::Mapping {
                 key_type:   Box::new(AbiType::Bytes { length: Some(32) }),
                 value_type: Box::new(AbiType::Bytes { length: None }),
-            };
-
-            assert_eq!(value_type.as_ref(), &expected_value_type);
+            }),
         }
-        _ => panic!("Incorrect type"),
-    }
+    )));
 
-    // `mapping(conflict => mapping(conflict => mapping(conflict => struct)))`
-    assert_eq!(layout.slots()[1].index, 1);
-    assert_eq!(layout.slots()[1].offset, 0);
-    match &layout.slots()[1].typ {
+    // `mapping(address => mapping(address => mapping(address => struct(uint160,
+    // uint48, uint48)))` but we infer `mapping(address => mapping(address =>
+    // mapping(address => struct(uint160, uint48, bytes6)))`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        1,
+        0,
         AbiType::Mapping {
-            key_type,
-            value_type,
-        } => {
-            assert!(matches!(key_type.as_ref(), AbiType::ConflictedType { .. }));
-
-            match value_type.as_ref() {
-                AbiType::Mapping {
-                    key_type,
-                    value_type,
-                } => {
-                    assert!(matches!(key_type.as_ref(), AbiType::ConflictedType { .. }));
-
-                    match value_type.as_ref() {
-                        AbiType::Mapping {
-                            key_type,
-                            value_type,
-                        } => {
-                            assert!(matches!(key_type.as_ref(), AbiType::ConflictedType { .. }));
-
-                            match value_type.as_ref() {
-                                AbiType::Struct { elements } => {
-                                    // The struct should have three elements
-                                    assert_eq!(elements.len(), 3);
-                                    let elements = elements
-                                        .iter()
-                                        .sorted_by_key(|span| span.offset)
-                                        .collect_vec();
-
-                                    // `address` but we infer `conflict`
-                                    assert_eq!(elements[0].offset, 0);
-                                    assert!(matches!(
-                                        elements[0].typ.as_ref(),
-                                        &AbiType::ConflictedType { .. }
-                                    ));
-
-                                    // `uint32` but we infer `bytes6`
-                                    assert!(elements.contains(&&StructElement::new(
-                                        160,
-                                        AbiType::Bytes { length: Some(6) }
-                                    )));
-
-                                    // we infer `bytes0`, which is obviously false
-                                    assert!(elements.contains(&&StructElement::new(
-                                        208,
-                                        AbiType::Bytes { length: Some(0) }
-                                    )));
-                                }
-
-                                _ => panic!("Incorrect type"),
-                            }
-                        }
-                        _ => panic!("Incorrect type"),
-                    }
-                }
-                _ => panic!("Incorrect type"),
-            }
+            key_type:   Box::new(AbiType::Address),
+            value_type: Box::new(AbiType::Mapping {
+                key_type:   Box::new(AbiType::Address),
+                value_type: Box::new(AbiType::Mapping {
+                    key_type:   Box::new(AbiType::Address),
+                    value_type: Box::new(AbiType::Struct {
+                        elements: vec![
+                            StructElement::new(0, AbiType::UInt { size: Some(160) }),
+                            StructElement::new(160, AbiType::UInt { size: Some(48) }),
+                            StructElement::new(208, AbiType::Bytes { length: Some(6) }),
+                        ],
+                    }),
+                }),
+            }),
         }
-        _ => panic!("Incorrect type"),
-    }
+    )));
 
     Ok(())
 }

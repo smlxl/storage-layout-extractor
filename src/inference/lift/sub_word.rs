@@ -88,7 +88,7 @@ impl SubWordValue {
     #[must_use]
     pub fn get_shift(value: &RuntimeBoxedVal) -> (&RuntimeBoxedVal, usize) {
         match &value.data() {
-            RSVD::RightShift { value, .. } => match value.clone().constant_fold().data() {
+            RSVD::RightShift { value, shift } => match shift.clone().constant_fold().data() {
                 RSVD::KnownData { value: shift } => (value, shift.into()),
                 _ => (value, 0),
             },
@@ -151,6 +151,14 @@ impl Lift for SubWordValue {
                 } else {
                     return None;
                 };
+
+            // If it is a constant we don't want to compute it as a sub-word as this gives
+            // us wonky sizing in some cases
+            if matches!(value.data(), RSVD::KnownData { .. }) {
+                return None;
+            }
+
+            // Next we have to pull the shift amount (if any) out of the value
             let (value, shift) = SubWordValue::get_shift(value);
             let value = value.clone().transform_data(insert_sub_words);
 
@@ -169,6 +177,7 @@ impl Lift for SubWordValue {
                 offset: offset + shift,
                 size: length,
             };
+
             Some(payload)
         }
 

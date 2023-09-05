@@ -128,10 +128,10 @@ impl Default for LiftingPasses {
         Self {
             passes: vec![
                 StorageSlotHashes::new(),
+                MappingAccess::new(),
                 SubWordValue::new(),
                 MulShiftedValue::new(),
                 PackedEncoding::new(),
-                MappingAccess::new(),
                 DynamicArrayAccess::new(),
                 StorageSlots::new(),
             ],

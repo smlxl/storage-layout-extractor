@@ -104,13 +104,20 @@ where
     Value: Clone + Debug + Eq + Hash + PartialEq,
     Data: Combine + Debug + Default + Eq + PartialEq,
 {
-    /// Gets all of the individual sets in the forest.
+    /// Gets all of the individual sets in the forest, along with their
+    /// representant value.
     pub fn sets(&mut self) -> Vec<(Value, Data)> {
         self.reps
             .iter()
             .filter(|(k, v)| k == v)
             .map(|(k, _)| (k.clone(), self.data.entry(k.clone()).or_default().clone()))
             .collect()
+    }
+
+    /// Gets each individual value in the forest.
+    #[must_use]
+    pub fn values(&self) -> Vec<Value> {
+        self.reps.keys().cloned().collect()
     }
 }
 

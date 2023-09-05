@@ -17,7 +17,6 @@ pub mod offset_size;
 pub mod packed_encoding;
 pub mod s_load_is_inner_types;
 pub mod sha3;
-pub mod shifted_has_element_type;
 pub mod storage_key;
 pub mod storage_write;
 
@@ -49,7 +48,6 @@ use crate::{
             packed_encoding::PackedEncodingRule,
             s_load_is_inner_types::SLoadIsInnerTypesRule,
             sha3::HashRule,
-            shifted_has_element_type::ShiftedHasElementTypeRule,
             storage_key::StorageKeyRule,
             storage_write::StorageWriteRule,
         },
@@ -149,7 +147,6 @@ impl Default for InferenceRules {
         rules.add(MaskedWordRule);
         rules.add(OffsetSizeRule);
         rules.add(PackedEncodingRule);
-        rules.add(ShiftedHasElementTypeRule);
         rules.add(SLoadIsInnerTypesRule);
         rules.add(StorageKeyRule);
         rules.add(StorageWriteRule);

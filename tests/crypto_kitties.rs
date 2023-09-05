@@ -21,9 +21,8 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // Get the final storage layout for the input contract
     let layout = analyzer.analyze()?;
 
-    // We should see 21 entries, but we actually only see 19 due to missing features
-    // and packing
-    assert_eq!(layout.slots().len(), 19);
+    // We should see 21 entries, but we actually only see 20 due to missing features
+    assert_eq!(layout.slots().len(), 20);
 
     // `address`, but we infer `number160`
     assert!(
@@ -32,21 +31,11 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             .contains(&StorageSlot::new(0, 0, AbiType::Number { size: Some(160) }))
     );
 
-    // `address`, but we infer `conflict`
-    assert_eq!(layout.slots()[1].index, 1);
-    assert_eq!(layout.slots()[1].offset, 0);
-    assert!(matches!(
-        &layout.slots()[1].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(1, 0, AbiType::Address)));
 
-    // `address`, but we infer `conflict`
-    assert_eq!(layout.slots()[2].index, 2);
-    assert_eq!(layout.slots()[2].offset, 0);
-    assert!(matches!(
-        &layout.slots()[2].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(2, 0, AbiType::Address)));
 
     // `uint32[14]`, but we infer `uint32`
     assert!(
@@ -74,84 +63,54 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `mapping(uint256 => address)` but we infer `mapping(conflict => number160)`
-    assert_eq!(layout.slots()[6].index, 7);
-    assert_eq!(layout.slots()[6].offset, 0);
-    match &layout.slots()[6].typ {
+    // `mapping(uint256 => address)` but we infer `mapping(uint32 => address)`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        7,
+        0,
         AbiType::Mapping {
-            key_type,
-            value_type,
-        } => {
-            assert!(matches!(key_type.as_ref(), AbiType::ConflictedType { .. }));
-            assert_eq!(value_type.as_ref(), &AbiType::Number { size: Some(160) })
+            key_type:   Box::new(AbiType::UInt { size: Some(32) }),
+            value_type: Box::new(AbiType::Address),
         }
-        _ => panic!("Incorrect type"),
-    }
+    )));
 
-    // `mapping(address => uint256)` but we infer `mapping(number160, uintUnknown)`
+    // `mapping(address => uint256)` but we infer `mapping(address => uintUnknown)`
     assert!(layout.slots().contains(&StorageSlot::new(
         8,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::Number { size: Some(160) }),
+            key_type:   Box::new(AbiType::Address),
             value_type: Box::new(AbiType::UInt { size: None }),
         }
     )));
 
-    // `mapping(uint256 => address)` but we infer `mapping(conflict => conflict)`
-    assert_eq!(layout.slots()[8].index, 9);
-    assert_eq!(layout.slots()[8].offset, 0);
-    match &layout.slots()[8].typ {
+    // `mapping(uint256 => address)` but we infer `mapping(uint32 => address)`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        9,
+        0,
         AbiType::Mapping {
-            key_type,
-            value_type,
-        } => {
-            assert!(matches!(key_type.as_ref(), AbiType::ConflictedType { .. }));
-            assert!(matches!(
-                value_type.as_ref(),
-                AbiType::ConflictedType { .. }
-            ));
+            key_type:   Box::new(AbiType::UInt { size: Some(32) }),
+            value_type: Box::new(AbiType::Address),
         }
-        _ => panic!("Incorrect type"),
-    }
+    )));
 
-    // `mapping(uint256 => address)` but we infer `mapping(conflict => bytes20)`
-    assert_eq!(layout.slots()[9].index, 10);
-    assert_eq!(layout.slots()[9].offset, 0);
-    match &layout.slots()[9].typ {
+    // `mapping(uint256 => address)` but we infer `mapping(uint32 => bytes20)`
+    assert!(layout.slots().contains(&StorageSlot::new(
+        10,
+        0,
         AbiType::Mapping {
-            key_type,
-            value_type,
-        } => {
-            assert!(matches!(key_type.as_ref(), AbiType::ConflictedType { .. }));
-            assert_eq!(value_type.as_ref(), &AbiType::Bytes { length: Some(20) })
+            key_type:   Box::new(AbiType::UInt { size: Some(32) }),
+            value_type: Box::new(AbiType::Bytes { length: Some(20) }),
         }
-        _ => panic!("Incorrect type"),
-    }
+    )));
 
-    // `address` but we infer conflict
-    assert_eq!(layout.slots()[10].index, 11);
-    assert_eq!(layout.slots()[10].offset, 0);
-    assert!(matches!(
-        &layout.slots()[10].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(11, 0, AbiType::Address)));
 
-    // `address` but we infer conflict
-    assert_eq!(layout.slots()[11].index, 12);
-    assert_eq!(layout.slots()[11].offset, 0);
-    assert!(matches!(
-        &layout.slots()[11].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(12, 0, AbiType::Address)));
 
-    // `address` but we infer `conflict`
-    assert_eq!(layout.slots()[12].index, 13);
-    assert_eq!(layout.slots()[12].offset, 0);
-    assert!(matches!(
-        &layout.slots()[12].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(13, 0, AbiType::Address)));
 
     // `uint256` but we infer `uint256`
     assert!(
@@ -167,13 +126,8 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             .contains(&StorageSlot::new(15, 0, AbiType::Number { size: None }))
     );
 
-    // `address` but we infer conflict
-    assert_eq!(layout.slots()[15].index, 16);
-    assert_eq!(layout.slots()[15].offset, 0);
-    assert!(matches!(
-        &layout.slots()[15].typ,
-        AbiType::ConflictedType { .. }
-    ));
+    // `address`
+    assert!(layout.slots().contains(&StorageSlot::new(16, 0, AbiType::Address)));
 
     // `uint256` but we infer `uintUnknown`
     assert!(
