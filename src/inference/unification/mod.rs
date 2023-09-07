@@ -212,6 +212,43 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
             Merge::expression(TE::word(width, usage))
         }
 
+        // To combine bytes with words we delegate
+        (TE::Word { .. }, TE::Bytes) => merge(right, left, parent_tv),
+
+        // They actually combine to be bytes as long as the word is not signed
+        (TE::Bytes, TE::Word { usage, .. }) if !usage.is_definitely_signed() => {
+            Merge::expression(TE::Bytes)
+        }
+
+        // Bytes are just a kind of dynamic array
+        (TE::DynamicArray { .. }, TE::Bytes) | (TE::Bytes, TE::DynamicArray { .. }) => {
+            Merge::expression(TE::Bytes)
+        }
+
+        // To combine a dynamic array with a packed we delegate
+        (TE::DynamicArray { .. } | TE::Bytes, TE::Packed { .. }) => merge(right, left, parent_tv),
+
+        // They produce bytes when certain conditions are satisfied
+        (TE::Packed { types, .. }, TE::DynamicArray { .. } | TE::Bytes) => {
+            if let Some(t) = types.first() {
+                if t.offset == 0 && t.size == 1 {
+                    Merge::expression(TE::Bytes)
+                } else {
+                    Merge::expression(TE::conflict(
+                        left,
+                        right,
+                        "Incompatible packed encoding and dynamic array",
+                    ))
+                }
+            } else {
+                Merge::expression(TE::conflict(
+                    left,
+                    right,
+                    "Incompatible packed encoding and dynamic array",
+                ))
+            }
+        }
+
         // To combine a word with a dynamic array we delegate
         (TE::Word { .. }, TE::DynamicArray { .. }) => merge(right, left, parent_tv),
 

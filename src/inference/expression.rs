@@ -51,6 +51,10 @@ pub enum TypeExpression {
         usage: WordUse,
     },
 
+    /// A dynamic packed byte array, or a `string` given we have no way to
+    /// distinguish them at runtime.
+    Bytes,
+
     /// A static array containing items of type `element` and with `length`.
     FixedArray { element: TypeVariable, length: U256 },
 
@@ -206,7 +210,7 @@ impl TypeExpression {
     #[must_use]
     pub fn is_type_constructor(&self) -> bool {
         match self {
-            Self::Any | Self::Word { .. } | Self::Conflict { .. } => false,
+            Self::Any | Self::Word { .. } | Self::Conflict { .. } | TE::Bytes => false,
             Self::FixedArray { .. }
             | Self::Mapping { .. }
             | Self::DynamicArray { .. }
@@ -234,6 +238,7 @@ impl Display for TypeExpression {
                     write!(f, "Word<{usage}, ???>")
                 }
             }
+            Self::Bytes => write!(f, "bytes"),
             Self::FixedArray { element, length } => write!(f, "Array<{element}>[{length}]"),
             Self::Mapping { key, value } => write!(f, "Mapping<{key}, {value}>"),
             Self::DynamicArray { element } => write!(f, "Array<{element}>"),
