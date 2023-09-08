@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use storage_layout_analyzer::{
-    inference::abi::AbiType,
+    inference::abi::{AbiType, StructElement},
     layout::StorageSlot,
     watchdog::LazyWatchdog,
 };
@@ -49,13 +49,23 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             .contains(&StorageSlot::new(2, 0, AbiType::Number { size: None }))
     );
 
-    // `mapping(uint256 => struct)` but we infer `mapping(bytes32 => address)`
+    // `mapping(uint256 => struct(address, uint128, uint128, uint64, uint64)` but we
+    // infer `mapping(bytes32 => struct(address, uint128, uint128, conflict,
+    // uint65)`
     assert!(layout.slots().contains(&StorageSlot::new(
         3,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Bytes { length: Some(32) }),
-            value_type: Box::new(AbiType::Address),
+            value_type: Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::Address),
+                    StructElement::new(256, AbiType::Number { size: Some(128) }),
+                    StructElement::new(384, AbiType::UInt { size: Some(128) }),
+                    StructElement::new(512, AbiType::conflict()),
+                    StructElement::new(576, AbiType::UInt { size: Some(64) })
+                ],
+            }),
         }
     )));
 

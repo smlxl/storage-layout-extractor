@@ -36,7 +36,11 @@ impl Lift for StorageSlots {
     ) -> crate::error::unification::Result<RuntimeBoxedVal> {
         fn insert_storage_accesses(data: &RSVD) -> Option<RSVD> {
             match data {
-                RSVD::MappingAccess { key, slot } => {
+                RSVD::MappingIndex {
+                    key,
+                    slot,
+                    projection,
+                } => {
                     let data = match &slot.data() {
                         RSVD::StorageSlot { .. } => slot.data().clone(),
                         _ => RSVD::StorageSlot {
@@ -44,9 +48,10 @@ impl Lift for StorageSlots {
                         },
                     };
                     let slot = RSV::new(slot.instruction_pointer(), data, slot.provenance(), None);
-                    Some(RSVD::MappingAccess {
+                    Some(RSVD::MappingIndex {
                         key: key.clone().transform_data(insert_storage_accesses),
                         slot,
+                        projection: *projection,
                     })
                 }
                 RSVD::StorageWrite { key, value } => {
@@ -113,9 +118,10 @@ mod test {
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
         let mapping_access = RSV::new(
             2,
-            RSVD::MappingAccess {
-                key:  mapping_key.clone(),
-                slot: slot_index_constant.clone(),
+            RSVD::MappingIndex {
+                key:        mapping_key.clone(),
+                slot:       slot_index_constant.clone(),
+                projection: None,
             },
             Provenance::Synthetic,
             None,
@@ -125,7 +131,12 @@ mod test {
         let result = StorageSlots.run(mapping_access, &state)?;
 
         match result.data() {
-            RSVD::MappingAccess { key, slot } => {
+            RSVD::MappingIndex {
+                key,
+                slot,
+                projection,
+            } => {
+                assert!(projection.is_none());
                 assert_eq!(key, &mapping_key);
                 match slot.data() {
                     RSVD::StorageSlot { key } => {
@@ -147,9 +158,10 @@ mod test {
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
         let mapping_access = RSV::new(
             2,
-            RSVD::MappingAccess {
-                key:  mapping_key.clone(),
-                slot: slot_index_constant.clone(),
+            RSVD::MappingIndex {
+                key:        mapping_key.clone(),
+                slot:       slot_index_constant.clone(),
+                projection: None,
             },
             Provenance::Synthetic,
             None,
@@ -178,7 +190,12 @@ mod test {
                 }
 
                 match value.data() {
-                    RSVD::MappingAccess { key, slot } => {
+                    RSVD::MappingIndex {
+                        key,
+                        slot,
+                        projection,
+                    } => {
+                        assert!(projection.is_none());
                         assert_eq!(key, &mapping_key);
                         match slot.data() {
                             RSVD::StorageSlot { key } => {
@@ -274,9 +291,10 @@ mod test {
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
         let mapping_access = RSV::new(
             2,
-            RSVD::MappingAccess {
-                key:  mapping_key.clone(),
-                slot: input_slot.clone(),
+            RSVD::MappingIndex {
+                key:        mapping_key.clone(),
+                slot:       input_slot.clone(),
+                projection: None,
             },
             Provenance::Synthetic,
             None,
@@ -286,7 +304,12 @@ mod test {
         let result = StorageSlots.run(mapping_access, &state)?;
 
         match result.data() {
-            RSVD::MappingAccess { key, slot } => {
+            RSVD::MappingIndex {
+                key,
+                slot,
+                projection,
+            } => {
+                assert!(projection.is_none());
                 assert_eq!(key, &mapping_key);
                 assert_eq!(slot, &input_slot);
             }

@@ -2,33 +2,55 @@
 //! writes to mappings.
 
 use crate::{
+    constant::WORD_SIZE_BITS,
     error::unification::Result,
-    inference::{expression::TE, rule::InferenceRule, state::InferenceState},
+    inference::{
+        expression::{Span, TE},
+        rule::InferenceRule,
+        state::InferenceState,
+    },
     vm::value::{TCBoxedVal, TCSVD},
 };
 
-/// This rule creates the equation `base_slot_ty = mapping<key_ty, val_ty>` such
-/// for expressions of the following form.
+/// This rule creates the following equations for any expressions of the
+/// following form.
 ///
 /// ```text
-/// val_ty = slot(mapping_addr<slot(c_1)>[v_1])
+/// slot<mapping_addr<slot<c_1>>[v_1])>
+///   a       b         c   d     e
 /// ```
 ///
-/// where:
-/// - `base_slot_ty = type(slot(c_1))`
-/// - `key_ty = type(v_1)`
+/// equating:
+///
+/// - `c = mapping<e, b>`
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct MappingAccessRule;
 
 impl InferenceRule for MappingAccessRule {
     fn infer(&self, value: &TCBoxedVal, state: &mut InferenceState) -> Result<()> {
         if let TCSVD::StorageSlot { key } = value.data() {
-            let TCSVD::MappingAccess { key, slot } = key.data() else {
+            let TCSVD::MappingIndex {
+                key,
+                slot,
+                projection,
+            } = key.data()
+            else {
                 return Ok(());
             };
 
+            let p = projection.unwrap_or(0);
             let key_tv = state.var_unchecked(key);
-            let val_ty = state.var_unchecked(value);
+            let original_val_ty = state.var_unchecked(value);
+            let val_ty = unsafe { state.allocate_ty_var() };
+
+            state.infer(
+                val_ty,
+                TE::packed_of(vec![Span::new(
+                    original_val_ty,
+                    p * WORD_SIZE_BITS,
+                    WORD_SIZE_BITS,
+                )]),
+            );
             let slot_ty = TE::mapping(key_tv, val_ty);
             state.infer_for(slot, slot_ty);
         }

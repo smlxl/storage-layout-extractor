@@ -1,6 +1,9 @@
 //! Utility functions useful throughout the codebase.
 
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    fmt::{Debug, Formatter},
+};
 
 use ethnum::U256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -24,9 +27,17 @@ pub type U256W = U256Wrapper;
 ///
 /// It provides reasonable conversions from a number of common types used within
 /// the library.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
 #[repr(transparent)]
 pub struct U256Wrapper(pub U256);
+
+impl Debug for U256Wrapper {
+    /// The wrapper has absolutely no semantic meaning, so we print the
+    /// underlying value for the debug representation.
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl PartialOrd for U256Wrapper {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

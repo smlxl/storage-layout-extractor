@@ -73,6 +73,11 @@ impl InferenceEngine {
     /// Returns [`Err`] if the engine's execution fails for any reason.
     pub fn run(&mut self, execution_result: &ExecutionResult) -> Result<StorageLayout> {
         let transformed_values = self.lift(execution_result)?;
+
+        // for value in &transformed_values {
+        //     println!("{value}");
+        // }
+
         self.assign_vars(transformed_values)?;
         self.infer()?;
         self.unify()
@@ -749,9 +754,10 @@ pub mod test {
         );
         let c_1_mapping = RSV::new(
             0,
-            RSVD::MappingAccess {
-                key:  v_1.clone(),
-                slot: c_1_slot.clone(),
+            RSVD::MappingIndex {
+                key:        v_1.clone(),
+                slot:       c_1_slot.clone(),
+                projection: None,
             },
             Provenance::Synthetic,
             None,
@@ -823,9 +829,10 @@ pub mod test {
         );
         let mapping = RSV::new(
             4,
-            RSVD::MappingAccess {
-                slot: storage_slot.clone(),
-                key:  add.clone(),
+            RSVD::MappingIndex {
+                slot:       storage_slot.clone(),
+                key:        add.clone(),
+                projection: None,
             },
             Provenance::Synthetic,
             None,
