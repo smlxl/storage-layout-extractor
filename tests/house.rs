@@ -5,6 +5,7 @@
 use storage_layout_analyzer::{
     inference::abi::{AbiType, StructElement},
     layout::StorageSlot,
+    utility::U256W,
     watchdog::LazyWatchdog,
 };
 
@@ -86,7 +87,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     );
 
     // `uint256` but we miss it entirely
-    assert!(!layout.slots().iter().any(|slot| slot.index == 11));
+    assert!(!layout.slots().iter().any(|slot| slot.index == U256W::from(11)));
 
     // `string` but we infer `bytes`
     assert!(layout.slots().contains(&StorageSlot::new(12, 0, AbiType::DynBytes)));
