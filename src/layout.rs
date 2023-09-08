@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::inference::abi::AbiType;
+use crate::{inference::abi::AbiType, utility::U256Wrapper};
 
 /// The most-concrete layout discovered for the input contract.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -14,7 +14,7 @@ pub struct StorageLayout {
 
 impl StorageLayout {
     /// Adds a slot specified by `index` and `typ` to the storage layout.
-    pub fn add(&mut self, index: usize, offset: usize, typ: AbiType) {
+    pub fn add(&mut self, index: impl Into<U256Wrapper>, offset: usize, typ: AbiType) {
         let slot = StorageSlot::new(index, offset, typ);
         self.slots.push(slot);
 
@@ -43,7 +43,7 @@ impl Default for StorageLayout {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct StorageSlot {
     /// The concrete index of the storage slot in the contract.
-    pub index: usize,
+    pub index: U256Wrapper,
 
     /// The offset at which the type starts within the storage slot.
     ///
@@ -59,7 +59,8 @@ impl StorageSlot {
     /// Constructs a new storage slot container for the data at `index` with
     /// type `typ`.
     #[must_use]
-    pub fn new(index: usize, offset: usize, typ: AbiType) -> Self {
+    pub fn new(index: impl Into<U256Wrapper>, offset: usize, typ: AbiType) -> Self {
+        let index = index.into();
         Self { index, offset, typ }
     }
 }

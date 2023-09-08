@@ -5,7 +5,6 @@ use std::collections::HashSet;
 
 use itertools::Itertools;
 
-use self::abi::U256Wrapper;
 use crate::{
     constant::BYTE_SIZE_BITS,
     error::{
@@ -19,6 +18,7 @@ use crate::{
         rule::InferenceRules,
         state::{InferenceState, TypeVariable},
     },
+    utility::U256Wrapper,
     vm::{
         value::{RuntimeBoxedVal, TCBoxedVal, TCSVD},
         ExecutionResult,
@@ -215,7 +215,7 @@ impl InferenceEngine {
                 }
                 .locate(slot.instruction_pointer()))?
             };
-            let TCSVD::KnownData { value } = key.data() else {
+            let TCSVD::KnownData { value: index } = key.data() else {
                 Err(Error::InvalidTree {
                     value:  key.clone(),
                     reason: "Failed to destructure supposedly known structure".into(),
@@ -224,7 +224,6 @@ impl InferenceEngine {
             };
 
             // Get one or more types from the storage slot
-            let index: usize = value.into();
             match self.abi_type_for(ty_var)? {
                 AbiValue::Type(typ) => layout.add(index, 0, typ),
                 AbiValue::Packed(types) => types
@@ -681,6 +680,7 @@ enum ParentType {
 pub mod test {
     use crate::{
         inference::{abi::AbiType, Config, InferenceEngine},
+        utility::U256W,
         vm::value::{known::KnownWord, Provenance, RSV, RSVD},
         watchdog::LazyWatchdog,
     };
@@ -786,7 +786,7 @@ pub mod test {
         assert_eq!(slots.len(), 1);
 
         let first_slot = slots.first().unwrap();
-        assert_eq!(first_slot.index, 1);
+        assert_eq!(first_slot.index, U256W::from(1));
         assert_eq!(
             first_slot.typ,
             AbiType::Mapping {

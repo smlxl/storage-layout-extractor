@@ -1,8 +1,9 @@
 //! This module contains the definition of the solidity ABI types that the
 //! analyzer is currently capable of dealing with.
 
-use ethnum::U256;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
+
+use crate::utility::U256Wrapper;
 
 /// Concretely known Solidity ABI types.
 ///
@@ -94,31 +95,6 @@ pub enum AbiType {
     ConflictedType { conflicts: Vec<String>, reasons: Vec<String> },
 }
 
-/// The `U256Wrapper` is responsible for serializing the U256 type to JSON
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-#[repr(transparent)]
-pub struct U256Wrapper(pub U256);
-
-impl Serialize for U256Wrapper {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut value = String::from("0x");
-        value.push_str(&hex::encode(self.0.to_be_bytes()));
-
-        serializer.serialize_str(&value)
-    }
-}
-
-impl<'de> Deserialize<'de> for U256Wrapper {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s: String = Deserialize::deserialize(deserializer)?;
-        let u256 = U256::from_str_hex(&s).map_err(serde::de::Error::custom)?;
-        Ok(U256Wrapper(u256))
-    }
-}
-
 /// An element of a struct in the ABI.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -146,7 +122,7 @@ mod tests {
     use ethnum::U256;
     use serde_json::json;
 
-    use super::U256Wrapper;
+    use crate::utility::U256Wrapper;
 
     #[test]
     fn can_be_serialized() {
