@@ -17,6 +17,10 @@ use crate::{
 ///
 /// mapping_ix<slot_ix>[key]
 /// ```
+///
+/// We only perform this resolution underneath [`RSVD::StorageWrite`],
+/// [`RSVD::SLoad`] and [`RSVD::UnwrittenStorageValue`] to ensure that we do not
+/// inadvertently capture non-mapping access patterns as mappings.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct MappingAccess;
 
@@ -34,6 +38,23 @@ impl Lift for MappingAccess {
         value: RuntimeBoxedVal,
         _state: &InferenceState,
     ) -> crate::error::unification::Result<RuntimeBoxedVal> {
+        fn guard_mapping_accesses(data: &RSVD) -> Option<RSVD> {
+            match data {
+                RSVD::StorageWrite { key, value } => Some(RSVD::StorageWrite {
+                    key:   key.clone().transform_data(insert_mapping_accesses),
+                    value: value.clone().transform_data(insert_mapping_accesses),
+                }),
+                RSVD::SLoad { key, value } => Some(RSVD::SLoad {
+                    key:   key.clone().transform_data(insert_mapping_accesses),
+                    value: value.clone().transform_data(insert_mapping_accesses),
+                }),
+                RSVD::UnwrittenStorageValue { key } => Some(RSVD::UnwrittenStorageValue {
+                    key: key.clone().transform_data(insert_mapping_accesses),
+                }),
+                _ => None,
+            }
+        }
+
         fn insert_mapping_accesses(data: &RSVD) -> Option<RSVD> {
             let RSVD::Sha3 { data } = data else {
                 return None;
@@ -52,7 +73,7 @@ impl Lift for MappingAccess {
             })
         }
 
-        Ok(value.transform_data(insert_mapping_accesses))
+        Ok(value.transform_data(guard_mapping_accesses))
     }
 }
 
@@ -79,19 +100,34 @@ mod test {
             None,
         );
         let hash = RSV::new(3, RSVD::Sha3 { data: concat }, Provenance::Synthetic, None);
+        let slot_key = RSV::new_value(4, Provenance::Synthetic);
+        let s_load = RSV::new_synthetic(
+            5,
+            RSVD::SLoad {
+                key:   slot_key.clone(),
+                value: hash.clone(),
+            },
+        );
 
         let state = InferenceState::empty();
-        let result = MappingAccess.run(hash, &state)?;
+        let result = MappingAccess.run(s_load, &state)?;
 
         match result.data() {
-            RSVD::MappingIndex {
-                key,
-                slot,
-                projection,
-            } => {
-                assert!(projection.is_none());
-                assert_eq!(key, &input_key);
-                assert_eq!(slot, &input_slot);
+            RSVD::SLoad { key, value } => {
+                assert_eq!(key, &slot_key);
+
+                match value.data() {
+                    RSVD::MappingIndex {
+                        key,
+                        slot,
+                        projection,
+                    } => {
+                        assert!(projection.is_none());
+                        assert_eq!(key, &input_key);
+                        assert_eq!(slot, &input_slot);
+                    }
+                    _ => panic!("Invalid payload"),
+                }
             }
             _ => panic!("Invalid payload"),
         }
@@ -113,7 +149,7 @@ mod test {
         );
         let inner_hash = RSV::new(3, RSVD::Sha3 { data: concat }, Provenance::Synthetic, None);
         let outer_concat = RSV::new(
-            2,
+            4,
             RSVD::Concat {
                 values: vec![input_key.clone(), inner_hash],
             },
@@ -121,25 +157,28 @@ mod test {
             None,
         );
         let outer_hash = RSV::new(
-            3,
+            5,
             RSVD::Sha3 { data: outer_concat },
             Provenance::Synthetic,
             None,
         );
+        let slot_key = RSV::new_value(6, Provenance::Synthetic);
+        let s_store = RSV::new_synthetic(
+            7,
+            RSVD::StorageWrite {
+                key:   slot_key.clone(),
+                value: outer_hash.clone(),
+            },
+        );
 
         let state = InferenceState::empty();
-        let result = MappingAccess.run(outer_hash, &state)?;
+        let result = MappingAccess.run(s_store, &state)?;
 
         match result.data() {
-            RSVD::MappingIndex {
-                key,
-                slot,
-                projection,
-            } => {
-                assert!(projection.is_none());
-                assert_eq!(key, &input_key);
+            RSVD::StorageWrite { key, value } => {
+                assert_eq!(key, &slot_key);
 
-                match slot.data() {
+                match value.data() {
                     RSVD::MappingIndex {
                         key,
                         slot,
@@ -147,7 +186,19 @@ mod test {
                     } => {
                         assert!(projection.is_none());
                         assert_eq!(key, &input_key);
-                        assert_eq!(slot, &input_slot);
+
+                        match slot.data() {
+                            RSVD::MappingIndex {
+                                key,
+                                slot,
+                                projection,
+                            } => {
+                                assert!(projection.is_none());
+                                assert_eq!(key, &input_key);
+                                assert_eq!(slot, &input_slot);
+                            }
+                            _ => panic!("Invalid payload"),
+                        }
                     }
                     _ => panic!("Invalid payload"),
                 }
