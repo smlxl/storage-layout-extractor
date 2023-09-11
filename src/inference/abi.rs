@@ -20,8 +20,8 @@ use crate::utility::U256Wrapper;
 /// Solidity supports a `fixed` and `ufixed` type in the ABI, but the language
 /// support for them is lacking. For that reason we do not include them here for
 /// now.
-#[derive(Clone, Debug, Derivative, Deserialize, Eq, Hash, Serialize)]
-#[derivative(PartialEq)]
+#[derive(Clone, Debug, Derivative, Deserialize, Eq, Serialize)]
+#[derivative(PartialEq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum AbiType {
     /// An unknown type, useful for the container types where we know something
@@ -98,9 +98,9 @@ pub enum AbiType {
     /// Conflicted types compare equal regardless of the `conflicts` and
     /// `reasons` that they contain.
     ConflictedType {
-        #[derivative(PartialEq = "ignore")]
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         conflicts: Vec<String>,
-        #[derivative(PartialEq = "ignore")]
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         reasons:   Vec<String>,
     },
 }

@@ -26,7 +26,7 @@ use crate::{
 /// - When the jump target is not a valid [`JumpDest`] instruction.
 ///
 /// It is assumed that all errors returned by this function are instances of
-/// [`VMError`].
+/// [`crate::error::execution::Error`].
 #[allow(clippy::boxed_local)] // We always pass around boxed values during execution
 pub fn validate_jump_destination(counter: &RuntimeBoxedVal, vm: &mut VM) -> execution::Result<u32> {
     let instruction_pointer = vm.instruction_pointer()?;
