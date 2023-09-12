@@ -10,7 +10,7 @@ use crate::{
 /// so that these constants can be distinguished from other constants of the
 /// same value.
 ///
-/// This pass relies on the results of the [`super::mapping_access`] pass, and
+/// This pass relies on the results of the [`super::mapping_index`] pass, and
 /// hence must be ordered after it in the lifting pass ordering.
 ///
 /// # Note
@@ -67,7 +67,7 @@ impl Lift for StorageSlots {
                         value: value.clone().transform_data(insert_storage_accesses),
                     })
                 }
-                RSVD::DynamicArrayAccess { slot, index } => {
+                RSVD::DynamicArrayIndex { slot, index } => {
                     let data = match &slot.data() {
                         RSVD::StorageSlot { .. } => slot.data().clone(),
                         _ => RSVD::StorageSlot {
@@ -75,7 +75,7 @@ impl Lift for StorageSlots {
                         },
                     };
                     let slot = RSV::new(slot.instruction_pointer(), data, slot.provenance(), None);
-                    Some(RSVD::DynamicArrayAccess {
+                    Some(RSVD::DynamicArrayIndex {
                         index: index.clone().transform_data(insert_storage_accesses),
                         slot,
                     })
@@ -250,7 +250,7 @@ mod test {
         let input_index = RSV::new_value(1, Provenance::Synthetic);
         let dyn_array = RSV::new(
             2,
-            RSVD::DynamicArrayAccess {
+            RSVD::DynamicArrayIndex {
                 slot:  input_slot.clone(),
                 index: input_index.clone(),
             },
@@ -262,7 +262,7 @@ mod test {
         let result = StorageSlots.run(dyn_array, &state)?;
 
         match result.data() {
-            RSVD::DynamicArrayAccess { slot, index } => {
+            RSVD::DynamicArrayIndex { slot, index } => {
                 assert_eq!(index, &input_index);
 
                 match slot.data() {
@@ -367,7 +367,7 @@ mod test {
         let input_index = RSV::new_value(1, Provenance::Synthetic);
         let dyn_array = RSV::new(
             2,
-            RSVD::DynamicArrayAccess {
+            RSVD::DynamicArrayIndex {
                 slot:  input_slot.clone(),
                 index: input_index.clone(),
             },
@@ -379,7 +379,7 @@ mod test {
         let result = StorageSlots.run(dyn_array, &state)?;
 
         match result.data() {
-            RSVD::DynamicArrayAccess { slot, index } => {
+            RSVD::DynamicArrayIndex { slot, index } => {
                 assert_eq!(index, &input_index);
                 assert_eq!(slot, &input_slot);
             }

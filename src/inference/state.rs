@@ -349,7 +349,7 @@ impl InferenceState {
                 key: self.register_internal(key),
                 projection,
             },
-            RSVD::DynamicArrayAccess { slot, index } => TCSVD::DynamicArrayAccess {
+            RSVD::DynamicArrayIndex { slot, index } => TCSVD::DynamicArrayIndex {
                 slot:  self.register_internal(slot),
                 index: self.register_internal(index),
             },

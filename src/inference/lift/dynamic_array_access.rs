@@ -1,12 +1,12 @@
 //! This module contains definition of a lifting pass that recognises dynamic
-//! array accesses and makes them constant.
+//! array indices and makes them constant.
 
 use crate::{
     inference::{lift::Lift, state::InferenceState},
-    vm::value::{RuntimeBoxedVal, RSV, RSVD},
+    vm::value::{RuntimeBoxedVal, RSVD},
 };
 
-/// This pass detects and lifts expressions that perform dynamic array accesses
+/// This pass detects and lifts expressions that perform dynamic array indices
 /// in storage.
 ///
 /// These have a form as follows:
@@ -16,7 +16,7 @@ use crate::{
 ///
 /// becomes
 ///
-/// s_store(dynamic_array<slot>[index], value)
+/// s_store(dyn_array_ix<slot>[index], value)
 /// ```
 ///
 /// where:
@@ -28,26 +28,40 @@ use crate::{
 /// [`crate::inference::lift::recognise_hashed_slots::StorageSlotHashes`] as it
 /// relies on its results.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct DynamicArrayAccess;
+pub struct DynamicArrayIndex;
 
-impl DynamicArrayAccess {
+impl DynamicArrayIndex {
     #[must_use]
     pub fn new() -> Box<Self> {
         Box::new(Self)
     }
 }
 
-impl Lift for DynamicArrayAccess {
+impl Lift for DynamicArrayIndex {
     fn run(
         &mut self,
         value: RuntimeBoxedVal,
         _state: &InferenceState,
     ) -> crate::error::unification::Result<RuntimeBoxedVal> {
+        fn guard_dyn_array_accesses(data: &RSVD) -> Option<RSVD> {
+            match data {
+                RSVD::StorageWrite { key, value } => Some(RSVD::StorageWrite {
+                    key:   key.clone().transform_data(lift_dyn_array_accesses),
+                    value: value.clone().transform_data(lift_dyn_array_accesses),
+                }),
+                RSVD::SLoad { key, value } => Some(RSVD::SLoad {
+                    key:   key.clone().transform_data(lift_dyn_array_accesses),
+                    value: value.clone().transform_data(lift_dyn_array_accesses),
+                }),
+                RSVD::UnwrittenStorageValue { key } => Some(RSVD::UnwrittenStorageValue {
+                    key: key.clone().transform_data(lift_dyn_array_accesses),
+                }),
+                _ => None,
+            }
+        }
+
         fn lift_dyn_array_accesses(value: &RSVD) -> Option<RSVD> {
-            let RSVD::StorageWrite { key, value } = &value else {
-                return None;
-            };
-            let RSVD::Add { left, right } = key.data() else {
+            let RSVD::Add { left, right } = value else {
                 return None;
             };
 
@@ -61,29 +75,16 @@ impl Lift for DynamicArrayAccess {
             }
             .clone()
             .constant_fold();
-            let RSVD::KnownData { .. } = data.data() else {
-                return None;
+
+            let access = RSVD::DynamicArrayIndex {
+                slot:  data.transform_data(lift_dyn_array_accesses),
+                index: right.clone().transform_data(lift_dyn_array_accesses),
             };
 
-            let access = RSV::new(
-                key.instruction_pointer(),
-                RSVD::DynamicArrayAccess {
-                    slot:  data.transform_data(lift_dyn_array_accesses),
-                    index: right.clone().transform_data(lift_dyn_array_accesses),
-                },
-                key.provenance(),
-                None,
-            );
-
-            let value = RSVD::StorageWrite {
-                key:   access,
-                value: value.clone(),
-            };
-
-            Some(value)
+            Some(access)
         }
 
-        Ok(value.transform_data(lift_dyn_array_accesses))
+        Ok(value.transform_data(guard_dyn_array_accesses))
     }
 }
 
@@ -91,7 +92,7 @@ impl Lift for DynamicArrayAccess {
 mod test {
     use crate::{
         inference::{
-            lift::{dynamic_array_access::DynamicArrayAccess, Lift},
+            lift::{dynamic_array_access::DynamicArrayIndex, Lift},
             state::InferenceState,
         },
         vm::value::{known::KnownWord, Provenance, RSV, RSVD},
@@ -131,7 +132,7 @@ mod test {
 
         // Run the pass
         let state = InferenceState::empty();
-        let result = DynamicArrayAccess.run(store, &state)?;
+        let result = DynamicArrayIndex.run(store, &state)?;
 
         // Inspect the result
         match result.data() {
@@ -139,7 +140,7 @@ mod test {
                 assert_eq!(value, &input_value);
 
                 match key.data() {
-                    RSVD::DynamicArrayAccess { slot, index } => {
+                    RSVD::DynamicArrayIndex { slot, index } => {
                         assert_eq!(index, &input_index);
                         assert_eq!(slot, &input_slot);
                     }

@@ -63,12 +63,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `mapping(uint256 => address)` but we infer `mapping(uint32 => address)`
+    // `mapping(uint256 => address)` but we infer `mapping(number32 => address)`
     assert!(layout.slots().contains(&StorageSlot::new(
         7,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(32) }),
+            key_type:   Box::new(AbiType::Number { size: Some(32) }),
             value_type: Box::new(AbiType::Address),
         }
     )));
@@ -83,22 +83,22 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `mapping(uint256 => address)` but we infer `mapping(uint32 => address)`
+    // `mapping(uint256 => address)` but we infer `mapping(number32 => address)`
     assert!(layout.slots().contains(&StorageSlot::new(
         9,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(32) }),
+            key_type:   Box::new(AbiType::Number { size: Some(32) }),
             value_type: Box::new(AbiType::Address),
         }
     )));
 
-    // `mapping(uint256 => address)` but we infer `mapping(uint32 => bytes20)`
+    // `mapping(uint256 => address)` but we infer `mapping(number32 => bytes20)`
     assert!(layout.slots().contains(&StorageSlot::new(
         10,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(32) }),
+            key_type:   Box::new(AbiType::Number { size: Some(32) }),
             value_type: Box::new(AbiType::Bytes { length: Some(20) }),
         }
     )));

@@ -31,7 +31,7 @@ impl InferenceRule for DynamicArrayWriteRule {
         let TCSVD::StorageSlot { key: c } = b.data() else {
             return Ok(());
         };
-        let TCSVD::DynamicArrayAccess { slot: d, index: f } = c.data() else {
+        let TCSVD::DynamicArrayIndex { slot: d, index: f } = c.data() else {
             return Ok(());
         };
         let TCSVD::StorageSlot { .. } = d.data() else {

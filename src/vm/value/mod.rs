@@ -640,7 +640,7 @@ pub enum SymbolicValueData<AuxData> {
 
     /// The value is a dynamic array access for the array with its length stored
     /// at `slot` and the `index` specifying the element in the array.
-    DynamicArrayAccess { slot: BoxedVal<AuxData>, index: BoxedVal<AuxData> },
+    DynamicArrayIndex { slot: BoxedVal<AuxData>, index: BoxedVal<AuxData> },
 
     /// An operation that masks `value` to construct a sub-word value.
     ///
@@ -793,7 +793,7 @@ where
             SVD::StorageWrite { key, value } => key.size() + value.size(),
             SVD::Concat { values } => values.iter().map(|v| v.size()).sum(),
             SVD::MappingIndex { slot, key, .. } => slot.size() + key.size(),
-            SVD::DynamicArrayAccess { slot, index } => slot.size() + index.size(),
+            SVD::DynamicArrayIndex { slot, index } => slot.size() + index.size(),
             SVD::SubWord { value, .. } => value.size(),
             SVD::Shifted { value, .. } => value.size(),
             SVD::Packed { elements } => elements.iter().map(|s| s.value.size()).sum(),
@@ -1033,7 +1033,7 @@ where
                     key: key.transform_data(transform),
                     projection,
                 },
-                Self::DynamicArrayAccess { slot, index } => Self::DynamicArrayAccess {
+                Self::DynamicArrayIndex { slot, index } => Self::DynamicArrayIndex {
                     slot:  slot.transform_data(transform),
                     index: index.transform_data(transform),
                 },
@@ -1342,7 +1342,7 @@ where
             Self::StorageWrite { key, value } => vec![key, value],
             Self::Concat { values } => values.iter().collect(),
             Self::MappingIndex { slot, key, .. } => vec![slot, key],
-            Self::DynamicArrayAccess { slot, index } => vec![slot, index],
+            Self::DynamicArrayIndex { slot, index } => vec![slot, index],
             Self::SubWord { value, .. } => vec![value],
             Self::Shifted { value, .. } => vec![value],
             Self::Packed { elements } => elements.iter().map(|e| &e.value).collect(),
@@ -1461,7 +1461,7 @@ where
             } => {
                 write!(f, "mapping_ix({slot})[{}][{key}]", projection.unwrap_or(0))
             }
-            Self::DynamicArrayAccess { slot, index } => write!(f, "dynamic_array({slot})[{index}]"),
+            Self::DynamicArrayIndex { slot, index } => write!(f, "dyn_arr_ix({slot})[{index}]"),
             Self::SubWord {
                 value,
                 offset,

@@ -168,8 +168,9 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     )));
 
-    // `mapping(bytes32 => struct)` but we infer `mapping(struct(bytes10, uint16,
-    // bytes20) => struct(uintUnknown, mapping(bytes20 => numberUnknown)))`
+    // `mapping(bytes32 => struct(address[], mapping(address => uint256)))` but we
+    // infer `mapping(struct(bytes10, uint16, bytes20) => struct(bytes20[],
+    // mapping(bytes20 => numberUnknown)))`
     assert!(layout.slots().contains(&StorageSlot::new(
         8,
         0,
@@ -183,7 +184,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             }),
             value_type: Box::new(AbiType::Struct {
                 elements: vec![
-                    StructElement::new(0, AbiType::UInt { size: None }),
+                    StructElement::new(
+                        0,
+                        AbiType::DynArray {
+                            tp: Box::new(AbiType::Bytes { length: Some(20) }),
+                        }
+                    ),
                     StructElement::new(
                         256,
                         AbiType::Mapping {

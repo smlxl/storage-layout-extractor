@@ -164,7 +164,7 @@ higher_level(expression, parts)
 ```
 
 Let's work through an example lifting pass for finding accesses to mappings in storage as is
-implemented [here](../src/inference/lift/mapping_access.rs).
+implemented [here](../src/inference/lift/mapping_index.rs).
 
 First we start by writing out the low-level pattern that we are trying to represent at a
 higher-level, using variable names to describe the arguments where their structure is irrelevant to
@@ -185,4 +185,4 @@ mapping_ix<slot_ix>[key]
 ```
 
 Now all that remains is to implement and test it, as can be seen in the
-codebase [here](../src/inference/lift/mapping_access.rs).
+codebase [here](../src/inference/lift/mapping_index.rs).
