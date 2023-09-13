@@ -73,11 +73,6 @@ impl InferenceEngine {
     /// Returns [`Err`] if the engine's execution fails for any reason.
     pub fn run(&mut self, execution_result: &ExecutionResult) -> Result<StorageLayout> {
         let transformed_values = self.lift(execution_result)?;
-
-        // for value in &transformed_values {
-        //     println!("{value}");
-        // }
-
         self.assign_vars(transformed_values)?;
         self.infer()?;
         self.unify()

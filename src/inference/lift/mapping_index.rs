@@ -1,4 +1,4 @@
-//! This module provides a lifting pass that recognises accesses to
+//! This module provides a lifting pass that recognises  to
 //! individual storage slots as part of a mapping.
 
 use crate::{
@@ -6,7 +6,8 @@ use crate::{
     vm::value::{RuntimeBoxedVal, RSVD},
 };
 
-/// This pass detects and folds expressions that access mappings in storage.
+/// This pass detects and folds expressions that represent indices into mappings
+/// in storage.
 ///
 /// These have a form as follows:
 ///
@@ -22,9 +23,9 @@ use crate::{
 /// [`RSVD::SLoad`] and [`RSVD::UnwrittenStorageValue`] to ensure that we do not
 /// inadvertently capture non-mapping access patterns as mappings.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct MappingAccess;
+pub struct MappingIndex;
 
-impl MappingAccess {
+impl MappingIndex {
     /// Constructs a new instance of the mapping access lifting pass.
     #[must_use]
     pub fn new() -> Box<Self> {
@@ -32,7 +33,7 @@ impl MappingAccess {
     }
 }
 
-impl Lift for MappingAccess {
+impl Lift for MappingIndex {
     fn run(
         &mut self,
         value: RuntimeBoxedVal,
@@ -81,7 +82,7 @@ impl Lift for MappingAccess {
 mod test {
     use crate::{
         inference::{
-            lift::{mapping_access::MappingAccess, Lift},
+            lift::{mapping_index::MappingIndex, Lift},
             state::InferenceState,
         },
         vm::value::{known::KnownWord, Provenance, RSV, RSVD},
@@ -110,7 +111,7 @@ mod test {
         );
 
         let state = InferenceState::empty();
-        let result = MappingAccess.run(s_load, &state)?;
+        let result = MappingIndex.run(s_load, &state)?;
 
         match result.data() {
             RSVD::SLoad { key, value } => {
@@ -172,7 +173,7 @@ mod test {
         );
 
         let state = InferenceState::empty();
-        let result = MappingAccess.run(s_store, &state)?;
+        let result = MappingIndex.run(s_store, &state)?;
 
         match result.data() {
             RSVD::StorageWrite { key, value } => {

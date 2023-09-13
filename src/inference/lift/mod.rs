@@ -3,7 +3,7 @@
 //! lower-level patterns.
 
 pub mod dynamic_array_access;
-pub mod mapping_access;
+pub mod mapping_index;
 pub mod mapping_offset;
 pub mod mul_shifted;
 pub mod packed_encoding;
@@ -22,8 +22,8 @@ use crate::{
     error::unification::Result,
     inference::{
         lift::{
-            dynamic_array_access::DynamicArrayAccess,
-            mapping_access::MappingAccess,
+            dynamic_array_access::DynamicArrayIndex,
+            mapping_index::MappingIndex,
             mapping_offset::MappingOffset,
             mul_shifted::MulShiftedValue,
             packed_encoding::PackedEncoding,
@@ -130,11 +130,11 @@ impl Default for LiftingPasses {
         Self {
             passes: vec![
                 StorageSlotHashes::new(),
-                MappingAccess::new(),
+                MappingIndex::new(),
                 SubWordValue::new(),
                 MulShiftedValue::new(),
                 PackedEncoding::new(),
-                DynamicArrayAccess::new(),
+                DynamicArrayIndex::new(),
                 StorageSlots::new(),
                 MappingOffset::new(),
             ],
