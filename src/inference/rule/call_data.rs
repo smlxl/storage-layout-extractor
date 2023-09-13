@@ -55,7 +55,7 @@ mod test {
             rule::{call_data::CallDataRule, InferenceRule},
             state::InferenceState,
         },
-        vm::value::{known::KnownWord, Provenance, RSV, RSVD},
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD, TCSVD},
     };
 
     #[test]
@@ -67,11 +67,12 @@ mod test {
 
         // Register them in the state
         let mut state = InferenceState::empty();
-        let [offset_tv, size_tv, call_data_tv] =
-            state.register_many([offset, size, call_data.clone()]);
-
-        // Run the inference rule
+        let call_data_tv = state.register(call_data);
         let tc_input = state.value_unchecked(call_data_tv).clone();
+        let [offset_tv, size_tv] = match tc_input.data() {
+            TCSVD::CallData { offset, size, .. } => [offset.type_var(), size.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
         CallDataRule.infer(&tc_input, &mut state)?;
 
         // Check that we end up with no equations
@@ -91,14 +92,15 @@ mod test {
 
         // Register them in the state
         let mut state = InferenceState::empty();
-        let [offset_tv, size_tv, call_data_tv] =
-            state.register_many([offset, size, call_data.clone()]);
-
-        // Run the inference rule
+        let call_data_tv = state.register(call_data);
         let tc_input = state.value_unchecked(call_data_tv).clone();
+        let [offset_tv, size_tv] = match tc_input.data() {
+            TCSVD::CallData { offset, size, .. } => [offset.type_var(), size.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
         CallDataRule.infer(&tc_input, &mut state)?;
 
-        // Check that we end up with no equations
+        // Check that we end up with only the expected equation
         assert!(state.inferences(offset_tv).is_empty());
         assert!(state.inferences(size_tv).is_empty());
         assert_eq!(state.inferences(call_data_tv).len(), 1);
@@ -130,11 +132,21 @@ mod test {
 
         // Register them in the state
         let mut state = InferenceState::empty();
-        let [offset_tv, left_val_tv, right_val_tv, size_tv, call_data_tv] =
-            state.register_many([offset, left_val, right_val, size, call_data.clone()]);
-
-        // Run the inference rule
+        let call_data_tv = state.register(call_data);
         let tc_input = state.value_unchecked(call_data_tv).clone();
+        let [offset_tv, size_tv, left_val_tv, right_val_tv] = match tc_input.data() {
+            TCSVD::CallData { offset, size, .. } => match size.data() {
+                TCSVD::Add { left, right } => [
+                    offset.type_var(),
+                    size.type_var(),
+                    left.type_var(),
+                    right.type_var(),
+                ],
+                _ => panic!("Incorrect payload"),
+            },
+
+            _ => panic!("Incorrect payload"),
+        };
         CallDataRule.infer(&tc_input, &mut state)?;
 
         // Check that we end up with no equations

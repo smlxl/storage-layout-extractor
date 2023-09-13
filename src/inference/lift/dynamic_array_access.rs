@@ -103,31 +103,25 @@ mod test {
         let input_value = RSV::new_value(0, Provenance::Synthetic);
         let input_index = RSV::new_value(1, Provenance::Synthetic);
         let input_slot = RSV::new_known_value(3, KnownWord::from(3), Provenance::Synthetic, None);
-        let hash = RSV::new(
+        let hash = RSV::new_synthetic(
             2,
             RSVD::Sha3 {
                 data: input_slot.clone(),
             },
-            Provenance::Synthetic,
-            None,
         );
-        let add = RSV::new(
+        let add = RSV::new_synthetic(
             3,
             RSVD::Add {
                 left:  hash,
                 right: input_index.clone(),
             },
-            Provenance::Synthetic,
-            None,
         );
-        let store = RSV::new(
+        let store = RSV::new_synthetic(
             4,
             RSVD::StorageWrite {
                 key:   add,
                 value: input_value.clone(),
             },
-            Provenance::Synthetic,
-            None,
         );
 
         // Run the pass

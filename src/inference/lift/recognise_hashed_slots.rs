@@ -23,7 +23,7 @@ pub const SLOT_COUNT: usize = 10000;
 ///
 /// becomes
 ///
-/// sha3(preimage(C)
+/// sha3(preimage(C))
 /// ```
 ///
 /// where:

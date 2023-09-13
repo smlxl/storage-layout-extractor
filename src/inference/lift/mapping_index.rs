@@ -92,15 +92,13 @@ mod test {
     fn resolves_mapping_accesses_at_top_level() -> anyhow::Result<()> {
         let input_key = RSV::new_value(0, Provenance::Synthetic);
         let input_slot = RSV::new_known_value(1, KnownWord::from(10), Provenance::Synthetic, None);
-        let concat = RSV::new(
+        let concat = RSV::new_synthetic(
             2,
             RSVD::Concat {
                 values: vec![input_key.clone(), input_slot.clone()],
             },
-            Provenance::Synthetic,
-            None,
         );
-        let hash = RSV::new(3, RSVD::Sha3 { data: concat }, Provenance::Synthetic, None);
+        let hash = RSV::new_synthetic(3, RSVD::Sha3 { data: concat });
         let slot_key = RSV::new_value(4, Provenance::Synthetic);
         let s_load = RSV::new_synthetic(
             5,
@@ -140,29 +138,20 @@ mod test {
     fn resolves_mapping_accesses_while_nested() -> anyhow::Result<()> {
         let input_key = RSV::new_value(0, Provenance::Synthetic);
         let input_slot = RSV::new_known_value(1, KnownWord::from(10), Provenance::Synthetic, None);
-        let concat = RSV::new(
+        let concat = RSV::new_synthetic(
             2,
             RSVD::Concat {
                 values: vec![input_key.clone(), input_slot.clone()],
             },
-            Provenance::Synthetic,
-            None,
         );
-        let inner_hash = RSV::new(3, RSVD::Sha3 { data: concat }, Provenance::Synthetic, None);
-        let outer_concat = RSV::new(
+        let inner_hash = RSV::new_synthetic(3, RSVD::Sha3 { data: concat });
+        let outer_concat = RSV::new_synthetic(
             4,
             RSVD::Concat {
                 values: vec![input_key.clone(), inner_hash],
             },
-            Provenance::Synthetic,
-            None,
         );
-        let outer_hash = RSV::new(
-            5,
-            RSVD::Sha3 { data: outer_concat },
-            Provenance::Synthetic,
-            None,
-        );
+        let outer_hash = RSV::new_synthetic(5, RSVD::Sha3 { data: outer_concat });
         let slot_key = RSV::new_value(6, Provenance::Synthetic);
         let s_store = RSV::new_synthetic(
             7,

@@ -53,87 +53,102 @@ impl InferenceRule for DynamicArrayWriteRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         inference::{
-//             expression::TE,
-//             rule::{dynamic_array_write::DynamicArrayWriteRule,
-// InferenceRule},             state::InferenceState,
-//         },
-//         vm::value::{Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn creates_correct_inference_equations() -> anyhow::Result<()> {
-//         // Create a value of the relevant structure
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let index = RSV::new_value(1, Provenance::Synthetic);
-//         let base_slot = RSV::new_value(2, Provenance::Synthetic);
-//         let slot_of_base_slot = RSV::new(
-//             3,
-//             RSVD::StorageSlot {
-//                 key: base_slot.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//         let dyn_array = RSV::new(
-//             4,
-//             RSVD::DynamicArrayAccess {
-//                 slot:  slot_of_base_slot.clone(),
-//                 index: index.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//         let slot_of_dyn_array = RSV::new(
-//             5,
-//             RSVD::StorageSlot {
-//                 key: dyn_array.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//         let store = RSV::new(
-//             6,
-//             RSVD::StorageWrite {
-//                 key:   slot_of_dyn_array.clone(),
-//                 value: value.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Set up the unifier state
-//         let mut state = InferenceState::empty();
-//         let g_tv = state.register(value);
-//         let f_tv = state.register(index);
-//         let e_tv = state.register(base_slot);
-//         let d_tv = state.register(slot_of_base_slot);
-//         let c_tv = state.register(dyn_array);
-//         let b_tv = state.register(slot_of_dyn_array);
-//         let a_tv = state.register(store.clone());
-//
-//         // Run the inference rule
-//         let tc_input = state.value_unchecked(a_tv).clone();
-//         DynamicArrayWriteRule.infer(&tc_input, &mut state)?;
-//
-//         // Check that we end up with expected results in the state
-//         assert_eq!(state.inferences(g_tv).len(), 1);
-//         assert!(state.inferences(g_tv).contains(&TE::eq(b_tv)));
-//
-//         assert_eq!(state.inferences(f_tv).len(), 1);
-//         assert!(state.inferences(f_tv).contains(&TE::unsigned_word(None)));
-//
-//         assert!(state.inferences(e_tv).is_empty());
-//
-//         assert_eq!(state.inferences(d_tv).len(), 1);
-//         assert!(state.inferences(d_tv).contains(&TE::dyn_array(b_tv)));
-//
-//         assert!(state.inferences(c_tv).is_empty());
-//
-//         assert_eq!(state.inferences(b_tv).len(), 1);
-//         assert!(state.inferences(b_tv).contains(&TE::eq(g_tv)));
-//
-//         assert!(state.inferences(a_tv).is_empty());
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        inference::{
+            expression::TE,
+            rule::{dynamic_array_write::DynamicArrayWriteRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn creates_correct_inference_equations() -> anyhow::Result<()> {
+        // Create a value of the relevant structure
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let index = RSV::new_value(1, Provenance::Synthetic);
+        let base_slot = RSV::new_value(2, Provenance::Synthetic);
+        let slot_of_base_slot = RSV::new_synthetic(
+            3,
+            RSVD::StorageSlot {
+                key: base_slot.clone(),
+            },
+        );
+        let dyn_array = RSV::new_synthetic(
+            4,
+            RSVD::DynamicArrayIndex {
+                slot:  slot_of_base_slot.clone(),
+                index: index.clone(),
+            },
+        );
+        let slot_of_dyn_array = RSV::new_synthetic(
+            5,
+            RSVD::StorageSlot {
+                key: dyn_array.clone(),
+            },
+        );
+        let store = RSV::new_synthetic(
+            6,
+            RSVD::StorageWrite {
+                key:   slot_of_dyn_array.clone(),
+                value: value.clone(),
+            },
+        );
+
+        // Set up the unifier state
+        let mut state = InferenceState::empty();
+        let a_tv = state.register(store);
+        let tc_input = state.value_unchecked(a_tv).clone();
+        let [b_tv, c_tv, d_tv, e_tv, f_tv, g_tv] = match tc_input.data() {
+            TCSVD::StorageWrite { key, value } => {
+                let g_tv = value.type_var();
+                let b_tv = key.type_var();
+                match key.data() {
+                    TCSVD::StorageSlot { key } => {
+                        let c_tv = key.type_var();
+                        match key.data() {
+                            TCSVD::DynamicArrayIndex { slot, index } => {
+                                let d_tv = slot.type_var();
+                                let f_tv = index.type_var();
+                                match slot.data() {
+                                    TCSVD::StorageSlot { key } => {
+                                        let e_tv = key.type_var();
+                                        [b_tv, c_tv, d_tv, e_tv, f_tv, g_tv]
+                                    }
+                                    _ => panic!("Incorrect payload"),
+                                }
+                            }
+                            _ => panic!("Incorrect payload"),
+                        }
+                    }
+                    _ => panic!("Incorrect payload"),
+                }
+            }
+            _ => panic!("Incorrect payload"),
+        };
+        DynamicArrayWriteRule.infer(&tc_input, &mut state)?;
+
+        // Check that we end up with expected results in the state
+        assert_eq!(state.inferences(g_tv).len(), 1);
+        assert!(state.inferences(g_tv).contains(&TE::eq(b_tv)));
+
+        assert_eq!(state.inferences(f_tv).len(), 1);
+        assert!(state.inferences(f_tv).contains(&TE::unsigned_word(None)));
+
+        assert!(state.inferences(e_tv).is_empty());
+
+        assert_eq!(state.inferences(d_tv).len(), 1);
+        assert!(state.inferences(d_tv).contains(&TE::dyn_array(b_tv)));
+
+        assert!(state.inferences(c_tv).is_empty());
+
+        assert_eq!(state.inferences(b_tv).len(), 1);
+        assert!(state.inferences(b_tv).contains(&TE::eq(g_tv)));
+
+        assert!(state.inferences(a_tv).is_empty());
+
+        Ok(())
+    }
+}
