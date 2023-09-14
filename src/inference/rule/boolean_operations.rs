@@ -53,290 +53,318 @@ impl InferenceRule for BooleanOpsRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         inference::{
-//             expression::TE,
-//             rule::{boolean_operations::BooleanOpsRule, InferenceRule},
-//             state::InferenceState,
-//         },
-//         vm::value::{Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn creates_correct_equations_for_lt() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::LessThan {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [left_tv, right_tv, operator_tv] = state.register_many([left,
-// right, operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_tv).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(right_tv).
-// contains(&TE::unsigned_word(None)));         assert!(state.
-// inferences(operator_tv).contains(&TE::bool()));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_gt() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::GreaterThan {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [left_tv, right_tv, operator_tv] = state.register_many([left,
-// right, operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_tv).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(right_tv).
-// contains(&TE::unsigned_word(None)));         assert!(state.
-// inferences(operator_tv).contains(&TE::bool()));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_slt() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::SignedLessThan {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [left_tv, right_tv, operator_tv] = state.register_many([left,
-// right, operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_tv).contains(&TE::signed_word(None)));
-//         assert!(state.inferences(right_tv).contains(&TE::signed_word(None)));
-//         assert!(state.inferences(operator_tv).contains(&TE::bool()));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_sgt() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::SignedGreaterThan {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [left_tv, right_tv, operator_tv] = state.register_many([left,
-// right, operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_tv).contains(&TE::signed_word(None)));
-//         assert!(state.inferences(right_tv).contains(&TE::signed_word(None)));
-//         assert!(state.inferences(operator_tv).contains(&TE::bool()));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_eq() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::Equals {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [left_tv, right_tv, operator_tv] = state.register_many([left,
-// right, operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(operator_tv).contains(&TE::bool()));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_is_zero() -> anyhow::Result<()> {
-//         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::IsZero {
-//                 number: value.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [value_tv, operator_tv] = state.register_many([value,
-// operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(value_tv).contains(&TE::numeric(None)));
-//         assert!(state.inferences(operator_tv).contains(&TE::bool()));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_and() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::And {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [left_tv, right_tv, operator_tv] = state.register_many([left,
-// right, operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_or() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::Or {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [left_tv, right_tv, operator_tv] = state.register_many([left,
-// right, operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_xor() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::Xor {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [left_tv, right_tv, operator_tv] = state.register_many([left,
-// right, operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_not() -> anyhow::Result<()> {
-//         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let operator = RSV::new_synthetic(
-//             2,
-//             RSVD::Not {
-//                 value: value.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the rule
-//         let mut state = InferenceState::empty();
-//         let [value_tv, operator_tv] = state.register_many([value,
-// operator.clone()]);         let tc_input =
-// state.value_unchecked(operator_tv).clone();         BooleanOpsRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(value_tv).contains(&TE::bytes(None)));
-//         assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        inference::{
+            expression::TE,
+            rule::{boolean_operations::BooleanOpsRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn creates_correct_equations_for_lt() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::LessThan {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let [left_tv, right_tv] = match tc_input.data() {
+            TCSVD::LessThan { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(right_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bool()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_gt() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::GreaterThan {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let [left_tv, right_tv] = match tc_input.data() {
+            TCSVD::GreaterThan { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(right_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bool()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_slt() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::SignedLessThan {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let [left_tv, right_tv] = match tc_input.data() {
+            TCSVD::SignedLessThan { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_tv).contains(&TE::signed_word(None)));
+        assert!(state.inferences(right_tv).contains(&TE::signed_word(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bool()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_sgt() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::SignedGreaterThan {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let [left_tv, right_tv] = match tc_input.data() {
+            TCSVD::SignedGreaterThan { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_tv).contains(&TE::signed_word(None)));
+        assert!(state.inferences(right_tv).contains(&TE::signed_word(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bool()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_eq() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::Equals {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let [left_tv, right_tv] = match tc_input.data() {
+            TCSVD::Equals { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bool()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_is_zero() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::IsZero {
+                number: value.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let value_tv = match tc_input.data() {
+            TCSVD::IsZero { number } => number.type_var(),
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(value_tv).contains(&TE::numeric(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bool()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_and() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::And {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let [left_tv, right_tv] = match tc_input.data() {
+            TCSVD::And { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_or() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::Or {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let [left_tv, right_tv] = match tc_input.data() {
+            TCSVD::Or { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_xor() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::Xor {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let [left_tv, right_tv] = match tc_input.data() {
+            TCSVD::Xor { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(right_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_not() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let operator = RSV::new_synthetic(
+            2,
+            RSVD::Not {
+                value: value.clone(),
+            },
+        );
+
+        // Create the state and run the rule
+        let mut state = InferenceState::empty();
+        let operator_tv = state.register(operator);
+        let tc_input = state.value_unchecked(operator_tv).clone();
+        let value_tv = match tc_input.data() {
+            TCSVD::Not { value } => value.type_var(),
+            _ => panic!("Incorrect payload"),
+        };
+        BooleanOpsRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(value_tv).contains(&TE::bytes(None)));
+        assert!(state.inferences(operator_tv).contains(&TE::bytes(None)));
+
+        Ok(())
+    }
+}

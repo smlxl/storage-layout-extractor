@@ -59,7 +59,8 @@ impl InferenceState {
     ///
     /// This function recurses into the children of `value`, and so registers
     /// both `value` and each child node in the state with an associated type
-    /// variable. This means that you
+    /// variable. This means that you do not have easy access to the type
+    /// variables of the child nodes.
     ///
     /// # Registration Uniqueness
     ///
@@ -392,27 +393,6 @@ impl InferenceState {
 
         // Return the type variable
         new_value
-    }
-
-    /// Registers a symbolic `values` in the state, returning the associated
-    /// type variables in the corresponding order.
-    ///
-    /// If any one `value` already exists in the state, then the existing type
-    /// variable is returned. If not, a fresh type variable is associated
-    /// with the value and returned.
-    #[must_use]
-    pub fn register_many<const N: usize>(
-        &mut self,
-        values: [RuntimeBoxedVal; N],
-    ) -> [TypeVariable; N] {
-        let mut iterator = values.into_iter();
-        array::from_fn(|_| {
-            self.register(
-                iterator
-                    .next()
-                    .expect("The number of values should always be the same"),
-            )
-        })
     }
 
     /// Adds the provided `expression` to the typing expressions for the

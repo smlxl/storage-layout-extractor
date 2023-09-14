@@ -28,34 +28,37 @@ impl InferenceRule for StorageKeyRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         inference::{
-//             expression::TE,
-//             rule::{storage_key::StorageKeyRule, InferenceRule},
-//             state::InferenceState,
-//         },
-//         vm::value::{Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn storage_keys_get_correct_equation() -> anyhow::Result<()> {
-//         // Create some values
-//         let key = RSV::new_value(0, Provenance::Synthetic);
-//         let slot = RSV::new_synthetic(1, RSVD::StorageSlot { key: key.clone()
-// });
-//
-//         // Create the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [key_tv, slot_tv] = state.register_many([key, slot.clone()]);
-//         let tc_input = state.value_unchecked(slot_tv).clone();
-//         StorageKeyRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the equations
-//         assert!(state.inferences(key_tv).contains(&TE::unsigned_word(None)));
-//         assert!(state.inferences(slot_tv).is_empty());
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        inference::{
+            expression::TE,
+            rule::{storage_key::StorageKeyRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn storage_keys_get_correct_equation() -> anyhow::Result<()> {
+        // Create some values
+        let key = RSV::new_value(0, Provenance::Synthetic);
+        let slot = RSV::new_synthetic(1, RSVD::StorageSlot { key: key.clone() });
+
+        // Create the state and run inference
+        let mut state = InferenceState::empty();
+        let slot_tv = state.register(slot);
+        let tc_input = state.value_unchecked(slot_tv).clone();
+        let key_tv = match tc_input.data() {
+            TCSVD::StorageSlot { key } => key.type_var(),
+            _ => panic!("Incorrect payload"),
+        };
+        StorageKeyRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the equations
+        assert!(state.inferences(key_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(slot_tv).is_empty());
+
+        Ok(())
+    }
+}

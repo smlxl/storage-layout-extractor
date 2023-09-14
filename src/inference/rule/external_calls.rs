@@ -99,105 +99,123 @@ impl InferenceRule for ExternalCallRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         inference::{
-//             expression::TE,
-//             rule::{external_calls::ExternalCallRule, InferenceRule},
-//             state::InferenceState,
-//         },
-//         vm::value::{Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     #[allow(clippy::many_single_char_names)] // They correspond to the above
-// spec     fn creates_correct_equations_for_call_with_value() ->
-// anyhow::Result<()> {         // Create some values
-//         let ret_size = RSV::new_value(0, Provenance::Synthetic);
-//         let ret_offset = RSV::new_value(1, Provenance::Synthetic);
-//         let arg_data = RSV::new_value(2, Provenance::Synthetic);
-//         let value = RSV::new_value(3, Provenance::Synthetic);
-//         let address = RSV::new_value(4, Provenance::Synthetic);
-//         let gas = RSV::new_value(5, Provenance::Synthetic);
-//         let call = RSV::new(
-//             6,
-//             RSVD::CallWithValue {
-//                 gas:           gas.clone(),
-//                 address:       address.clone(),
-//                 value:         value.clone(),
-//                 argument_data: arg_data.clone(),
-//                 ret_offset:    ret_offset.clone(),
-//                 ret_size:      ret_size.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Create the state and register the values
-//         let mut state = InferenceState::empty();
-//         let [g, f, _, d, c, b, a] = state.register_many([
-//             ret_size,
-//             ret_offset,
-//             arg_data,
-//             value,
-//             address,
-//             gas,
-//             call.clone(),
-//         ]);
-//
-//         // Run the rule
-//         let tc_input = state.value_unchecked(a).clone();
-//         ExternalCallRule.infer(&tc_input, &mut state)?;
-//
-//         // Check that the equations are correct
-//         assert!(state.inferences(g).contains(&TE::unsigned_word(None)));
-//         assert!(state.inferences(f).contains(&TE::unsigned_word(None)));
-//         assert!(state.inferences(d).contains(&TE::unsigned_word(None)));
-//         assert!(state.inferences(c).contains(&TE::address()));
-//         assert!(state.inferences(b).contains(&TE::unsigned_word(None)));
-//         assert!(state.inferences(a).contains(&TE::address()));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     #[allow(clippy::many_single_char_names)] // They correspond to the above
-// spec     fn creates_correct_equations_for_call_without_value() ->
-// anyhow::Result<()> {         // Create some values
-//         let ret_size = RSV::new_value(0, Provenance::Synthetic);
-//         let ret_offset = RSV::new_value(1, Provenance::Synthetic);
-//         let arg_data = RSV::new_value(2, Provenance::Synthetic);
-//         let address = RSV::new_value(4, Provenance::Synthetic);
-//         let gas = RSV::new_value(5, Provenance::Synthetic);
-//         let call = RSV::new(
-//             6,
-//             RSVD::CallWithoutValue {
-//                 gas:           gas.clone(),
-//                 address:       address.clone(),
-//                 argument_data: arg_data.clone(),
-//                 ret_offset:    ret_offset.clone(),
-//                 ret_size:      ret_size.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Create the state and register the values
-//         let mut state = InferenceState::empty();
-//         let [f, e, _, c, b, a] =
-//             state.register_many([ret_size, ret_offset, arg_data, address,
-// gas, call.clone()]);
-//
-//         // Run the rule
-//         let tc_input = state.value_unchecked(a).clone();
-//         ExternalCallRule.infer(&tc_input, &mut state)?;
-//
-//         // Check that the equations are correct
-//         assert!(state.inferences(f).contains(&TE::unsigned_word(None)));
-//         assert!(state.inferences(e).contains(&TE::unsigned_word(None)));
-//         assert!(state.inferences(c).contains(&TE::address()));
-//         assert!(state.inferences(b).contains(&TE::unsigned_word(None)));
-//         assert!(state.inferences(a).contains(&TE::address()));
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        inference::{
+            expression::TE,
+            rule::{external_calls::ExternalCallRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    #[allow(clippy::many_single_char_names)] // They correspond to the above spec
+    fn creates_correct_equations_for_call_with_value() -> anyhow::Result<()> {
+        // Create some values
+        let ret_size = RSV::new_value(0, Provenance::Synthetic);
+        let ret_offset = RSV::new_value(1, Provenance::Synthetic);
+        let arg_data = RSV::new_value(2, Provenance::Synthetic);
+        let value = RSV::new_value(3, Provenance::Synthetic);
+        let address = RSV::new_value(4, Provenance::Synthetic);
+        let gas = RSV::new_value(5, Provenance::Synthetic);
+        let call = RSV::new_synthetic(
+            6,
+            RSVD::CallWithValue {
+                gas:           gas.clone(),
+                address:       address.clone(),
+                value:         value.clone(),
+                argument_data: arg_data.clone(),
+                ret_offset:    ret_offset.clone(),
+                ret_size:      ret_size.clone(),
+            },
+        );
+
+        // Create the state and register the values
+        let mut state = InferenceState::empty();
+        let a = state.register(call);
+        let tc_input = state.value_unchecked(a).clone();
+        let [b, c, d, _, f, g] = match tc_input.data() {
+            TCSVD::CallWithValue {
+                gas,
+                address,
+                value,
+                argument_data,
+                ret_offset,
+                ret_size,
+            } => [
+                gas.type_var(),
+                address.type_var(),
+                value.type_var(),
+                argument_data.type_var(),
+                ret_offset.type_var(),
+                ret_size.type_var(),
+            ],
+            _ => panic!("Incorrect payload"),
+        };
+        ExternalCallRule.infer(&tc_input, &mut state)?;
+
+        // Check that the equations are correct
+        assert!(state.inferences(g).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(f).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(d).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(c).contains(&TE::address()));
+        assert!(state.inferences(b).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(a).contains(&TE::address()));
+
+        Ok(())
+    }
+
+    #[test]
+    #[allow(clippy::many_single_char_names)] // They correspond to the above spec
+    fn creates_correct_equations_for_call_without_value() -> anyhow::Result<()> {
+        // Create some values
+        let ret_size = RSV::new_value(0, Provenance::Synthetic);
+        let ret_offset = RSV::new_value(1, Provenance::Synthetic);
+        let arg_data = RSV::new_value(2, Provenance::Synthetic);
+        let address = RSV::new_value(4, Provenance::Synthetic);
+        let gas = RSV::new_value(5, Provenance::Synthetic);
+        let call = RSV::new_synthetic(
+            6,
+            RSVD::CallWithoutValue {
+                gas:           gas.clone(),
+                address:       address.clone(),
+                argument_data: arg_data.clone(),
+                ret_offset:    ret_offset.clone(),
+                ret_size:      ret_size.clone(),
+            },
+        );
+
+        // Create the state and register the values
+        let mut state = InferenceState::empty();
+        let a = state.register(call);
+        let tc_input = state.value_unchecked(a).clone();
+        let [b, c, _, e, f] = match tc_input.data() {
+            TCSVD::CallWithoutValue {
+                gas,
+                address,
+                argument_data,
+                ret_offset,
+                ret_size,
+            } => [
+                gas.type_var(),
+                address.type_var(),
+                argument_data.type_var(),
+                ret_offset.type_var(),
+                ret_size.type_var(),
+            ],
+            _ => panic!("Incorrect payload"),
+        };
+        ExternalCallRule.infer(&tc_input, &mut state)?;
+
+        // Check that the equations are correct
+        assert!(state.inferences(f).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(e).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(c).contains(&TE::address()));
+        assert!(state.inferences(b).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(a).contains(&TE::address()));
+
+        Ok(())
+    }
+}

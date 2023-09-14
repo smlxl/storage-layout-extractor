@@ -59,65 +59,90 @@ impl InferenceRule for MappingAccessRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         inference::{
-//             expression::TE,
-//             rule::{mapping_access::MappingAccessRule, InferenceRule},
-//             state::InferenceState,
-//         },
-//         vm::value::{known::KnownWord, Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn equates_slot_type_with_mapping() -> anyhow::Result<()> {
-//         // Create a value of the relevant kind
-//         let v_1 = RSV::new_value(0, Provenance::Synthetic);
-//         let c_1 = RSV::new_known_value(1, KnownWord::from(1),
-// Provenance::Synthetic);         let mapping_slot = RSV::new(
-//             2,
-//             RSVD::StorageSlot { key: c_1.clone() },
-//             Provenance::Synthetic,
-//         );
-//         let mapping = RSV::new(
-//             3,
-//             RSVD::MappingAccess {
-//                 key:  v_1.clone(),
-//                 slot: mapping_slot.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//         let outer_slot = RSV::new(
-//             4,
-//             RSVD::StorageSlot {
-//                 key: mapping.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Set up the unifier state
-//         let mut state = InferenceState::empty();
-//         let v_1_tv = state.register(v_1);
-//         let c_1_tv = state.register(c_1);
-//         let mapping_slot_tv = state.register(mapping_slot);
-//         let mapping_tv = state.register(mapping);
-//         let outer_slot_tv = state.register(outer_slot.clone());
-//
-//         // Run the inference rule
-//         let tc_input = state.value_unchecked(outer_slot_tv).clone();
-//         MappingAccessRule.infer(&tc_input, &mut state)?;
-//
-//         assert!(state.inferences(v_1_tv).is_empty());
-//         assert!(state.inferences(c_1_tv).is_empty());
-//         assert_eq!(state.inferences(mapping_slot_tv).len(), 1);
-//         assert!(state.inferences(mapping_slot_tv).contains(&TE::Mapping {
-//             key:   v_1_tv,
-//             value: outer_slot_tv,
-//         }));
-//         assert!(state.inferences(mapping_tv).is_empty());
-//         assert!(state.inferences(outer_slot_tv).is_empty());
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        constant::WORD_SIZE_BITS,
+        inference::{
+            expression::{Span, TE},
+            rule::{mapping_access::MappingAccessRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn equates_slot_type_with_mapping() -> anyhow::Result<()> {
+        // Create a value of the relevant kind
+        let v_1 = RSV::new_value(0, Provenance::Synthetic);
+        let c_1 = RSV::new_known_value(1, KnownWord::from(1), Provenance::Synthetic, None);
+        let mapping_slot = RSV::new_synthetic(2, RSVD::StorageSlot { key: c_1.clone() });
+        let mapping = RSV::new_synthetic(
+            3,
+            RSVD::MappingIndex {
+                key:        v_1.clone(),
+                slot:       mapping_slot.clone(),
+                projection: None,
+            },
+        );
+        let outer_slot = RSV::new_synthetic(
+            4,
+            RSVD::StorageSlot {
+                key: mapping.clone(),
+            },
+        );
+
+        // Set up the unifier state
+        let mut state = InferenceState::empty();
+        let outer_slot_tv = state.register(outer_slot);
+        let tc_input = state.value_unchecked(outer_slot_tv).clone();
+        let [mapping_tv, mapping_slot_tv, c_1_tv, v_1_tv] = match tc_input.data() {
+            TCSVD::StorageSlot { key } => {
+                let mapping_tv = key.type_var();
+                match key.data() {
+                    TCSVD::MappingIndex { key, slot, .. } => {
+                        let mapping_slot_tv = slot.type_var();
+                        let v_1_tv = key.type_var();
+                        match slot.data() {
+                            TCSVD::StorageSlot { key } => {
+                                let c_1_tv = key.type_var();
+
+                                [mapping_tv, mapping_slot_tv, c_1_tv, v_1_tv]
+                            }
+                            _ => panic!("Incorrect payload"),
+                        }
+                    }
+                    _ => panic!("Incorrect payload"),
+                }
+            }
+            _ => panic!("Incorrect payload"),
+        };
+        MappingAccessRule.infer(&tc_input, &mut state)?;
+
+        assert!(state.inferences(v_1_tv).is_empty());
+        assert!(state.inferences(c_1_tv).is_empty());
+        assert_eq!(state.inferences(mapping_slot_tv).len(), 1);
+        let val_tv = state
+            .inferences(mapping_slot_tv)
+            .iter()
+            .find(|i| matches!(i, TE::Mapping { key, .. } if *key == v_1_tv));
+        match val_tv {
+            Some(TE::Mapping { key, value }) => {
+                assert_eq!(*key, v_1_tv);
+
+                assert!(
+                    state.inferences(value).contains(&TE::packed_of(vec![Span::new(
+                        outer_slot_tv,
+                        0,
+                        WORD_SIZE_BITS
+                    )]))
+                );
+            }
+            _ => panic!("Incorrect payload"),
+        }
+        assert!(state.inferences(mapping_tv).is_empty());
+        assert!(state.inferences(outer_slot_tv).is_empty());
+
+        Ok(())
+    }
+}

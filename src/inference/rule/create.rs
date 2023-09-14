@@ -41,76 +41,82 @@ impl InferenceRule for CreateContractRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         constant::WORD_SIZE_BITS,
-//         inference::{
-//             expression::TE,
-//             rule::{create::CreateContractRule, InferenceRule},
-//             state::InferenceState,
-//         },
-//         vm::value::{Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn creates_correct_equations_for_create() -> anyhow::Result<()> {
-//         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let data = RSV::new_value(1, Provenance::Synthetic);
-//         let create = RSV::new_synthetic(
-//             2,
-//             RSVD::Create {
-//                 value: value.clone(),
-//                 data:  data.clone(),
-//             },
-//         );
-//
-//         // Create the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [value_tv, data_tv, create_tv] = state.register_many([value,
-// data, create.clone()]);         let tc_input =
-// state.value_unchecked(create_tv).clone();         CreateContractRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check that the equations are right
-//         assert!(state.inferences(value_tv).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(data_tv).
-// is_empty());         assert!(state.inferences(create_tv).contains(&
-// TE::address()));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_create2() -> anyhow::Result<()> {
-//         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let data = RSV::new_value(1, Provenance::Synthetic);
-//         let salt = RSV::new_value(2, Provenance::Synthetic);
-//         let create = RSV::new_synthetic(
-//             3,
-//             RSVD::Create2 {
-//                 value: value.clone(),
-//                 salt:  salt.clone(),
-//                 data:  data.clone(),
-//             },
-//         );
-//
-//         // Create the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [value_tv, salt_tv, data_tv, create_tv] =
-//             state.register_many([value, salt, data, create.clone()]);
-//         let tc_input = state.value_unchecked(create_tv).clone();
-//         CreateContractRule.infer(&tc_input, &mut state)?;
-//
-//         // Check that the equations are right
-//         assert!(state.inferences(value_tv).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(salt_tv).
-// contains(&TE::bytes(Some(WORD_SIZE_BITS))));         assert!(state.
-// inferences(data_tv).is_empty());         assert!(state.inferences(create_tv).
-// contains(&TE::address()));
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        constant::WORD_SIZE_BITS,
+        inference::{
+            expression::TE,
+            rule::{create::CreateContractRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn creates_correct_equations_for_create() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let data = RSV::new_value(1, Provenance::Synthetic);
+        let create = RSV::new_synthetic(
+            2,
+            RSVD::Create {
+                value: value.clone(),
+                data:  data.clone(),
+            },
+        );
+
+        // Create the state and run inference
+        let mut state = InferenceState::empty();
+        let create_tv = state.register(create);
+        let tc_input = state.value_unchecked(create_tv).clone();
+        let [value_tv, data_tv] = match tc_input.data() {
+            TCSVD::Create { value, data } => [value.type_var(), data.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        CreateContractRule.infer(&tc_input, &mut state)?;
+
+        // Check that the equations are right
+        assert!(state.inferences(value_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(data_tv).is_empty());
+        assert!(state.inferences(create_tv).contains(&TE::address()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_create2() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let data = RSV::new_value(1, Provenance::Synthetic);
+        let salt = RSV::new_value(2, Provenance::Synthetic);
+        let create = RSV::new_synthetic(
+            3,
+            RSVD::Create2 {
+                value: value.clone(),
+                salt:  salt.clone(),
+                data:  data.clone(),
+            },
+        );
+
+        // Create the state and run inference
+        let mut state = InferenceState::empty();
+        let create_tv = state.register(create);
+        let tc_input = state.value_unchecked(create_tv).clone();
+        let [value_tv, data_tv, salt_tv] = match tc_input.data() {
+            TCSVD::Create2 { value, data, salt } => {
+                [value.type_var(), data.type_var(), salt.type_var()]
+            }
+            _ => panic!("Incorrect payload"),
+        };
+        CreateContractRule.infer(&tc_input, &mut state)?;
+
+        // Check that the equations are right
+        assert!(state.inferences(value_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(salt_tv).contains(&TE::bytes(Some(WORD_SIZE_BITS))));
+        assert!(state.inferences(data_tv).is_empty());
+        assert!(state.inferences(create_tv).contains(&TE::address()));
+
+        Ok(())
+    }
+}

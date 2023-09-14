@@ -116,15 +116,13 @@ mod test {
         let slot_index_constant =
             RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
-        let mapping_access = RSV::new(
+        let mapping_access = RSV::new_synthetic(
             2,
             RSVD::MappingIndex {
                 key:        mapping_key.clone(),
                 slot:       slot_index_constant.clone(),
                 projection: None,
             },
-            Provenance::Synthetic,
-            None,
         );
 
         let state = InferenceState::empty();
@@ -156,25 +154,21 @@ mod test {
         let slot_index_constant =
             RSV::new_known_value(0, KnownWord::from(7), Provenance::Synthetic, None);
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
-        let mapping_access = RSV::new(
+        let mapping_access = RSV::new_synthetic(
             2,
             RSVD::MappingIndex {
                 key:        mapping_key.clone(),
                 slot:       slot_index_constant.clone(),
                 projection: None,
             },
-            Provenance::Synthetic,
-            None,
         );
         let outer_key = RSV::new_value(1, Provenance::Synthetic);
-        let write = RSV::new(
+        let write = RSV::new_synthetic(
             7,
             RSVD::StorageWrite {
                 key:   outer_key.clone(),
                 value: mapping_access,
             },
-            Provenance::Synthetic,
-            None,
         );
 
         let state = InferenceState::empty();
@@ -217,14 +211,12 @@ mod test {
     fn lifts_storage_slots_in_s_stores() -> anyhow::Result<()> {
         let storage_key = RSV::new_known_value(0, KnownWord::from(1), Provenance::Synthetic, None);
         let storage_value = RSV::new_value(1, Provenance::Synthetic);
-        let storage_store = RSV::new(
+        let storage_store = RSV::new_synthetic(
             2,
             RSVD::StorageWrite {
                 key:   storage_key.clone(),
                 value: storage_value.clone(),
             },
-            Provenance::Synthetic,
-            None,
         );
 
         let state = InferenceState::empty();
@@ -248,14 +240,12 @@ mod test {
     fn lifts_storage_slots_in_dyn_arrays() -> anyhow::Result<()> {
         let input_slot = RSV::new_value(0, Provenance::Synthetic);
         let input_index = RSV::new_value(1, Provenance::Synthetic);
-        let dyn_array = RSV::new(
+        let dyn_array = RSV::new_synthetic(
             2,
             RSVD::DynamicArrayIndex {
                 slot:  input_slot.clone(),
                 index: input_index.clone(),
             },
-            Provenance::Synthetic,
-            None,
         );
 
         let state = InferenceState::empty();
@@ -280,24 +270,20 @@ mod test {
 
     #[test]
     fn does_not_re_wrap_slots_in_mappings() -> anyhow::Result<()> {
-        let input_slot = RSV::new(
+        let input_slot = RSV::new_synthetic(
             0,
             RSVD::StorageSlot {
                 key: RSV::new_value(1, Provenance::Synthetic),
             },
-            Provenance::Synthetic,
-            None,
         );
         let mapping_key = RSV::new_value(1, Provenance::Synthetic);
-        let mapping_access = RSV::new(
+        let mapping_access = RSV::new_synthetic(
             2,
             RSVD::MappingIndex {
                 key:        mapping_key.clone(),
                 slot:       input_slot.clone(),
                 projection: None,
             },
-            Provenance::Synthetic,
-            None,
         );
 
         let state = InferenceState::empty();
@@ -321,23 +307,19 @@ mod test {
 
     #[test]
     fn does_not_re_wrap_slots_in_s_stores() -> anyhow::Result<()> {
-        let input_slot = RSV::new(
+        let input_slot = RSV::new_synthetic(
             0,
             RSVD::StorageSlot {
                 key: RSV::new_value(1, Provenance::Synthetic),
             },
-            Provenance::Synthetic,
-            None,
         );
         let storage_value = RSV::new_value(1, Provenance::Synthetic);
-        let storage_store = RSV::new(
+        let storage_store = RSV::new_synthetic(
             2,
             RSVD::StorageWrite {
                 key:   input_slot.clone(),
                 value: storage_value.clone(),
             },
-            Provenance::Synthetic,
-            None,
         );
 
         let state = InferenceState::empty();
@@ -356,23 +338,19 @@ mod test {
 
     #[test]
     fn does_not_re_wrap_slots_in_dyn_arrays() -> anyhow::Result<()> {
-        let input_slot = RSV::new(
+        let input_slot = RSV::new_synthetic(
             0,
             RSVD::StorageSlot {
                 key: RSV::new_value(1, Provenance::Synthetic),
             },
-            Provenance::Synthetic,
-            None,
         );
         let input_index = RSV::new_value(1, Provenance::Synthetic);
-        let dyn_array = RSV::new(
+        let dyn_array = RSV::new_synthetic(
             2,
             RSVD::DynamicArrayIndex {
                 slot:  input_slot.clone(),
                 index: input_index.clone(),
             },
-            Provenance::Synthetic,
-            None,
         );
 
         let state = InferenceState::empty();

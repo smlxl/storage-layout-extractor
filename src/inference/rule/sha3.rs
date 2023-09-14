@@ -30,67 +30,71 @@ impl InferenceRule for HashRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         constant::WORD_SIZE_BITS,
-//         inference::{
-//             expression::TE,
-//             rule::{sha3::HashRule, InferenceRule},
-//             state::InferenceState,
-//         },
-//         vm::value::{Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn creates_correct_equations_for_sha3() -> anyhow::Result<()> {
-//         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let hash = RSV::new(
-//             1,
-//             RSVD::Sha3 {
-//                 data: value.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Create the state and run the inference
-//         let mut state = InferenceState::empty();
-//         let [value_tv, hash_tv] = state.register_many([value, hash.clone()]);
-//         let tc_input = state.value_unchecked(hash_tv).clone();
-//         HashRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the correct equations
-//         assert!(state.inferences(value_tv).is_empty());
-//         assert!(state.inferences(hash_tv).contains(&
-// TE::bytes(Some(WORD_SIZE_BITS))));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_ext_code_hash() -> anyhow::Result<()> {
-//         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let hash = RSV::new(
-//             1,
-//             RSVD::ExtCodeHash {
-//                 address: value.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Create the state and run the inference
-//         let mut state = InferenceState::empty();
-//         let [value_tv, hash_tv] = state.register_many([value, hash.clone()]);
-//         let tc_input = state.value_unchecked(hash_tv).clone();
-//         HashRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the correct equations
-//         assert!(state.inferences(value_tv).contains(&TE::address()));
-//         assert!(state.inferences(hash_tv).contains(&
-// TE::bytes(Some(WORD_SIZE_BITS))));
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        constant::WORD_SIZE_BITS,
+        inference::{
+            expression::TE,
+            rule::{sha3::HashRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn creates_correct_equations_for_sha3() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let hash = RSV::new_synthetic(
+            1,
+            RSVD::Sha3 {
+                data: value.clone(),
+            },
+        );
+
+        // Create the state and run the inference
+        let mut state = InferenceState::empty();
+        let hash_tv = state.register(hash);
+        let tc_input = state.value_unchecked(hash_tv).clone();
+        let value_tv = match tc_input.data() {
+            TCSVD::Sha3 { data } => data.type_var(),
+            _ => panic!("Incorrect payload"),
+        };
+        HashRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the correct equations
+        assert!(state.inferences(value_tv).is_empty());
+        assert!(state.inferences(hash_tv).contains(&TE::bytes(Some(WORD_SIZE_BITS))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_ext_code_hash() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let hash = RSV::new_synthetic(
+            1,
+            RSVD::ExtCodeHash {
+                address: value.clone(),
+            },
+        );
+
+        // Create the state and run the inference
+        let mut state = InferenceState::empty();
+        let hash_tv = state.register(hash);
+        let tc_input = state.value_unchecked(hash_tv).clone();
+        let value_tv = match tc_input.data() {
+            TCSVD::ExtCodeHash { address } => address.type_var(),
+            _ => panic!("Incorrect payload"),
+        };
+        HashRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the correct equations
+        assert!(state.inferences(value_tv).contains(&TE::address()));
+        assert!(state.inferences(hash_tv).contains(&TE::bytes(Some(WORD_SIZE_BITS))));
+
+        Ok(())
+    }
+}

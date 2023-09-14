@@ -44,48 +44,47 @@ impl InferenceRule for StorageWriteRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         inference::{
-//             expression::TE,
-//             rule::{storage_write::StorageWriteRule, InferenceRule},
-//             state::InferenceState,
-//         },
-//         vm::value::{Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn equates_slot_type_and_value_type() -> anyhow::Result<()> {
-//         // Create a value of the relevant kind
-//         let input_key = RSV::new_value(0, Provenance::Synthetic);
-//         let input_value = RSV::new_value(1, Provenance::Synthetic);
-//         let write = RSV::new(
-//             2,
-//             RSVD::StorageWrite {
-//                 key:   input_key.clone(),
-//                 value: input_value.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Set up the unifier state
-//         let mut state = InferenceState::empty();
-//         let key_tv = state.register(input_key);
-//         let value_tv = state.register(input_value);
-//         let write_tv = state.register(write.clone());
-//
-//         // Run the inference rule
-//         let tc_input = state.value_unchecked(write_tv).clone();
-//         StorageWriteRule.infer(&tc_input, &mut state)?;
-//
-//         // Check that the equalities hold and that we only get the judgements
-// we expect         assert_eq!(state.inferences(key_tv).len(), 1);
-//         assert!(state.inferences(key_tv).contains(&TE::eq(value_tv)));
-//         assert_eq!(state.inferences(value_tv).len(), 1);
-//         assert!(state.inferences(value_tv).contains(&TE::eq(key_tv)));
-//         assert!(state.inferences(write_tv).is_empty());
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        inference::{
+            expression::TE,
+            rule::{storage_write::StorageWriteRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn equates_slot_type_and_value_type() -> anyhow::Result<()> {
+        // Create a value of the relevant kind
+        let input_key = RSV::new_value(0, Provenance::Synthetic);
+        let input_value = RSV::new_value(1, Provenance::Synthetic);
+        let write = RSV::new_synthetic(
+            2,
+            RSVD::StorageWrite {
+                key:   input_key.clone(),
+                value: input_value.clone(),
+            },
+        );
+
+        // Set up the unifier state
+        let mut state = InferenceState::empty();
+        let write_tv = state.register(write);
+        let tc_input = state.value_unchecked(write_tv).clone();
+        let [key_tv, value_tv] = match tc_input.data() {
+            TCSVD::StorageWrite { key, value } => [key.type_var(), value.type_var()],
+            _ => panic!("Invalid payload"),
+        };
+        StorageWriteRule.infer(&tc_input, &mut state)?;
+
+        // Check that the equalities hold and that we only get the judgements we expect
+        assert_eq!(state.inferences(key_tv).len(), 1);
+        assert!(state.inferences(key_tv).contains(&TE::eq(value_tv)));
+        assert_eq!(state.inferences(value_tv).len(), 1);
+        assert!(state.inferences(value_tv).contains(&TE::eq(key_tv)));
+        assert!(state.inferences(write_tv).is_empty());
+
+        Ok(())
+    }
+}

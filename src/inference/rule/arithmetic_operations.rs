@@ -63,305 +63,324 @@ impl InferenceRule for ArithmeticOperationRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         inference::{
-//             expression::TE,
-//             rule::{arithmetic_operations::ArithmeticOperationRule,
-// InferenceRule},             state::InferenceState,
-//         },
-//         vm::value::{known::KnownWord, Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn creates_correct_equations_for_add() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let add = RSV::new(
-//             2,
-//             RSVD::Add {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [left_ty, right_ty, add_ty] = state.register_many([left, right,
-// add.clone()]);         let tc_input = state.value_unchecked(&add_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
-//         assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
-//         assert!(state.inferences(add_ty).contains(&TE::numeric(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_multiply() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let mul = RSV::new(
-//             2,
-//             RSVD::Add {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [left_ty, right_ty, mul_ty] = state.register_many([left, right,
-// mul.clone()]);         let tc_input = state.value_unchecked(&mul_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
-//         assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
-//         assert!(state.inferences(mul_ty).contains(&TE::numeric(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_subtract() -> anyhow::Result<()> {
-//         // Create some values
-//         let left = RSV::new_value(0, Provenance::Synthetic);
-//         let right = RSV::new_value(1, Provenance::Synthetic);
-//         let sub = RSV::new(
-//             2,
-//             RSVD::Add {
-//                 left:  left.clone(),
-//                 right: right.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [left_ty, right_ty, sub_ty] = state.register_many([left, right,
-// sub.clone()]);         let tc_input = state.value_unchecked(&sub_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
-//         assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
-//         assert!(state.inferences(sub_ty).contains(&TE::numeric(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_divide() -> anyhow::Result<()> {
-//         // Create some values
-//         let dividend = RSV::new_value(0, Provenance::Synthetic);
-//         let divisor = RSV::new_value(1, Provenance::Synthetic);
-//         let div = RSV::new(
-//             2,
-//             RSVD::Divide {
-//                 dividend: dividend.clone(),
-//                 divisor:  divisor.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [dividend_ty, divisor_ty, div_ty] =
-//             state.register_many([dividend, divisor, div.clone()]);
-//         let tc_input = state.value_unchecked(div_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(dividend_ty).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(divisor_ty).
-// contains(&TE::unsigned_word(None)));         assert!(state.
-// inferences(div_ty).contains(&TE::unsigned_word(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_signed_divide() -> anyhow::Result<()> {
-//         // Create some values
-//         let dividend = RSV::new_value(0, Provenance::Synthetic);
-//         let divisor = RSV::new_value(1, Provenance::Synthetic);
-//         let div = RSV::new(
-//             2,
-//             RSVD::SignedDivide {
-//                 dividend: dividend.clone(),
-//                 divisor:  divisor.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [dividend_ty, divisor_ty, div_ty] =
-//             state.register_many([dividend, divisor, div.clone()]);
-//         let tc_input = state.value_unchecked(div_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(dividend_ty).contains(&
-// TE::signed_word(None)));         assert!(state.inferences(divisor_ty).
-// contains(&TE::signed_word(None)));         assert!(state.inferences(div_ty).
-// contains(&TE::signed_word(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_modulo() -> anyhow::Result<()> {
-//         // Create some values
-//         let dividend = RSV::new_value(0, Provenance::Synthetic);
-//         let divisor = RSV::new_value(1, Provenance::Synthetic);
-//         let modulo = RSV::new(
-//             2,
-//             RSVD::Modulo {
-//                 dividend: dividend.clone(),
-//                 divisor:  divisor.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [dividend_ty, divisor_ty, div_ty] =
-//             state.register_many([dividend, divisor, modulo.clone()]);
-//         let tc_input = state.value_unchecked(div_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(dividend_ty).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(divisor_ty).
-// contains(&TE::unsigned_word(None)));         assert!(state.
-// inferences(div_ty).contains(&TE::unsigned_word(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_signed_modulo() -> anyhow::Result<()> {
-//         // Create some values
-//         let dividend = RSV::new_value(0, Provenance::Synthetic);
-//         let divisor = RSV::new_value(1, Provenance::Synthetic);
-//         let modulo = RSV::new(
-//             2,
-//             RSVD::SignedModulo {
-//                 dividend: dividend.clone(),
-//                 divisor:  divisor.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [dividend_ty, divisor_ty, div_ty] =
-//             state.register_many([dividend, divisor, modulo.clone()]);
-//         let tc_input = state.value_unchecked(div_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(dividend_ty).contains(&
-// TE::signed_word(None)));         assert!(state.inferences(divisor_ty).
-// contains(&TE::signed_word(None)));         assert!(state.inferences(div_ty).
-// contains(&TE::signed_word(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_exp() -> anyhow::Result<()> {
-//         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let exponent = RSV::new_value(1, Provenance::Synthetic);
-//         let exp = RSV::new(
-//             2,
-//             RSVD::Exp {
-//                 value:    value.clone(),
-//                 exponent: exponent.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [value_ty, exponent_ty, exp_ty] = state.register_many([value,
-// exponent, exp.clone()]);         let tc_input =
-// state.value_unchecked(exp_ty).clone();         ArithmeticOperationRule.
-// infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(value_ty).contains(&TE::numeric(None)));
-//         assert!(state.inferences(exponent_ty).contains(&TE::numeric(None)));
-//         assert!(state.inferences(exp_ty).contains(&TE::numeric(None)));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_sign_extend_with_known_size() ->
-// anyhow::Result<()> {         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let size = RSV::new_known_value(1, KnownWord::from(128),
-// Provenance::Synthetic);         let ext = RSV::new(
-//             2,
-//             RSVD::SignExtend {
-//                 value: value.clone(),
-//                 size:  size.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [value_ty, size_ty, ext_ty] = state.register_many([value, size,
-// ext.clone()]);         let tc_input = state.value_unchecked(ext_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(value_ty).contains(&TE::signed_word(None)));
-//         assert!(state.inferences(size_ty).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(ext_ty).
-// contains(&TE::signed_word(Some(128))));
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_sign_extend_with_unknown_size() ->
-// anyhow::Result<()> {         // Create some values
-//         let value = RSV::new_value(0, Provenance::Synthetic);
-//         let size = RSV::new_value(1, Provenance::Synthetic);
-//         let ext = RSV::new(
-//             2,
-//             RSVD::SignExtend {
-//                 value: value.clone(),
-//                 size:  size.clone(),
-//             },
-//             Provenance::Synthetic,
-//         );
-//
-//         // Register them with the state and run inference
-//         let mut state = InferenceState::empty();
-//         let [value_ty, size_ty, ext_ty] = state.register_many([value, size,
-// ext.clone()]);         let tc_input = state.value_unchecked(ext_ty).clone();
-//         ArithmeticOperationRule.infer(&tc_input, &mut state)?;
-//
-//         // Check we get the right equations
-//         assert!(state.inferences(value_ty).contains(&TE::signed_word(None)));
-//         assert!(state.inferences(size_ty).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(ext_ty).
-// contains(&TE::signed_word(None)));
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        inference::{
+            expression::TE,
+            rule::{arithmetic_operations::ArithmeticOperationRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{known::KnownWord, Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn creates_correct_equations_for_add() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let add = RSV::new_synthetic(
+            2,
+            RSVD::Add {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let add_ty = state.register(add);
+        let tc_input = state.value_unchecked(add_ty).clone();
+        let [left_ty, right_ty] = match tc_input.data() {
+            TCSVD::Add { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(add_ty).contains(&TE::numeric(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_multiply() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let mul = RSV::new_synthetic(
+            2,
+            RSVD::Multiply {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let mul_ty = state.register(mul);
+        let tc_input = state.value_unchecked(mul_ty).clone();
+        let [left_ty, right_ty] = match tc_input.data() {
+            TCSVD::Multiply { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(mul_ty).contains(&TE::numeric(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_subtract() -> anyhow::Result<()> {
+        // Create some values
+        let left = RSV::new_value(0, Provenance::Synthetic);
+        let right = RSV::new_value(1, Provenance::Synthetic);
+        let sub = RSV::new_synthetic(
+            2,
+            RSVD::Subtract {
+                left:  left.clone(),
+                right: right.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let sub_ty = state.register(sub);
+        let tc_input = state.value_unchecked(sub_ty).clone();
+        let [left_ty, right_ty] = match tc_input.data() {
+            TCSVD::Subtract { left, right } => [left.type_var(), right.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(left_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(right_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(sub_ty).contains(&TE::numeric(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_divide() -> anyhow::Result<()> {
+        // Create some values
+        let dividend = RSV::new_value(0, Provenance::Synthetic);
+        let divisor = RSV::new_value(1, Provenance::Synthetic);
+        let div = RSV::new_synthetic(
+            2,
+            RSVD::Divide {
+                dividend: dividend.clone(),
+                divisor:  divisor.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let div_ty = state.register(div);
+        let tc_input = state.value_unchecked(div_ty).clone();
+        let [dividend_ty, divisor_ty] = match tc_input.data() {
+            TCSVD::Divide { dividend, divisor } => [dividend.type_var(), divisor.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(dividend_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(divisor_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(div_ty).contains(&TE::unsigned_word(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_signed_divide() -> anyhow::Result<()> {
+        // Create some values
+        let dividend = RSV::new_value(0, Provenance::Synthetic);
+        let divisor = RSV::new_value(1, Provenance::Synthetic);
+        let div = RSV::new_synthetic(
+            2,
+            RSVD::SignedDivide {
+                dividend: dividend.clone(),
+                divisor:  divisor.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let div_ty = state.register(div);
+        let tc_input = state.value_unchecked(div_ty).clone();
+        let [dividend_ty, divisor_ty] = match tc_input.data() {
+            TCSVD::SignedDivide { dividend, divisor } => [dividend.type_var(), divisor.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(dividend_ty).contains(&TE::signed_word(None)));
+        assert!(state.inferences(divisor_ty).contains(&TE::signed_word(None)));
+        assert!(state.inferences(div_ty).contains(&TE::signed_word(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_modulo() -> anyhow::Result<()> {
+        // Create some values
+        let dividend = RSV::new_value(0, Provenance::Synthetic);
+        let divisor = RSV::new_value(1, Provenance::Synthetic);
+        let modulo = RSV::new_synthetic(
+            2,
+            RSVD::Modulo {
+                dividend: dividend.clone(),
+                divisor:  divisor.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let div_ty = state.register(modulo);
+        let tc_input = state.value_unchecked(div_ty).clone();
+        let [dividend_ty, divisor_ty] = match tc_input.data() {
+            TCSVD::Modulo { dividend, divisor } => [dividend.type_var(), divisor.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(dividend_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(divisor_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(div_ty).contains(&TE::unsigned_word(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_signed_modulo() -> anyhow::Result<()> {
+        // Create some values
+        let dividend = RSV::new_value(0, Provenance::Synthetic);
+        let divisor = RSV::new_value(1, Provenance::Synthetic);
+        let modulo = RSV::new_synthetic(
+            2,
+            RSVD::SignedModulo {
+                dividend: dividend.clone(),
+                divisor:  divisor.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let div_ty = state.register(modulo);
+        let tc_input = state.value_unchecked(div_ty).clone();
+        let [dividend_ty, divisor_ty] = match tc_input.data() {
+            TCSVD::SignedModulo { dividend, divisor } => [dividend.type_var(), divisor.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(dividend_ty).contains(&TE::signed_word(None)));
+        assert!(state.inferences(divisor_ty).contains(&TE::signed_word(None)));
+        assert!(state.inferences(div_ty).contains(&TE::signed_word(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_exp() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let exponent = RSV::new_value(1, Provenance::Synthetic);
+        let exp = RSV::new_synthetic(
+            2,
+            RSVD::Exp {
+                value:    value.clone(),
+                exponent: exponent.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let exp_ty = state.register(exp);
+        let tc_input = state.value_unchecked(exp_ty).clone();
+        let [value_ty, exponent_ty] = match tc_input.data() {
+            TCSVD::Exp { value, exponent } => [value.type_var(), exponent.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(value_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(exponent_ty).contains(&TE::numeric(None)));
+        assert!(state.inferences(exp_ty).contains(&TE::numeric(None)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_sign_extend_with_known_size() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let size = RSV::new_known_value(1, KnownWord::from(128), Provenance::Synthetic, None);
+        let ext = RSV::new_synthetic(
+            2,
+            RSVD::SignExtend {
+                value: value.clone(),
+                size:  size.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let ext_ty = state.register(ext.clone());
+        let tc_input = state.value_unchecked(ext_ty).clone();
+        let [value_ty, size_ty] = match tc_input.data() {
+            TCSVD::SignExtend { value, size } => [value.type_var(), size.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(value_ty).contains(&TE::signed_word(None)));
+        assert!(state.inferences(size_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(ext_ty).contains(&TE::signed_word(Some(128))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_sign_extend_with_unknown_size() -> anyhow::Result<()> {
+        // Create some values
+        let value = RSV::new_value(0, Provenance::Synthetic);
+        let size = RSV::new_value(1, Provenance::Synthetic);
+        let ext = RSV::new_synthetic(
+            2,
+            RSVD::SignExtend {
+                value: value.clone(),
+                size:  size.clone(),
+            },
+        );
+
+        // Register them with the state and run inference
+        let mut state = InferenceState::empty();
+        let ext_ty = state.register(ext.clone());
+        let tc_input = state.value_unchecked(ext_ty).clone();
+        let [value_ty, size_ty] = match tc_input.data() {
+            TCSVD::SignExtend { value, size } => [value.type_var(), size.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        ArithmeticOperationRule.infer(&tc_input, &mut state)?;
+
+        // Check we get the right equations
+        assert!(state.inferences(value_ty).contains(&TE::signed_word(None)));
+        assert!(state.inferences(size_ty).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(ext_ty).contains(&TE::signed_word(None)));
+
+        Ok(())
+    }
+}

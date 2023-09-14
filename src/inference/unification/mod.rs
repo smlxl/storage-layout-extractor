@@ -1238,9 +1238,12 @@ mod test {
         let elem_4 = RSV::new_value(3, Provenance::Synthetic);
         let packed_1 = RSV::new_value(4, Provenance::Synthetic);
         let packed_2 = RSV::new_value(5, Provenance::Synthetic);
-
-        let [e1_tv, e2_tv, e3_tv, e4_tv, p1_tv, p2_tv] =
-            state.register_many([elem_1, elem_2, elem_3, elem_4, packed_1, packed_2]);
+        let e1_tv = state.register(elem_1);
+        let e2_tv = state.register(elem_2);
+        let e3_tv = state.register(elem_3);
+        let e4_tv = state.register(elem_4);
+        let p1_tv = state.register(packed_1);
+        let p2_tv = state.register(packed_2);
 
         // Set up some inferences
         //
@@ -1289,8 +1292,10 @@ mod test {
         let elem_2 = RSV::new_value(1, Provenance::Synthetic);
         let elem_3 = RSV::new_value(2, Provenance::Synthetic);
         let packed_1 = RSV::new_value(3, Provenance::Synthetic);
-
-        let [e1_tv, e2_tv, e3_tv, p1_tv] = state.register_many([elem_1, elem_2, elem_3, packed_1]);
+        let e1_tv = state.register(elem_1);
+        let e2_tv = state.register(elem_2);
+        let e3_tv = state.register(elem_3);
+        let p1_tv = state.register(packed_1);
 
         // Set up some inferences
         //
@@ -1335,8 +1340,10 @@ mod test {
         let elem_2 = RSV::new_value(1, Provenance::Synthetic);
         let elem_3 = RSV::new_value(2, Provenance::Synthetic);
         let packed_1 = RSV::new_value(3, Provenance::Synthetic);
-
-        let [e1_tv, e2_tv, e3_tv, p1_tv] = state.register_many([elem_1, elem_2, elem_3, packed_1]);
+        let e1_tv = state.register(elem_1);
+        let e2_tv = state.register(elem_2);
+        let e3_tv = state.register(elem_3);
+        let p1_tv = state.register(packed_1);
 
         // Set up some inferences
         //

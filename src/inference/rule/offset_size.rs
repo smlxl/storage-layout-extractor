@@ -37,96 +37,101 @@ impl InferenceRule for OffsetSizeRule {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         inference::{
-//             expression::TE,
-//             rule::{offset_size::OffsetSizeRule, InferenceRule},
-//             state::InferenceState,
-//         },
-//         vm::value::{Provenance, RSV, RSVD},
-//     };
-//
-//     #[test]
-//     fn creates_correct_equations_for_call_data() -> anyhow::Result<()> {
-//         // Create some values
-//         let offset = RSV::new_value(0, Provenance::Synthetic);
-//         let size = RSV::new_value(1, Provenance::Synthetic);
-//         let value = RSV::new_synthetic(2, RSVD::call_data(offset.clone(),
-// size.clone()));
-//
-//         // Create the state and run the inference
-//         let mut state = InferenceState::empty();
-//         let [offset_tv, size_tv, value_tv] = state.register_many([offset,
-// size, value.clone()]);         let tc_input =
-// state.value_unchecked(value_tv).clone();         OffsetSizeRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check that we get the correct equations
-//         assert!(state.inferences(offset_tv).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(size_tv).
-// contains(&TE::unsigned_word(None)));         assert!(state.
-// inferences(value_tv).is_empty());
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_code_copy() -> anyhow::Result<()> {
-//         // Create some values
-//         let offset = RSV::new_value(0, Provenance::Synthetic);
-//         let size = RSV::new_value(1, Provenance::Synthetic);
-//         let value = RSV::new_synthetic(
-//             2,
-//             RSVD::CodeCopy {
-//                 offset: offset.clone(),
-//                 size:   size.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the inference
-//         let mut state = InferenceState::empty();
-//         let [offset_tv, size_tv, value_tv] = state.register_many([offset,
-// size, value.clone()]);         let tc_input =
-// state.value_unchecked(value_tv).clone();         OffsetSizeRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check that we get the correct equations
-//         assert!(state.inferences(offset_tv).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(size_tv).
-// contains(&TE::unsigned_word(None)));         assert!(state.
-// inferences(value_tv).is_empty());
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn creates_correct_equations_for_return_data() -> anyhow::Result<()> {
-//         // Create some values
-//         let offset = RSV::new_value(0, Provenance::Synthetic);
-//         let size = RSV::new_value(1, Provenance::Synthetic);
-//         let value = RSV::new_synthetic(
-//             2,
-//             RSVD::ReturnData {
-//                 offset: offset.clone(),
-//                 size:   size.clone(),
-//             },
-//         );
-//
-//         // Create the state and run the inference
-//         let mut state = InferenceState::empty();
-//         let [offset_tv, size_tv, value_tv] = state.register_many([offset,
-// size, value.clone()]);         let tc_input =
-// state.value_unchecked(value_tv).clone();         OffsetSizeRule.infer(&
-// tc_input, &mut state)?;
-//
-//         // Check that we get the correct equations
-//         assert!(state.inferences(offset_tv).contains(&
-// TE::unsigned_word(None)));         assert!(state.inferences(size_tv).
-// contains(&TE::unsigned_word(None)));         assert!(state.
-// inferences(value_tv).is_empty());
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        inference::{
+            expression::TE,
+            rule::{offset_size::OffsetSizeRule, InferenceRule},
+            state::InferenceState,
+        },
+        vm::value::{Provenance, RSV, RSVD, TCSVD},
+    };
+
+    #[test]
+    fn creates_correct_equations_for_call_data() -> anyhow::Result<()> {
+        // Create some values
+        let offset = RSV::new_value(0, Provenance::Synthetic);
+        let size = RSV::new_value(1, Provenance::Synthetic);
+        let value = RSV::new_synthetic(2, RSVD::call_data(offset.clone(), size.clone()));
+
+        // Create the state and run the inference
+        let mut state = InferenceState::empty();
+        let value_tv = state.register(value);
+        let tc_input = state.value_unchecked(value_tv).clone();
+        let [offset_tv, size_tv] = match tc_input.data() {
+            TCSVD::CallData { offset, size, .. } => [offset.type_var(), size.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        OffsetSizeRule.infer(&tc_input, &mut state)?;
+
+        // Check that we get the correct equations
+        assert!(state.inferences(offset_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(size_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(value_tv).is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_code_copy() -> anyhow::Result<()> {
+        // Create some values
+        let offset = RSV::new_value(0, Provenance::Synthetic);
+        let size = RSV::new_value(1, Provenance::Synthetic);
+        let value = RSV::new_synthetic(
+            2,
+            RSVD::CodeCopy {
+                offset: offset.clone(),
+                size:   size.clone(),
+            },
+        );
+
+        // Create the state and run the inference
+        let mut state = InferenceState::empty();
+        let value_tv = state.register(value);
+        let tc_input = state.value_unchecked(value_tv).clone();
+        let [offset_tv, size_tv] = match tc_input.data() {
+            TCSVD::CodeCopy { offset, size } => [offset.type_var(), size.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        OffsetSizeRule.infer(&tc_input, &mut state)?;
+
+        // Check that we get the correct equations
+        assert!(state.inferences(offset_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(size_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(value_tv).is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn creates_correct_equations_for_return_data() -> anyhow::Result<()> {
+        // Create some values
+        let offset = RSV::new_value(0, Provenance::Synthetic);
+        let size = RSV::new_value(1, Provenance::Synthetic);
+        let value = RSV::new_synthetic(
+            2,
+            RSVD::ReturnData {
+                offset: offset.clone(),
+                size:   size.clone(),
+            },
+        );
+
+        // Create the state and run the inference
+        let mut state = InferenceState::empty();
+        let value_tv = state.register(value);
+        let tc_input = state.value_unchecked(value_tv).clone();
+        let [offset_tv, size_tv] = match tc_input.data() {
+            TCSVD::ReturnData { offset, size } => [offset.type_var(), size.type_var()],
+            _ => panic!("Incorrect payload"),
+        };
+        OffsetSizeRule.infer(&tc_input, &mut state)?;
+
+        // Check that we get the correct equations
+        assert!(state.inferences(offset_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(size_tv).contains(&TE::unsigned_word(None)));
+        assert!(state.inferences(value_tv).is_empty());
+
+        Ok(())
+    }
+}
