@@ -15,10 +15,10 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let analyzer = common::new_analyzer_from_bytecode(bytecode, LazyWatchdog.in_rc())?;
 
     // Get the final storage layout for the input contract
-    let _layout = analyzer.analyze()?;
+    let layout = analyzer.analyze()?;
 
-    // But really we just ensure that it completes for now, as before it would
-    // always hang
+    // We should have no slots
+    assert!(layout.is_empty());
 
     Ok(())
 }

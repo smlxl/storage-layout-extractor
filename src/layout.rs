@@ -32,6 +32,39 @@ impl StorageLayout {
     }
 }
 
+/// Additional utility functions to enable cleaner testing with the storage
+/// layout.
+impl StorageLayout {
+    /// Checks if the layout contains the specified slot.
+    #[must_use]
+    pub fn has_slot(&self, index: impl Into<U256Wrapper>, offset: usize, typ: AbiType) -> bool {
+        self.slots.contains(&StorageSlot::new(index, offset, typ))
+    }
+
+    /// Checks that there is no slot in the layout at the specified `index`.
+    ///
+    /// If you need to check that there is no slot specifically at an index and
+    /// offset, use the negation of [`Iterator::any`] on the result of calling
+    /// [`StorageLayout::slots`].
+    #[must_use]
+    pub fn has_no_slot_at(&self, index: impl Into<U256Wrapper>) -> bool {
+        let index = index.into();
+        !self.slots.iter().any(|s| s.index == index)
+    }
+
+    /// Gets the number of slots in the storage layout.
+    #[must_use]
+    pub fn slot_count(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// Checks if the storage layout is empty (has no slots).
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.slots.is_empty()
+    }
+}
+
 impl Default for StorageLayout {
     fn default() -> Self {
         let slots = Vec::new();

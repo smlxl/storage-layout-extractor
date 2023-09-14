@@ -18,7 +18,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let layout = analyzer.analyze()?;
 
     // We should see no slots as this contract never uses storage opcodes.
-    assert!(layout.slots().is_empty());
+    assert!(layout.is_empty());
 
     Ok(())
 }

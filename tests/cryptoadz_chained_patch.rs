@@ -2,7 +2,7 @@
 //! `CrypToadzChainedPatch` contract`.
 #![cfg(test)]
 
-use storage_layout_analyzer::watchdog::LazyWatchdog;
+use storage_layout_analyzer::{inference::abi::AbiType, watchdog::LazyWatchdog};
 
 mod common;
 
@@ -15,10 +15,13 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let analyzer = common::new_analyzer_from_bytecode(bytecode, LazyWatchdog.in_rc())?;
 
     // Get the final storage layout for the input contract
-    let _layout = analyzer.analyze()?;
+    let layout = analyzer.analyze()?;
 
-    // But really we just ensure that it completes for now, as before it would
-    // always hang
+    // As this contract delegates to another, it only has one storage slot
+    assert_eq!(layout.slot_count(), 1);
+
+    // `address`
+    assert!(layout.has_slot(0, 0, AbiType::Address));
 
     Ok(())
 }

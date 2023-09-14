@@ -2,7 +2,10 @@
 //! contract`.
 #![cfg(test)]
 
-use storage_layout_analyzer::watchdog::LazyWatchdog;
+use storage_layout_analyzer::{
+    inference::abi::{AbiType, StructElement},
+    watchdog::LazyWatchdog,
+};
 
 mod common;
 
@@ -15,10 +18,76 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let analyzer = common::new_analyzer_from_bytecode(bytecode, LazyWatchdog.in_rc())?;
 
     // Get the final storage layout for the input contract
-    let _layout = analyzer.analyze()?;
+    let layout = analyzer.analyze()?;
 
-    // But really we just ensure that it completes for now, as before it would
-    // always hang
+    // We should see 17 slots, but we only see 13
+    assert_eq!(layout.slot_count(), 13);
+
+    // `string` but we infer `conflict`
+    assert!(layout.has_slot(0, 0, AbiType::conflict()));
+
+    // `string` but we infer `conflict`
+    assert!(layout.has_slot(1, 0, AbiType::conflict()));
+
+    // `mapping(uint256 => address)` but we miss it entirely
+    assert!(layout.has_no_slot_at(2));
+
+    // `mapping(address => uint256)` but we miss it entirely
+    assert!(layout.has_no_slot_at(3));
+
+    // `mapping(uint256 => address)` but we miss it entirely
+    assert!(layout.has_no_slot_at(4));
+
+    // `mapping(address => mapping(address => bool))` but we miss it entirely
+    assert!(layout.has_no_slot_at(5));
+
+    // `address` but we infer `bytes20`
+    assert!(layout.has_slot(6, 0, AbiType::Bytes { length: Some(20) }));
+
+    // `uint256` but we infer `uintUnknown`
+    assert!(layout.has_slot(7, 0, AbiType::UInt { size: None }));
+
+    // `uint256` but we infer `numberUnknown`
+    assert!(layout.has_slot(8, 0, AbiType::Number { size: None }));
+
+    // `uint256`
+    assert!(layout.has_slot(9, 0, AbiType::UInt { size: Some(256) }));
+
+    // `address` but we infer `bytes20`
+    assert!(layout.has_slot(10, 0, AbiType::Bytes { length: Some(20) }));
+
+    // `struct(string, string, bool, uint256)[]` but we infer `uintUnknown`
+    assert!(layout.has_slot(11, 0, AbiType::UInt { size: None }));
+
+    // `uint256` but we infer `numberUnknown`
+    assert!(layout.has_slot(12, 0, AbiType::Number { size: None }));
+
+    // `uint256`
+    assert!(layout.has_slot(13, 0, AbiType::UInt { size: Some(256) }));
+
+    // `bool` but we infer `packed(bytes1, bytes31)`
+    assert!(layout.has_slot(14, 0, AbiType::Bytes { length: Some(1) }));
+    assert!(layout.has_slot(14, 8, AbiType::Bytes { length: Some(31) }));
+
+    // `mapping(uint256 => struct(string, uint256, string))` but we miss it entirely
+    assert!(layout.has_no_slot_at(15));
+
+    // `mapping(address => struct(bool, uint256, bool))` but we infer
+    // `mapping(bytes20 => struct(uintUnknown, any, uintUnknown))`
+    assert!(layout.has_slot(
+        16,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Bytes { length: Some(20) }),
+            value_type: Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::UInt { size: None }),
+                    StructElement::new(256, AbiType::Any),
+                    StructElement::new(512, AbiType::UInt { size: None })
+                ],
+            }),
+        }
+    ));
 
     Ok(())
 }

@@ -2,7 +2,7 @@
 //! `CrypToadzCustomImage37B` contract`.
 #![cfg(test)]
 
-use storage_layout_analyzer::watchdog::LazyWatchdog;
+use storage_layout_analyzer::{inference::abi::AbiType, watchdog::LazyWatchdog};
 
 mod common;
 
@@ -15,10 +15,30 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let analyzer = common::new_analyzer_from_bytecode(bytecode, LazyWatchdog.in_rc())?;
 
     // Get the final storage layout for the input contract
-    let _layout = analyzer.analyze()?;
+    let layout = analyzer.analyze()?;
 
-    // But really we just ensure that it completes for now, as before it would
-    // always hang
+    // We should see two slots
+    assert_eq!(layout.slot_count(), 2);
+
+    // `mapping(uint8 => uint16)` but we infer `mapping(bytesUnknown => number16)`
+    assert!(layout.has_slot(
+        0,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Bytes { length: None }),
+            value_type: Box::new(AbiType::Number { size: Some(16) }),
+        }
+    ));
+
+    // `mapping(uint8 => bytes20)` but we infer `mapping(bytesUnknown => bytes20)`
+    assert!(layout.has_slot(
+        1,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Bytes { length: None }),
+            value_type: Box::new(AbiType::Bytes { length: Some(20) }),
+        }
+    ));
 
     Ok(())
 }

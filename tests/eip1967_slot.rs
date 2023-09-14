@@ -4,11 +4,7 @@
 #![cfg(test)]
 
 use ethnum::U256;
-use storage_layout_analyzer::{
-    inference::abi::AbiType,
-    layout::StorageSlot,
-    watchdog::LazyWatchdog,
-};
+use storage_layout_analyzer::{inference::abi::AbiType, watchdog::LazyWatchdog};
 
 mod common;
 
@@ -22,14 +18,14 @@ fn correctly_returns_large_slot() -> anyhow::Result<()> {
     let layout = analyzer.analyze()?;
 
     // Inspect it to check that things are correct
-    assert_eq!(layout.slots().len(), 1);
+    assert_eq!(layout.slot_count(), 1);
 
     // Check that we see a slot at the huge value
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         U256::from_str_hex("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")?,
         0,
         AbiType::Bytes { length: Some(20) }
-    )));
+    ));
 
     Ok(())
 }
