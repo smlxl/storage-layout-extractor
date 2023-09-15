@@ -38,7 +38,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
 
     // `mapping(uint256 => struct(address, uint128, uint128, uint64, uint64)` but we
     // infer `mapping(bytes32 => struct(address, uint128, uint128, conflict,
-    // uint65)`
+    // uint64)`
     assert!(layout.has_slot(
         3,
         0,
