@@ -23,11 +23,11 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // We should see 17 slots, but we only see 13
     assert_eq!(layout.slot_count(), 13);
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(0, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(0, 0, AbiType::DynBytes));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(1, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(1, 0, AbiType::DynBytes));
 
     // `mapping(uint256 => address)` but we miss it entirely
     assert!(layout.has_no_slot_at(2));

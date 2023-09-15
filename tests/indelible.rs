@@ -32,11 +32,11 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `uint256` but we infer `numberUnknown`
     assert!(layout.has_slot(1, 0, AbiType::Number { size: None }));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(2, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(2, 0, AbiType::DynBytes));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(3, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(3, 0, AbiType::DynBytes));
 
     // `mapping(uint256 => uint256)` but we infer `mapping(uint256 =>
     // struct(address, any, number1, number1, any, bytes3))`
@@ -129,7 +129,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     ));
 
     // `mapping(uint256 => mapping(uint256 => struct(string, string)))` but we infer
-    // `mapping(uint256 => mapping(bytes32 => struct(conflict, conflict)))`
+    // `mapping(uint256 => mapping(bytes32 => struct(bytes, bytes)))`
     assert!(layout.has_slot(
         11,
         0,
@@ -139,8 +139,8 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 key_type:   Box::new(AbiType::Bytes { length: Some(32) }),
                 value_type: Box::new(AbiType::Struct {
                     elements: vec![
-                        StructElement::new(0, AbiType::conflict()),
-                        StructElement::new(256, AbiType::conflict()),
+                        StructElement::new(0, AbiType::DynBytes),
+                        StructElement::new(256, AbiType::DynBytes),
                     ],
                 }),
             }),
@@ -211,8 +211,8 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `uint256` but we infer `uintUnknown`
     assert!(layout.has_slot(27, 0, AbiType::UInt { size: None }));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(28, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(28, 0, AbiType::DynBytes));
 
     // `bool` but we infer `packed(number8, bytes31)`
     assert!(layout.has_slot(29, 0, AbiType::Number { size: Some(8) }));
@@ -231,14 +231,14 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     assert!(layout.has_slot(33, 0, AbiType::Number { size: Some(8) }));
     assert!(layout.has_slot(33, 8, AbiType::Bytes { length: Some(31) }));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(34, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(34, 0, AbiType::DynBytes));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(35, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(35, 0, AbiType::DynBytes));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(36, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(36, 0, AbiType::DynBytes));
 
     // `string` but we infer `packed(number1, uint7)`
     assert!(layout.has_slot(37, 0, AbiType::Number { size: Some(1) }));

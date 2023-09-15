@@ -229,9 +229,16 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
         (TE::DynamicArray { .. } | TE::Bytes, TE::Packed { .. }) => merge(right, left, parent_tv),
 
         // They produce bytes when certain conditions are satisfied
-        (TE::Packed { types, .. }, TE::DynamicArray { .. } | TE::Bytes) => {
-            if let Some(t) = types.first() {
-                if t.offset == 0 && t.size == 1 && types.len() == 1 {
+        (TE::Packed { types, .. }, TE::DynamicArray { .. } | TE::Bytes) => match types.len() {
+            0 => Merge::expression(TE::Bytes),
+            1 => {
+                // We sometimes see a packed with any of these spans
+                let t = types[0];
+
+                if (t.offset == 0 && t.size == 1)
+                    || (t.offset == 1 && t.size == 7)
+                    || (t.offset == 8 && t.size == 248)
+                {
                     Merge::expression(TE::Bytes)
                 } else {
                     Merge::expression(TE::conflict(
@@ -240,14 +247,55 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
                         "Incompatible packed encoding and dynamic array",
                     ))
                 }
-            } else {
-                Merge::expression(TE::conflict(
-                    left,
-                    right,
-                    "Incompatible packed encoding and dynamic array",
-                ))
             }
-        }
+            2 => {
+                // Other times we see some pair of these spans
+                let types = types.iter().sorted_by_key(|s| s.offset).collect_vec();
+                let fst = types[0];
+                let snd = types[1];
+
+                if (fst.offset == 0 && fst.size == 1 && snd.offset == 1 && snd.size == 7)
+                    || (fst.offset == 0 && fst.size == 1 && snd.offset == 8 && snd.size == 248)
+                    || (fst.offset == 1 && fst.size == 7 && snd.offset == 8 && snd.size == 248)
+                {
+                    Merge::expression(TE::Bytes)
+                } else {
+                    Merge::expression(TE::conflict(
+                        left,
+                        right,
+                        "Incompatible packed encoding and bytes",
+                    ))
+                }
+            }
+            3 => {
+                // And sometimes we see all of the spans
+                let types = types.iter().sorted_by_key(|s| s.offset).collect_vec();
+                let fst = types[0];
+                let snd = types[1];
+                let thd = types[2];
+
+                if fst.offset == 0
+                    && fst.size == 1
+                    && snd.offset == 1
+                    && snd.size == 7
+                    && thd.offset == 8
+                    && thd.size == 248
+                {
+                    Merge::expression(TE::Bytes)
+                } else {
+                    Merge::expression(TE::conflict(
+                        left,
+                        right,
+                        "Incompatible packed encoding and dynamic array",
+                    ))
+                }
+            }
+            _ => Merge::expression(TE::conflict(
+                left,
+                right,
+                "Incompatible packed encoding and dynamic array",
+            )),
+        },
 
         // To combine a word with a dynamic array we delegate
         (TE::Word { .. }, TE::DynamicArray { .. }) => merge(right, left, parent_tv),

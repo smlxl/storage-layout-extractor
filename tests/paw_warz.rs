@@ -20,11 +20,11 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // We should have 10 entries, but we only see 7
     assert_eq!(layout.slot_count(), 7);
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(0, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(0, 0, AbiType::DynBytes));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(1, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(1, 0, AbiType::DynBytes));
 
     // `mapping(uint256 => address)` but we miss it entirely
     assert!(layout.has_no_slot_at(2));
@@ -45,18 +45,18 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `address` but we infer `uintUnknown`
     assert!(layout.has_slot(7, 0, AbiType::UInt { size: None }));
 
-    // `mapping(uint256 => bytes)` but we infer `mapping(bytes32 => conflict)`
+    // `mapping(uint256 => bytes)` but we infer `mapping(bytes32 => bytes)`
     assert!(layout.has_slot(
         8,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Bytes { length: Some(32) }),
-            value_type: Box::new(AbiType::conflict()),
+            value_type: Box::new(AbiType::DynBytes),
         }
     ));
 
-    // `string` but we infer `conflict`
-    assert!(layout.has_slot(9, 0, AbiType::conflict()));
+    // `string` but we infer `bytes`
+    assert!(layout.has_slot(9, 0, AbiType::DynBytes));
 
     Ok(())
 }
