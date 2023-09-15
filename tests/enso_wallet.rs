@@ -2,7 +2,10 @@
 //! contract`.
 #![cfg(test)]
 
-use storage_layout_analyzer::watchdog::LazyWatchdog;
+use std::str::FromStr;
+
+use ethnum::U256;
+use storage_layout_analyzer::{inference::abi::AbiType, watchdog::LazyWatchdog};
 
 mod common;
 
@@ -15,10 +18,19 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let analyzer = common::new_analyzer_from_bytecode(bytecode, LazyWatchdog.in_rc())?;
 
     // Get the final storage layout for the input contract
-    let _layout = analyzer.analyze()?;
+    let layout = analyzer.analyze()?;
 
-    // But really we just ensure that it completes for now, as before it would
-    // always hang
+    // We should only see one slot at some high number as according to EIP1967
+    assert_eq!(layout.slot_count(), 1);
+
+    // `bytes32`
+    assert!(layout.has_slot(
+        U256::from_str(
+            "62783771203016910381329981606504793794820635131422253413922468358330669713901"
+        )?,
+        0,
+        AbiType::Bytes { length: Some(32) }
+    ));
 
     Ok(())
 }

@@ -3,7 +3,7 @@
 //! encodings.
 #![cfg(test)]
 
-use storage_layout_analyzer::{inference::abi::AbiType, layout::StorageSlot};
+use storage_layout_analyzer::inference::abi::AbiType;
 
 mod common;
 
@@ -17,17 +17,13 @@ fn analyses_packed_encodings() -> anyhow::Result<()> {
     let layout = analyzer.analyze()?;
 
     // We should see two 'slots'
-    assert_eq!(layout.slots().len(), 2);
+    assert_eq!(layout.slot_count(), 2);
 
     // Check that we see a slot 0 offset 0 containing bytes8
-    let expected_bytes_8 = AbiType::Bytes { length: Some(8) };
-    let expected_bytes_8_slot = StorageSlot::new(0, 0, expected_bytes_8);
-    assert!(layout.slots().contains(&expected_bytes_8_slot));
+    assert!(layout.has_slot(0, 0, AbiType::Bytes { length: Some(8) }));
 
     // Check that we see a slot 0 offset 64
-    let expected_second_half = AbiType::Bytes { length: Some(16) };
-    let expected_second_half_slot = StorageSlot::new(0, 64, expected_second_half);
-    assert!(layout.slots().contains(&expected_second_half_slot));
+    assert!(layout.has_slot(0, 64, AbiType::Bytes { length: Some(16) }));
 
     // All done
     Ok(())

@@ -133,7 +133,7 @@ impl Opcode for Jump {
                 vm.state()?.record_value(counter);
 
                 return match payload.payload {
-                    execution::Error::NoConcreteJumpDestination => {
+                    Error::NoConcreteJumpDestination => {
                         // If we do not have an immediate, we instead want to halt
                         // execution on this branch as it would not be valid to
                         // continue without knowing where to jump to

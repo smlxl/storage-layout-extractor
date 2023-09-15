@@ -231,7 +231,7 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
         // They produce bytes when certain conditions are satisfied
         (TE::Packed { types, .. }, TE::DynamicArray { .. } | TE::Bytes) => {
             if let Some(t) = types.first() {
-                if t.offset == 0 && t.size == 1 {
+                if t.offset == 0 && t.size == 1 && types.len() == 1 {
                     Merge::expression(TE::Bytes)
                 } else {
                     Merge::expression(TE::conflict(

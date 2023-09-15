@@ -2,7 +2,7 @@
 //! contract`.
 #![cfg(test)]
 
-use storage_layout_analyzer::watchdog::LazyWatchdog;
+use storage_layout_analyzer::{inference::abi::AbiType, watchdog::LazyWatchdog};
 
 mod common;
 
@@ -15,10 +15,48 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let analyzer = common::new_analyzer_from_bytecode(bytecode, LazyWatchdog.in_rc())?;
 
     // Get the final storage layout for the input contract
-    let _layout = analyzer.analyze()?;
+    let layout = analyzer.analyze()?;
 
-    // But really we just ensure that it completes for now, as before it would
-    // always hang
+    // We should have 10 entries, but we only see 7
+    assert_eq!(layout.slot_count(), 7);
+
+    // `string` but we infer `conflict`
+    assert!(layout.has_slot(0, 0, AbiType::conflict()));
+
+    // `string` but we infer `conflict`
+    assert!(layout.has_slot(1, 0, AbiType::conflict()));
+
+    // `mapping(uint256 => address)` but we miss it entirely
+    assert!(layout.has_no_slot_at(2));
+
+    // `mapping(address => uint256)` but we miss it entirely
+    assert!(layout.has_no_slot_at(3));
+
+    // `mapping(uint256 => address)` but we miss it entirely
+    assert!(layout.has_no_slot_at(4));
+
+    // `mapping(address => mapping(address => bool))` but we miss it entirely
+    assert!(layout.has_no_slot_at(5));
+
+    // `address` but we infer `packed(bytes20, bytes12)`
+    assert!(layout.has_slot(6, 0, AbiType::Bytes { length: Some(20) }));
+    assert!(layout.has_slot(6, 160, AbiType::Bytes { length: Some(12) }));
+
+    // `address` but we infer `uintUnknown`
+    assert!(layout.has_slot(7, 0, AbiType::UInt { size: None }));
+
+    // `mapping(uint256 => bytes)` but we infer `mapping(bytes32 => conflict)`
+    assert!(layout.has_slot(
+        8,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Bytes { length: Some(32) }),
+            value_type: Box::new(AbiType::conflict()),
+        }
+    ));
+
+    // `string` but we infer `conflict`
+    assert!(layout.has_slot(9, 0, AbiType::conflict()));
 
     Ok(())
 }

@@ -4,7 +4,6 @@
 
 use storage_layout_analyzer::{
     inference::abi::{AbiType, StructElement},
-    layout::StorageSlot,
     watchdog::LazyWatchdog,
 };
 
@@ -23,19 +22,15 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
 
     // We should see 13 entries once we account for packing, but we currently also
     // see remainders of packed slots, so there are 14
-    assert_eq!(layout.slots().len(), 14);
+    assert_eq!(layout.slot_count(), 14);
 
     // `uint256` but we infer `bytesUnknown`
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(0, 0, AbiType::Bytes { length: None }))
-    );
+    assert!(layout.has_slot(0, 0, AbiType::Bytes { length: None }));
 
     // `mapping(bytes32 => struct)` but we infer `mapping(struct(bytes10, uint16,
     // bytes20) => struct(uintUnknown, mapping(numberUnknown => struct(bytes20,
     // bytes14, bytes14)), mapping(bytes20 => numberUnknown)))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         1,
         0,
         AbiType::Mapping {
@@ -72,31 +67,27 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 ],
             }),
         }
-    )));
+    ));
 
     // `mapping(address => uint256)` but we infer `mapping(bytes20 =>
     // numberUnknown)`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         2,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Bytes { length: Some(20) }),
             value_type: Box::new(AbiType::Number { size: None }),
         }
-    )));
+    ));
 
     // `packed(bool, address)` but we infer `packed(number8, address, any)`
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(3, 0, AbiType::Number { size: Some(8) }))
-    );
-    assert!(layout.slots().contains(&StorageSlot::new(3, 8, AbiType::Address)));
-    assert!(layout.slots().contains(&StorageSlot::new(3, 168, AbiType::Any)));
+    assert!(layout.has_slot(3, 0, AbiType::Number { size: Some(8) }));
+    assert!(layout.has_slot(3, 8, AbiType::Address));
+    assert!(layout.has_slot(3, 168, AbiType::Any));
 
     // `mapping(address => mapping(address => bool))` but we infer `mapping(bytes20
     // => mapping(bytes20 => struct(number8, bytes31))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         4,
         0,
         AbiType::Mapping {
@@ -111,11 +102,11 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 }),
             }),
         }
-    )));
+    ));
 
     // `mapping(bytes32 => bool)` but we infer `mapping(struct(bytes10, uint16,
     // bytes20) => struct(number8, bytes31)`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         5,
         0,
         AbiType::Mapping {
@@ -133,19 +124,15 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 ],
             }),
         }
-    )));
+    ));
 
     // `uint256` but we infer `bytes10`
-    assert!(
-        layout
-            .slots()
-            .contains(&StorageSlot::new(6, 0, AbiType::Bytes { length: Some(10) }))
-    );
+    assert!(layout.has_slot(6, 0, AbiType::Bytes { length: Some(10) }));
 
     // `mapping(bytes32 => mapping(address => bytes32)` but we infer
     // `mapping(struct(bytes10, uint16, bytes20) => mapping(bytes20 =>
     // struct(bytes14, bytes14)))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         7,
         0,
         AbiType::Mapping {
@@ -166,12 +153,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 }),
             }),
         }
-    )));
+    ));
 
     // `mapping(bytes32 => struct(address[], mapping(address => uint256)))` but we
     // infer `mapping(struct(bytes10, uint16, bytes20) => struct(bytes20[],
     // mapping(bytes20 => numberUnknown)))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         8,
         0,
         AbiType::Mapping {
@@ -200,12 +187,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 ],
             }),
         }
-    )));
+    ));
 
     // `mapping(bytes32 => struct)` but we infer `mapping(struct(bytes10, uint16,
     // bytes20) => struct(number160, number160, mapping(bytes32 => struct(uint112,
     // uint112, number112, number112))))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         9,
         0,
         AbiType::Mapping {
@@ -237,11 +224,11 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 ],
             }),
         }
-    )));
+    ));
 
     // `mapping(bytes32 => mapping(address => address))` but we infer
     // `mapping(struct(uint16, any) => mapping(bytes20 => bytes20))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         10,
         0,
         AbiType::Mapping {
@@ -257,11 +244,11 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 value_type: Box::new(AbiType::Bytes { length: Some(20) }),
             }),
         }
-    )));
+    ));
 
     // `mapping(address => mapping(address => uint256))` but we infer
     // `mapping(bytes20 => mapping(bytes20 => uintUnknown))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         11,
         0,
         AbiType::Mapping {
@@ -271,7 +258,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 value_type: Box::new(AbiType::UInt { size: None }),
             }),
         }
-    )));
+    ));
 
     Ok(())
 }

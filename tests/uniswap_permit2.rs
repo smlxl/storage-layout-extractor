@@ -4,7 +4,6 @@
 
 use storage_layout_analyzer::{
     inference::abi::{AbiType, StructElement},
-    layout::StorageSlot,
     watchdog::LazyWatchdog,
 };
 
@@ -22,11 +21,11 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let layout = analyzer.analyze()?;
 
     // We should see 2 slots
-    assert_eq!(layout.slots().len(), 2);
+    assert_eq!(layout.slot_count(), 2);
 
     // `mapping(address => mapping(uint256 => uint256))` but we infer
     // `mapping(address => mapping(bytes32 => bytesUnknown))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         0,
         0,
         AbiType::Mapping {
@@ -36,12 +35,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 value_type: Box::new(AbiType::Bytes { length: None }),
             }),
         }
-    )));
+    ));
 
     // `mapping(address => mapping(address => mapping(address => struct(uint160,
     // uint48, uint48)))` but we infer `mapping(address => mapping(address =>
     // mapping(address => struct(uint160, uint48, bytes6)))`
-    assert!(layout.slots().contains(&StorageSlot::new(
+    assert!(layout.has_slot(
         1,
         0,
         AbiType::Mapping {
@@ -60,7 +59,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
                 }),
             }),
         }
-    )));
+    ));
 
     Ok(())
 }

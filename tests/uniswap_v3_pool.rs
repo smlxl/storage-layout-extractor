@@ -2,7 +2,10 @@
 //! contract`.
 #![cfg(test)]
 
-use storage_layout_analyzer::watchdog::LazyWatchdog;
+use storage_layout_analyzer::{
+    inference::abi::{AbiType, StructElement},
+    watchdog::LazyWatchdog,
+};
 
 mod common;
 
@@ -15,10 +18,99 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     let analyzer = common::new_analyzer_from_bytecode(bytecode, LazyWatchdog.in_rc())?;
 
     // Get the final storage layout for the input contract
-    let _layout = analyzer.analyze()?;
+    let layout = analyzer.analyze()?;
 
-    // But really we just ensure that it completes for now, as before it would
-    // always hang
+    // We should see 9 slots, but instead we see 8 slots but represented as 23
+    // members due to packing and not handling the fixed length array properly
+    assert_eq!(layout.slot_count(), 23);
+
+    // `struct(uint160, int24, uint16, uint16, uint16, uint8, bool)`, but we infer
+    // `struct(uint160, any, infiniteType, uint16, infiniteType, any, bytes0, any,
+    // number8, any)`
+    assert!(layout.has_slot(0, 0, AbiType::UInt { size: Some(160) }));
+    assert!(layout.has_slot(0, 160, AbiType::Any));
+    assert!(layout.has_slot(0, 184, AbiType::InfiniteType));
+    assert!(layout.has_slot(0, 200, AbiType::UInt { size: Some(16) }));
+    assert!(layout.has_slot(0, 216, AbiType::InfiniteType));
+    assert!(layout.has_slot(0, 232, AbiType::Any));
+    assert!(layout.has_slot(0, 236, AbiType::Bytes { length: Some(0) }));
+    assert!(layout.has_slot(0, 240, AbiType::Any));
+    assert!(layout.has_slot(0, 240, AbiType::Number { size: Some(8) }));
+    assert!(layout.has_slot(0, 248, AbiType::Any));
+
+    // `uint256` but we infer `numberUnknown`
+    assert!(layout.has_slot(1, 0, AbiType::Number { size: None }));
+
+    // `uint256` but we infer `numberUnknown`
+    assert!(layout.has_slot(2, 0, AbiType::Number { size: None }));
+
+    // `struct(uint128, uint128)` but we infer `packed(uint128, number128)`
+    assert!(layout.has_slot(3, 0, AbiType::UInt { size: Some(128) }));
+    assert!(layout.has_slot(3, 128, AbiType::Number { size: Some(128) }));
+
+    // `uint128`
+    assert!(layout.has_slot(4, 0, AbiType::UInt { size: Some(128) }));
+
+    // `mapping(int24 => struct(uint128, uint128, uint256, uint256, int56, uint160,
+    // uint32, bool)` but we infer `mapping(intUnknown => struct(uint128, bytes16,
+    // numberUnknown, numberUnknown, bytes7, bytes20, bytes4, number8))`
+    assert!(layout.has_slot(
+        5,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Int { size: None }),
+            value_type: Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::UInt { size: Some(128) }),
+                    StructElement::new(128, AbiType::Bytes { length: Some(16) }),
+                    StructElement::new(256, AbiType::Number { size: None }),
+                    StructElement::new(512, AbiType::Number { size: None }),
+                    StructElement::new(768, AbiType::Bytes { length: Some(7) }),
+                    StructElement::new(824, AbiType::Bytes { length: Some(20) }),
+                    StructElement::new(984, AbiType::Bytes { length: Some(4) }),
+                    StructElement::new(1016, AbiType::Number { size: Some(8) })
+                ],
+            }),
+        }
+    ));
+
+    // `mapping(int16 => uint256)` but we infer `mapping(intUnknown =>
+    // bytesUnknown)`
+    assert!(layout.has_slot(
+        6,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Int { size: None }),
+            value_type: Box::new(AbiType::Bytes { length: None }),
+        }
+    ));
+
+    // `mapping(bytes32 => struct(uint128, uint256, uint256, uint128, uint128))` but
+    // we infer `mapping(bytes32 => struct(uint128, numberUnknown, numberUnknown,
+    // uint128, number128))`
+    assert!(layout.has_slot(
+        7,
+        0,
+        AbiType::Mapping {
+            key_type:   Box::new(AbiType::Bytes { length: Some(32) }),
+            value_type: Box::new(AbiType::Struct {
+                elements: vec![
+                    StructElement::new(0, AbiType::UInt { size: Some(128) }),
+                    StructElement::new(256, AbiType::Number { size: None }),
+                    StructElement::new(512, AbiType::Number { size: None }),
+                    StructElement::new(768, AbiType::UInt { size: Some(128) }),
+                    StructElement::new(896, AbiType::Number { size: Some(128) }),
+                ],
+            }),
+        }
+    ));
+
+    // `struct(uint32, int56, uint160, bool)[65535]` but we infer `packed(any, any,
+    // any, bytes20, number8)`
+    assert!(layout.has_slot(8, 0, AbiType::Any));
+    assert!(layout.has_slot(8, 32, AbiType::Any));
+    assert!(layout.has_slot(8, 88, AbiType::Bytes { length: Some(20) }));
+    assert!(layout.has_slot(8, 248, AbiType::Number { size: Some(8) }));
 
     Ok(())
 }
