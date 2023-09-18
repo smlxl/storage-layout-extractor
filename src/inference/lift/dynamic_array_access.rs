@@ -73,8 +73,13 @@ impl Lift for DynamicArrayIndex {
             } else {
                 return None;
             }
-            .clone()
-            .constant_fold();
+            .clone();
+
+            let data = match data.data() {
+                RSVD::Concat { values } if values.len() == 1 => values[0].clone().constant_fold(),
+                RSVD::Concat { .. } => return None,
+                _ => data,
+            };
 
             let access = RSVD::DynamicArrayIndex {
                 slot:  data.transform_data(lift_dyn_array_accesses),

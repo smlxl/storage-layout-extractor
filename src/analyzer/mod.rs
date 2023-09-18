@@ -244,6 +244,7 @@ impl Analyzer<state::VMReady> {
 impl Analyzer<state::ExecutionComplete> {
     /// Takes thew results of execution and uses them to prepare a new inference
     /// engine.
+    #[allow(clippy::missing_panics_doc)] // Explicit closure can never return Err
     #[must_use]
     pub fn prepare_unifier(self) -> Analyzer<state::InferenceReady> {
         unsafe {

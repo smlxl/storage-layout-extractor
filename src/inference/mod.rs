@@ -181,6 +181,10 @@ impl InferenceEngine {
     ///
     /// Returns [`Err`] if the unification process fails.
     pub fn unify(&mut self) -> Result<StorageLayout> {
+        fn is_constant_storage_slot(value: &TCBoxedVal) -> bool {
+            matches!(value.data(), TCSVD::StorageSlot { key } if matches!(key.data(), TCSVD::KnownData { .. }))
+        }
+
         // Actually run unification
         unification::unify(&mut self.state, &self.watchdog)?;
 
@@ -191,11 +195,7 @@ impl InferenceEngine {
         // Start building the layout
         let constant_storage_slots: Vec<TCBoxedVal> = all_values
             .into_iter()
-            .filter(|v| {
-                matches!(
-                    v.data(),
-                    TCSVD::StorageSlot { key } if matches!(key.data(), TCSVD::KnownData {..}))
-            })
+            .filter(|value| is_constant_storage_slot(value))
             .cloned()
             .collect();
 
@@ -467,6 +467,7 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// Returns [`Err`] if there is no resolved type for `tv`.
+    #[allow(clippy::missing_panics_doc)] // Panic is guarded
     pub fn type_of(&mut self, type_variable: TypeVariable) -> Result<TypeExpression> {
         let forest = self.state.result();
         match forest.get_data(&type_variable).cloned() {
@@ -848,6 +849,7 @@ pub mod test {
     }
 
     /// Utilities for these tests
+    #[allow(clippy::missing_panics_doc)]
     pub mod util {
         use crate::{
             bytecode,

@@ -191,6 +191,7 @@ impl Memory {
     /// size if so, and [`None`] otherwise.
     #[must_use]
     fn decompose_size(size: &RuntimeBoxedVal) -> Option<usize> {
+        let size = size.clone().constant_fold();
         match size.data() {
             RSVD::KnownData { value } => Some(value.into()),
             _ => None,

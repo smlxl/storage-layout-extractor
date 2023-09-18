@@ -142,6 +142,7 @@ pub struct JumpTargets {
 
 impl JumpTargets {
     /// Creates a new tracker for jump targets.
+    #[allow(clippy::missing_panics_doc)] // Instructions len has already been checked
     #[must_use]
     pub fn new(instructions: ExecutionThread, maximum_forks_per_jump_target: usize) -> Self {
         let instructions_len = instructions.len();

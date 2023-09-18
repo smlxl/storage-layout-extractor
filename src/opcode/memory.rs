@@ -1220,6 +1220,7 @@ impl PushN {
 
     /// Gets the bytes that are pushed as a known word.
     #[must_use]
+    #[allow(clippy::missing_panics_doc)] // Unwrapped array has known size
     pub fn bytes_as_word(&self) -> KnownWord {
         // Get the bytes we have and extend them out to be long enough
         let mut bytes = self.bytes.clone();

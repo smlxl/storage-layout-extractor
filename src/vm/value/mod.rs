@@ -1243,10 +1243,6 @@ where
                         _ => SVD::RightShift { shift, value },
                     })
                 }
-                SVD::Concat { values } if values.len() == 1 => values
-                    .first()
-                    .cloned()
-                    .map(|v| v.transform_data(constant_folder).data),
                 _ => None,
             }
         }

@@ -26,8 +26,8 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `address` but we infer `number160`
     assert!(layout.has_slot(0, 0, AbiType::Number { size: Some(160) }));
 
-    // `uint256`
-    assert!(layout.has_slot(1, 0, AbiType::UInt { size: Some(256) }));
+    // `uint256` but we infer `number256`
+    assert!(layout.has_slot(1, 0, AbiType::Number { size: Some(256) }));
 
     // `address`
     assert!(layout.has_slot(2, 0, AbiType::Address));
@@ -63,16 +63,16 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `string` but we infer `bytes`
     assert!(layout.has_slot(12, 0, AbiType::DynBytes));
 
-    // `mapping(uint256 => struct)` but we infer `mapping(uint256 => struct)` but
+    // `mapping(uint256 => struct)` but we infer `mapping(number256 => struct)` but
     // the struct is not quite the same
     assert!(layout.has_slot(
         13,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+            key_type:   Box::new(AbiType::Number { size: Some(256) }),
             value_type: Box::new(AbiType::Struct {
                 elements: vec![
-                    StructElement::new(0, AbiType::UInt { size: Some(256) }),
+                    StructElement::new(0, AbiType::Number { size: Some(256) }),
                     StructElement::new(256, AbiType::Address),
                     StructElement::new(416, AbiType::Number { size: Some(8) }),
                     StructElement::new(512, AbiType::Bytes { length: Some(32) }),
@@ -101,45 +101,45 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `uint256` but we infer `numberUnknown`
     assert!(layout.has_slot(15, 0, AbiType::Number { size: None }));
 
-    // `mapping(uint256 => uint256)`
+    // `mapping(uint256 => uint256)` but we infer `mapping(number256 => uint256)`
     assert!(layout.has_slot(
         16,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+            key_type:   Box::new(AbiType::Number { size: Some(256) }),
             value_type: Box::new(AbiType::UInt { size: Some(256) }),
         }
     ));
 
-    // `mapping(uint256 => uint256)` but we infer `mapping(uint256 =>
+    // `mapping(uint256 => uint256)` but we infer `mapping(number256 =>
     // numberUnknown)`
     assert!(layout.has_slot(
         17,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+            key_type:   Box::new(AbiType::Number { size: Some(256) }),
             value_type: Box::new(AbiType::Number { size: None }),
         }
     ));
 
-    // `mapping(uint256 => uint256)` but we infer `mapping(uint256 =>
+    // `mapping(uint256 => uint256)` but we infer `mapping(number256 =>
     // uintUnknown)`
     assert!(layout.has_slot(
         18,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+            key_type:   Box::new(AbiType::Number { size: Some(256) }),
             value_type: Box::new(AbiType::UInt { size: None }),
         }
     ));
 
     // `mapping(uint256 => mapping(uint256 => uint256))` but we infer
-    // `mapping(uint256 => mapping(bytes32 => uint256))`
+    // `mapping(number256 => mapping(bytes32 => uint256))`
     assert!(layout.has_slot(
         19,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+            key_type:   Box::new(AbiType::Number { size: Some(256) }),
             value_type: Box::new(AbiType::Mapping {
                 key_type:   Box::new(AbiType::Bytes { length: Some(32) }),
                 value_type: Box::new(AbiType::UInt { size: Some(256) }),
@@ -147,42 +147,43 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     ));
 
-    // `mapping(address => mapping(uint256 => uint256))`
+    // `mapping(address => mapping(uint256 => uint256))` but we infer
+    // `mapping(address => mapping(number256 => uint256))`
     assert!(layout.has_slot(
         20,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Address),
             value_type: Box::new(AbiType::Mapping {
-                key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+                key_type:   Box::new(AbiType::Number { size: Some(256) }),
                 value_type: Box::new(AbiType::UInt { size: Some(256) }),
             }),
         }
     ));
 
     // `mapping(address => mapping(uint256 => uint256))` but we infer
-    // `mapping(address => mapping(uint256 => uintUnknown))`
+    // `mapping(address => mapping(number256 => uintUnknown))`
     assert!(layout.has_slot(
         21,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Address),
             value_type: Box::new(AbiType::Mapping {
-                key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+                key_type:   Box::new(AbiType::Number { size: Some(256) }),
                 value_type: Box::new(AbiType::UInt { size: None }),
             }),
         }
     ));
 
     // `mapping(address => mapping(uint256 => mapping(uint256 => uint256)))` but we
-    // infer `mapping(address => mapping(uint256 => mapping(bytes32 => uint256))`
+    // infer `mapping(address => mapping(number256 => mapping(bytes32 => uint256))`
     assert!(layout.has_slot(
         22,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Address),
             value_type: Box::new(AbiType::Mapping {
-                key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+                key_type:   Box::new(AbiType::Number { size: Some(256) }),
                 value_type: Box::new(AbiType::Mapping {
                     key_type:   Box::new(AbiType::Bytes { length: Some(32) }),
                     value_type: Box::new(AbiType::UInt { size: Some(256) }),
@@ -191,28 +192,29 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     ));
 
-    // `mapping(address => mapping(uint256 => uint256))`
+    // `mapping(address => mapping(uint256 => uint256))` but we infer
+    // `mapping(address => mapping(number256 => uint256))`
     assert!(layout.has_slot(
         23,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Address),
             value_type: Box::new(AbiType::Mapping {
-                key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+                key_type:   Box::new(AbiType::Number { size: Some(256) }),
                 value_type: Box::new(AbiType::UInt { size: Some(256) }),
             }),
         }
     ));
 
     // `mapping(address => mapping(uint256 => uint256))` but we infer
-    // `mapping(address => mapping(uint256 => struct))`
+    // `mapping(address => mapping(number256 => struct(number8, bytes31)))`
     assert!(layout.has_slot(
         24,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Address),
             value_type: Box::new(AbiType::Mapping {
-                key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+                key_type:   Box::new(AbiType::Number { size: Some(256) }),
                 value_type: Box::new(AbiType::Struct {
                     elements: vec![
                         StructElement::new(0, AbiType::Number { size: Some(8) }),
@@ -224,14 +226,14 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     ));
 
     // `mapping(address => mapping(uint256 => bool))` but we infer
-    // `mapping(address => mapping(uint256 => struct(number8, bytes31)))`
+    // `mapping(address => mapping(number256 => struct(number8, bytes31)))`
     assert!(layout.has_slot(
         25,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Address),
             value_type: Box::new(AbiType::Mapping {
-                key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+                key_type:   Box::new(AbiType::Number { size: Some(256) }),
                 value_type: Box::new(AbiType::Struct {
                     elements: vec![
                         StructElement::new(0, AbiType::Number { size: Some(8) }),
@@ -273,13 +275,13 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     ));
 
-    // `mapping(address => uint256)` but we infer `mapping(bytes20 => any)`
+    // `mapping(address => uint256)` but we infer `mapping(bytes20 => numberNone)`
     assert!(layout.has_slot(
         29,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Bytes { length: Some(20) }),
-            value_type: Box::new(AbiType::Any),
+            value_type: Box::new(AbiType::Number { size: None }),
         }
     ));
 
@@ -292,12 +294,13 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     ));
 
-    // `mapping(uint256 => bool)` but we infer `mapping(uint256 => struct)`
+    // `mapping(uint256 => bool)` but we infer `mapping(number256 => struct(number8,
+    // bytes31))`
     assert!(layout.has_slot(
         31,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+            key_type:   Box::new(AbiType::Number { size: Some(256) }),
             value_type: Box::new(AbiType::Struct {
                 elements: vec![
                     StructElement::new(0, AbiType::Number { size: Some(8) }),
@@ -307,24 +310,24 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     ));
 
-    // `mapping(uint256 => uint256)` but we infer `mapping(uint256 =>
+    // `mapping(uint256 => uint256)` but we infer `mapping(number256 =>
     // uintUnknown)`
     assert!(layout.has_slot(
         32,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+            key_type:   Box::new(AbiType::Number { size: Some(256) }),
             value_type: Box::new(AbiType::UInt { size: None }),
         }
     ));
 
-    // `mapping(uint256 => uint256)` but we infer `mapping(uint256 =>
+    // `mapping(uint256 => uint256)` but we infer `mapping(number256 =>
     // uintUnknown)`
     assert!(layout.has_slot(
         33,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(256) }),
+            key_type:   Box::new(AbiType::Number { size: Some(256) }),
             value_type: Box::new(AbiType::UInt { size: None }),
         }
     ));

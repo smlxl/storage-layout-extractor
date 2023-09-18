@@ -7,6 +7,7 @@ pub mod mapping_index;
 pub mod mapping_offset;
 pub mod mul_shifted;
 pub mod packed_encoding;
+pub mod proxy_slots;
 pub mod recognise_hashed_slots;
 pub mod storage_slots;
 pub mod sub_word;
@@ -27,6 +28,7 @@ use crate::{
             mapping_offset::MappingOffset,
             mul_shifted::MulShiftedValue,
             packed_encoding::PackedEncoding,
+            proxy_slots::ProxySlots,
             recognise_hashed_slots::StorageSlotHashes,
             storage_slots::StorageSlots,
             sub_word::SubWordValue,
@@ -130,6 +132,7 @@ impl Default for LiftingPasses {
         Self {
             passes: vec![
                 StorageSlotHashes::new(),
+                ProxySlots::new(),
                 MappingIndex::new(),
                 SubWordValue::new(),
                 MulShiftedValue::new(),

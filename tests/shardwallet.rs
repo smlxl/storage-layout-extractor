@@ -29,12 +29,12 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     // `string` but we never see it
     assert!(layout.has_no_slot_at(1));
 
-    // `mapping(uint256 => address)` but we infer `mapping(uint64 => address)`
+    // `mapping(uint256 => address)` but we infer `mapping(infiniteType => address)`
     assert!(layout.has_slot(
         2,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(64) }),
+            key_type:   Box::new(AbiType::InfiniteType),
             value_type: Box::new(AbiType::Address),
         }
     ));
@@ -49,13 +49,13 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
         }
     ));
 
-    // `mapping(uint256 => address)` but we infer `mapping(uint64 => struct(bytes20,
-    // bytes12)`
+    // `mapping(uint256 => address)` but we infer `mapping(infiniteType =>
+    // struct(bytes20, bytes12)`
     assert!(layout.has_slot(
         4,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(64) }),
+            key_type:   Box::new(AbiType::InfiniteType),
             value_type: Box::new(AbiType::Struct {
                 elements: vec![
                     StructElement::new(0, AbiType::Bytes { length: Some(20) }),
@@ -90,17 +90,18 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     assert!(layout.has_slot(6, 224, AbiType::Any));
 
     // `mapping(uint64 => struct(uint24, uint64, uint64))` but we infer
-    // `mapping(uint64 => struct(bytes3, infiniteType, uint64))`
+    // `mapping(infiniteType => struct(number24, infiniteType, uint64, any))`
     assert!(layout.has_slot(
         7,
         0,
         AbiType::Mapping {
-            key_type:   Box::new(AbiType::UInt { size: Some(64) }),
+            key_type:   Box::new(AbiType::InfiniteType),
             value_type: Box::new(AbiType::Struct {
                 elements: vec![
-                    StructElement::new(0, AbiType::Bytes { length: Some(3) }),
+                    StructElement::new(0, AbiType::Number { size: Some(24) }),
                     StructElement::new(24, AbiType::InfiniteType),
-                    StructElement::new(88, AbiType::UInt { size: Some(64) })
+                    StructElement::new(88, AbiType::UInt { size: Some(64) }),
+                    StructElement::new(152, AbiType::Any),
                 ],
             }),
         }
@@ -120,14 +121,14 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     ));
 
     // `mapping(address => mapping(uint64 => uint256))` but we infer
-    // `mapping(bytes20 => mapping(uint64 => uintUnknown))`
+    // `mapping(bytes20 => mapping(infiniteType => uintUnknown))`
     assert!(layout.has_slot(
         9,
         0,
         AbiType::Mapping {
             key_type:   Box::new(AbiType::Bytes { length: Some(20) }),
             value_type: Box::new(AbiType::Mapping {
-                key_type:   Box::new(AbiType::UInt { size: Some(64) }),
+                key_type:   Box::new(AbiType::InfiniteType),
                 value_type: Box::new(AbiType::UInt { size: None }),
             }),
         }
