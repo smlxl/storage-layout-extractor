@@ -76,7 +76,7 @@ impl Lift for DynamicArrayIndex {
             .clone();
 
             let data = match data.data() {
-                RSVD::Concat { values } if values.len() == 1 => values[0].clone().constant_fold(),
+                RSVD::Concat { values } if values.len() == 1 => values[0].constant_fold(),
                 RSVD::Concat { .. } => return None,
                 _ => data,
             };

@@ -30,7 +30,7 @@ use crate::{
 #[allow(clippy::boxed_local)] // We always pass around boxed values during execution
 pub fn validate_jump_destination(counter: &RuntimeBoxedVal, vm: &mut VM) -> execution::Result<u32> {
     let instruction_pointer = vm.instruction_pointer()?;
-    let jump_target = match counter.clone().constant_fold().data() {
+    let jump_target = match counter.constant_fold().data() {
         RSVD::KnownData { value, .. } => value.value_le().as_u32(),
         _ => {
             return Err(execution::Error::NoConcreteJumpDestination.locate(instruction_pointer));

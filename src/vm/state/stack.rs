@@ -170,8 +170,8 @@ impl Stack {
     /// Gets all of the values that are registered in the virtual machine stack
     /// at the time of calling.
     #[must_use]
-    pub fn all_values(&self) -> Vec<RuntimeBoxedVal> {
-        self.data.clone()
+    pub fn all_values(self) -> Vec<RuntimeBoxedVal> {
+        self.data
     }
 }
 

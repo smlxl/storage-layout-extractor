@@ -90,7 +90,8 @@ impl Memory {
     /// these. Implementation of the `MLOAD` and `MSTORE*` opcodes may want to
     /// account for sub-word writes by dissecting the arguments to this
     /// function.
-    #[allow(clippy::boxed_local)] // We use boxes everywhere for API simplicity.
+    // We use boxes everywhere for API simplicity.
+    #[allow(clippy::boxed_local, clippy::needless_pass_by_value)]
     fn store_with_size(
         &mut self,
         offset: RuntimeBoxedVal,
@@ -121,7 +122,7 @@ impl Memory {
     /// have been overwrites between adjacent slots.
     #[must_use]
     pub fn load(&mut self, offset: &RuntimeBoxedVal) -> RuntimeBoxedVal {
-        let offset = offset.clone().constant_fold();
+        let offset = offset.constant_fold();
         match offset.data() {
             RSVD::KnownData { value } => {
                 Self::get_or_initialize(&mut self.constant_offsets, &value.into()).clone()
@@ -150,7 +151,7 @@ impl Memory {
         size: &RuntimeBoxedVal,
         instruction_pointer: u32,
     ) -> RuntimeBoxedVal {
-        let offset = offset.clone().constant_fold();
+        let offset = offset.constant_fold();
         match offset.data() {
             RSVD::KnownData { value } => match Self::decompose_size(size) {
                 Some(size) => {
@@ -191,7 +192,7 @@ impl Memory {
     /// size if so, and [`None`] otherwise.
     #[must_use]
     fn decompose_size(size: &RuntimeBoxedVal) -> Option<usize> {
-        let size = size.clone().constant_fold();
+        let size = size.constant_fold();
         match size.data() {
             RSVD::KnownData { value } => Some(value.into()),
             _ => None,
@@ -274,15 +275,15 @@ impl Memory {
     /// Gets all of the values that are registered in the virtual machine memory
     /// at the time of calling.
     #[must_use]
-    pub fn all_values(&self) -> Vec<RuntimeBoxedVal> {
+    pub fn all_values(self) -> Vec<RuntimeBoxedVal> {
         let mut values = Vec::new();
         self.constant_offsets
-            .values()
-            .for_each(|more| values.extend(more.iter().map(|s| s.data.clone())));
-        values.extend(self.symbolic_offsets.keys().cloned());
-        self.symbolic_offsets
-            .values()
-            .for_each(|more| values.extend(more.iter().map(|s| s.data.clone())));
+            .into_values()
+            .for_each(|more| values.extend(more.into_iter().map(|s| s.data)));
+        self.symbolic_offsets.into_iter().for_each(|(key, more)| {
+            values.push(key);
+            values.extend(more.into_iter().map(|s| s.data));
+        });
 
         values
     }

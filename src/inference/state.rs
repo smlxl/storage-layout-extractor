@@ -68,8 +68,9 @@ impl InferenceState {
     /// _two different registrations_ for that `value` in the state in almost
     /// all cases.
     ///
-    /// The only case where this does _not_ happen is for values where
-    /// [`Self::is_stable_typed`] returns `true`.
+    /// The only case where this does _not_ happen is for values that contain
+    /// one or more of [`RSVD::Value`], [`RSVD::CallData`] and
+    /// [`RSVD::StorageSlot`] in their trees.
     #[must_use]
     pub fn register(&mut self, value: RuntimeBoxedVal) -> TypeVariable {
         let returned_val = self.register_internal(value);
@@ -110,11 +111,20 @@ impl InferenceState {
     ///
     /// A stable type is one that should not change based on occurrence if the
     /// structure of the value is the same.
+    ///
+    /// # Quadratic Traversal
+    ///
+    /// Despite the fact that this function does the same traversal as
+    /// [`Self::register_internal`] and hence results in quadratic traversal, in
+    /// practice this approach has still benchmarked as being faster than
+    /// alternative single-pass approaches.
+    ///
+    /// Do not change this approach without careful performance analysis.
     #[must_use]
-    pub fn is_stable_typed(value: &RuntimeBoxedVal) -> bool {
+    fn is_stable_typed(value: &RuntimeBoxedVal) -> bool {
         match value.data() {
             RSVD::StorageSlot { .. } | RSVD::Value { .. } | RSVD::CallData { .. } => true,
-            _ => value.children().into_iter().any(Self::is_stable_typed),
+            _ => value.children().into_iter().any(|c| Self::is_stable_typed(&c)),
         }
     }
 
@@ -126,7 +136,6 @@ impl InferenceState {
     fn register_internal(&mut self, value: RuntimeBoxedVal) -> TCBoxedVal {
         // Storage slots need specialised handling
         let is_stable = Self::is_stable_typed(&value);
-        let val_clone = value.clone();
         if is_stable {
             if let Some(r) = self.stable_types.get(&value) {
                 return r.clone();
@@ -136,7 +145,8 @@ impl InferenceState {
         // We need to perform registration recursively to transform the type.
         let instruction_pointer = value.instruction_pointer();
         let provenance = value.provenance();
-        let new_data = match value.consume().data {
+
+        let new_data = match (*value).clone().consume().data {
             RSVD::Value { id } => TCSVD::Value { id },
             RSVD::KnownData { value } => TCSVD::KnownData { value },
             RSVD::Add { left, right } => TCSVD::Add {
@@ -388,7 +398,7 @@ impl InferenceState {
         self.inferences.entry(type_var).or_insert(HashSet::new());
 
         if is_stable {
-            self.stable_types.insert(val_clone, new_value.clone());
+            self.stable_types.insert(value, new_value.clone());
         }
 
         // Return the type variable

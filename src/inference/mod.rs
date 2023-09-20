@@ -1,7 +1,7 @@
 //! This module contains the [`InferenceEngine`] and related utilities that deal
 //! with inferring and unifying types for the program.
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 use itertools::Itertools;
 
@@ -71,7 +71,7 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// Returns [`Err`] if the engine's execution fails for any reason.
-    pub fn run(&mut self, execution_result: &ExecutionResult) -> Result<StorageLayout> {
+    pub fn run(&mut self, execution_result: ExecutionResult) -> Result<StorageLayout> {
         let transformed_values = self.lift(execution_result)?;
         self.assign_vars(transformed_values)?;
         self.infer()?;
@@ -88,16 +88,20 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// Returns [`Err`] if one or more of the lifting passes returns an error.
-    pub fn lift(&mut self, execution_result: &ExecutionResult) -> Result<Vec<RuntimeBoxedVal>> {
+    pub fn lift(&mut self, execution_result: ExecutionResult) -> Result<VecDeque<RuntimeBoxedVal>> {
         // Identically structured values tell us the same thing at inference time, so we
         // remove any exact duplicates to make the type checking process faster.
-        let result_values = execution_result.all_values().into_iter().unique().collect_vec();
+        let mut result_values: VecDeque<_> =
+            execution_result.all_values().into_iter().unique().collect();
 
         let polling_interval = self.watchdog.poll_every();
-        let mut new_values = Vec::new();
+        let mut new_values = VecDeque::new();
         let mut errors = Errors::new();
 
-        for (counter, value) in result_values.into_iter().enumerate() {
+        // We do these  by popping from the queue so as to deallocate immediately and
+        // prevent peaks in memory residency
+        let mut counter = 0;
+        while let Some(value) = result_values.pop_front() {
             // If we have been told to stop, stop and return an error.
             if counter % polling_interval == 0 && self.watchdog.should_stop() {
                 Err(Error::StoppedByWatchdog).locate(value.instruction_pointer())?;
@@ -105,9 +109,11 @@ impl InferenceEngine {
 
             // Actually run the lifting passes.
             match self.config.lifting_passes.run(value, &self.state) {
-                Ok(v) => new_values.push(v),
+                Ok(v) => new_values.push_back(v),
                 Err(e) => errors.add_many_located(e),
             }
+
+            counter += 1;
         }
 
         if errors.is_empty() {
@@ -127,16 +133,21 @@ impl InferenceEngine {
     /// # Errors
     ///
     /// Returns [`Err`] if killed by the watchdog.
-    pub fn assign_vars(&mut self, values: Vec<RuntimeBoxedVal>) -> Result<()> {
+    pub fn assign_vars(&mut self, mut values: VecDeque<RuntimeBoxedVal>) -> Result<()> {
         let polling_interval = self.watchdog.poll_every();
 
-        for (count, value) in values.into_iter().enumerate() {
+        // We do this by popping so as to allow immediate deallocation on scope loss,
+        // and prevent peaks in memory residency
+        let mut counter = 0;
+        while let Some(value) = values.pop_front() {
             // If we have been told to stop, stop and return an error
-            if count % polling_interval == 0 && self.watchdog.should_stop() {
+            if counter % polling_interval == 0 && self.watchdog.should_stop() {
                 Err(Error::StoppedByWatchdog).locate(value.instruction_pointer())?;
             }
 
             let _ = self.state.register(value);
+
+            counter += 1;
         }
 
         Ok(())
@@ -679,6 +690,8 @@ enum ParentType {
 
 #[cfg(test)]
 pub mod test {
+    use std::collections::VecDeque;
+
     use crate::{
         inference::{abi::AbiType, Config, InferenceEngine},
         utility::U256W,
@@ -739,7 +752,7 @@ pub mod test {
         let mut unifier = InferenceEngine::new(config, LazyWatchdog.in_rc());
 
         // First we run the lifting, and check the results
-        let results = unifier.lift(&util::execution_result_with_values(vec![store.clone()]))?;
+        let results = unifier.lift(util::execution_result_with_values(vec![store.clone()]))?;
         assert_eq!(results.len(), 1);
 
         let c_1_slot = RSV::new(
@@ -835,7 +848,7 @@ pub mod test {
         );
         let var_3 = RSV::new_value(5, Provenance::Synthetic);
 
-        let values = vec![mapping.clone(), var_3.clone()];
+        let values = VecDeque::from([mapping.clone(), var_3.clone()]);
 
         let config = Config::default();
         let mut unifier = InferenceEngine::new(config, LazyWatchdog.in_rc());

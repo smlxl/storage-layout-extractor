@@ -33,7 +33,7 @@ impl InferenceRule for CallDataRule {
         };
 
         // If we can make the size into a constant we can work with it
-        let TCSVD::KnownData { value: byte_size } = size.data().clone().constant_fold() else {
+        let TCSVD::KnownData { value: byte_size } = size.data().constant_fold() else {
             return Ok(());
         };
 
