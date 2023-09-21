@@ -172,50 +172,28 @@ impl Storage {
     /// into [`RSVD::StorageWrite`] of `(key, value)`, allowing for easier
     /// analysis later.
     #[must_use]
-    pub fn stores_as_values(&self) -> Vec<RuntimeBoxedVal> {
-        let mut known_writes: Vec<RuntimeBoxedVal> = self
-            .known_slots
-            .iter()
-            .flat_map(|(k, vs)| {
-                vs.iter()
-                    .map(|v| {
-                        RSV::new(
-                            v.instruction_pointer(),
-                            RSVD::StorageWrite {
-                                key:   k.clone(),
-                                value: v.clone(),
-                            },
-                            v.provenance(),
-                            None,
-                        )
-                    })
-                    .collect::<Vec<RuntimeBoxedVal>>()
-            })
-            .collect();
+    pub fn stores_as_values(self) -> Vec<RuntimeBoxedVal> {
+        let mut all_values: Vec<RuntimeBoxedVal> = Vec::new();
 
-        let symbolic_writes: Vec<RuntimeBoxedVal> = self
-            .symbolic_slots
-            .iter()
-            .flat_map(|(k, vs)| {
-                vs.iter()
-                    .map(|v| {
-                        RSV::new(
-                            v.instruction_pointer(),
-                            RSVD::StorageWrite {
-                                key:   k.clone(),
-                                value: v.clone(),
-                            },
-                            v.provenance(),
-                            None,
-                        )
-                    })
-                    .collect::<Vec<RuntimeBoxedVal>>()
-            })
-            .collect();
+        self.known_slots
+            .into_iter()
+            .chain(self.symbolic_slots)
+            .for_each(|(k, vs)| {
+                all_values.extend(vs.into_iter().map(|v| {
+                    let provenance = v.provenance();
+                    RSV::new(
+                        v.instruction_pointer(),
+                        RSVD::StorageWrite {
+                            key:   k.clone(),
+                            value: v,
+                        },
+                        provenance,
+                        None,
+                    )
+                }));
+            });
 
-        known_writes.extend(symbolic_writes);
-
-        known_writes
+        all_values
     }
 }
 

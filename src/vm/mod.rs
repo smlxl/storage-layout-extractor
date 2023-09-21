@@ -517,9 +517,10 @@ pub struct ExecutionResult {
 }
 
 impl ExecutionResult {
-    /// Gathers all of the symbolic values known about by the execution result.
-    pub fn all_values(&self) -> Vec<RuntimeBoxedVal> {
-        self.states.iter().flat_map(VMState::all_values).collect()
+    /// Gathers all of the symbolic values known about by the execution result,
+    /// consuming the execution result in the process.
+    pub fn all_values(self) -> Vec<RuntimeBoxedVal> {
+        self.states.into_iter().flat_map(VMState::all_values).collect()
     }
 }
 

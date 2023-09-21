@@ -75,20 +75,18 @@ impl Lift for MulShiftedValue {
 
             // We need to pull out the expected structure while accounting for the fact that
             // the operands may be either way around.
-            let (constant, value) = match (
-                left.data().clone().constant_fold(),
-                right.data().clone().constant_fold(),
-            ) {
-                (RSVD::KnownData { value }, RSVD::SubWord { .. }) => (
-                    value,
-                    right.clone().transform_data(insert_multiplicative_shifts),
-                ),
-                (RSVD::SubWord { .. }, RSVD::KnownData { value }) => (
-                    value,
-                    left.clone().transform_data(insert_multiplicative_shifts),
-                ),
-                _ => return None,
-            };
+            let (constant, value) =
+                match (left.data().constant_fold(), right.data().constant_fold()) {
+                    (RSVD::KnownData { value }, RSVD::SubWord { .. }) => (
+                        value,
+                        right.clone().transform_data(insert_multiplicative_shifts),
+                    ),
+                    (RSVD::SubWord { .. }, RSVD::KnownData { value }) => (
+                        value,
+                        left.clone().transform_data(insert_multiplicative_shifts),
+                    ),
+                    _ => return None,
+                };
 
             let Some(offset) = MulShiftedValue::which_power_of_2(constant) else {
                 return None;

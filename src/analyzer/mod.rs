@@ -276,7 +276,7 @@ impl Analyzer<state::InferenceReady> {
     pub fn infer(self) -> error::Result<Analyzer<state::InferenceComplete>> {
         unsafe {
             self.transform_state(|mut old_state| {
-                let layout = old_state.engine.run(&old_state.execution_result)?;
+                let layout = old_state.engine.run(old_state.execution_result)?;
                 let engine = old_state.engine;
                 Ok(state::InferenceComplete { engine, layout })
             })

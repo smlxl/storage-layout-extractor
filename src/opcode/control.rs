@@ -360,7 +360,7 @@ fn store_return_data(
     vm: &mut VM,
 ) -> ExecuteResult {
     let instruction_pointer = vm.instruction_pointer()?;
-    let ret_size = ret_size.clone().constant_fold();
+    let ret_size = ret_size.constant_fold();
 
     if let RSVD::KnownData { value } = ret_size.data() {
         let num_32 = vm.build().known_exec(instruction_pointer, KnownWord::from(32));
@@ -384,8 +384,8 @@ fn store_return_data(
             let dest_offset = vm.build().symbolic_exec(
                 instruction_pointer,
                 RSVD::Add {
-                    left:  ret_offset.clone().constant_fold(),
-                    right: to_add_to_offset.clone(),
+                    left:  ret_offset.constant_fold(),
+                    right: to_add_to_offset,
                 },
             );
             // Offsets in the _return data_ start at zero.

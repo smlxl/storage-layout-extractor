@@ -57,7 +57,7 @@ impl SubWordValue {
     #[must_use]
     pub fn get_region(data: &RSVD) -> Option<SubWord> {
         // The word to pull the mask details out of
-        let SVD::KnownData { value } = data.clone().constant_fold() else {
+        let SVD::KnownData { value } = data.constant_fold() else {
             // If it does not fold to a constant we cannot actually work out the details of
             // the mask here, so we fail out
             return None;
@@ -88,7 +88,7 @@ impl SubWordValue {
     #[must_use]
     pub fn get_shift(value: &RuntimeBoxedVal) -> (&RuntimeBoxedVal, usize) {
         match &value.data() {
-            RSVD::RightShift { value, shift } => match shift.clone().constant_fold().data() {
+            RSVD::RightShift { value, shift } => match shift.constant_fold().data() {
                 RSVD::KnownData { value: shift } => (value, shift.into()),
                 _ => (value, 0),
             },
