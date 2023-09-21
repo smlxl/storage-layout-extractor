@@ -36,7 +36,7 @@ pub struct StorageSlotHashes {
 }
 
 impl StorageSlotHashes {
-    /// Creates a new instance of the mapping access lifting pass.
+    /// Creates a new instance of the slot hashes lifting pass.
     #[must_use]
     pub fn new() -> Box<Self> {
         let hashes = Arc::new(RwLock::new(Self::make_hashes(SLOT_COUNT)));

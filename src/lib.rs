@@ -116,6 +116,7 @@
 
 pub mod analyzer;
 pub mod constant;
+pub mod data;
 pub mod disassembly;
 pub mod error;
 pub mod inference;
