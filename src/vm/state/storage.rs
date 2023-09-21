@@ -68,6 +68,7 @@ impl Storage {
     ///
     /// This is a best-effort analysis as we cannot guarantee knowing if there
     /// have been overwrites between adjacent slots.
+    #[allow(clippy::missing_panics_doc)] // Panics are guarded
     #[must_use]
     pub fn load(&mut self, key: &RuntimeBoxedVal) -> RuntimeBoxedVal {
         // First we need to work out which of the maps to read from.
@@ -143,7 +144,7 @@ impl Storage {
         let mut known_keys: Vec<&RuntimeBoxedVal> = self.known_slots.keys().collect();
         let symbolic_keys: Vec<&RuntimeBoxedVal> = self.symbolic_slots.keys().collect();
 
-        known_keys.extend(symbolic_keys.into_iter());
+        known_keys.extend(symbolic_keys);
 
         known_keys
     }

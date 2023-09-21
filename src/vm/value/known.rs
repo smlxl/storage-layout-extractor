@@ -159,6 +159,18 @@ impl KnownWord {
         bits
     }
 
+    /// Gets the bytes of this word in little endian ordering.
+    #[must_use]
+    pub fn bytes_le(&self) -> [u8; mem::size_of::<Self>()] {
+        self.value.to_le_bytes()
+    }
+
+    /// Gets the bytes of this word in big endian ordering.
+    #[must_use]
+    pub fn bytes_be(&self) -> [u8; mem::size_of::<Self>()] {
+        self.value.to_be_bytes()
+    }
+
     /// Performs signed division of two known words.
     #[must_use]
     pub fn signed_div(self, rhs: Self) -> Self {

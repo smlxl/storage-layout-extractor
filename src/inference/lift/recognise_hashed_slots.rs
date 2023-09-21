@@ -43,6 +43,7 @@ impl StorageSlotHashes {
 
     /// Generates the slot hashes for the first `count` slots, assuming
     /// big-endian (network) byte ordering.
+    #[allow(clippy::missing_panics_doc)] // Panics are guarded and should never happen
     #[must_use]
     pub fn make_hashes(count: usize) -> BiMap<U256, usize> {
         let mut data = BiMap::new();
@@ -110,7 +111,7 @@ mod test {
     #[allow(clippy::needless_range_loop)] // Clearer way to write it for the test
     fn computes_first_five_hashes_correctly() {
         // A vec of expected hashes
-        let hashes = vec![
+        let hashes = [
             "290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563",
             "b10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6",
             "405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace",

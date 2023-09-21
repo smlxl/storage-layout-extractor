@@ -164,7 +164,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     ));
 
     // `mapping(uint256 => mapping(uint256 => uint256[]))` but we infer
-    // `mapping(number256 => mapping(uint256 => uintUnknown[]))`
+    // `mapping(number256 => mapping(uint256 => uint256[]))`
     assert!(layout.has_slot(
         13,
         0,
@@ -173,7 +173,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
             value_type: Box::new(AbiType::Mapping {
                 key_type:   Box::new(AbiType::UInt { size: Some(256) }),
                 value_type: Box::new(AbiType::DynArray {
-                    tp: Box::new(AbiType::UInt { size: None }),
+                    tp: Box::new(AbiType::UInt { size: Some(256) }),
                 }),
             }),
         }

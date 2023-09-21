@@ -139,6 +139,7 @@ impl VM {
     ///
     /// Note that if this errors, it will still be possible to collect any
     /// stored state information for as far as execution proceeded.
+    #[allow(clippy::missing_panics_doc)] // All panics are guarded by conditions
     pub fn execute(&mut self) -> std::result::Result<(), Errors> {
         let poll_interval = self.watchdog.poll_every();
         let mut counter = 0;
@@ -214,6 +215,7 @@ impl VM {
     ///
     /// If the virtual machine cannot be advanced, or if advancing would result
     /// in the virtual machine pointing to an invalid instruction.
+    #[allow(clippy::missing_panics_doc)] // All panics are guarded by impossible conditions
     pub fn advance(&mut self) -> Result<()> {
         if self.thread_queue.is_empty() {
             return Err(Error::InvalidStep.locate(self.instructions_len()));

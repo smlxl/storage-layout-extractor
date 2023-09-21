@@ -91,6 +91,9 @@ pub const DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT: usize = 50;
 /// culled.
 pub const DEFAULT_VALUE_SIZE_LIMIT: usize = 250;
 
-/// The number of loop iterations the analyzer will wait before polling the
-/// watchdog.
+/// The default number of loop iterations the analyzer will wait before polling
+/// the watchdog.
 pub const DEFAULT_WATCHDOG_POLL_LOOP_ITERATIONS: usize = 100;
+
+/// The value that solidity uses to type tag `string` in ABI encoding.
+pub const SOLIDITY_STRING_POINTER: usize = 0x20;

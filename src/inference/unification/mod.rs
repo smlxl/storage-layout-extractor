@@ -37,6 +37,7 @@ pub type UnificationForest = DisjointSet<TypeVariable, InferenceSet>;
 /// # Errors
 ///
 /// Returns [`Err`] if unification is halted by the watchdog.
+#[allow(clippy::missing_panics_doc)] // Panics are all guarded
 pub fn unify(state: &mut InferenceState, watchdog: &DynWatchdog) -> Result<()> {
     // First we have to create our forest.
     let mut forest = UnificationForest::new();
@@ -889,7 +890,7 @@ mod test {
 
             match result.unwrap() {
                 TE::DynamicArray { element } => {
-                    assert!(vec![elem_1_tv, elem_2_tv].contains(&element));
+                    assert!([elem_1_tv, elem_2_tv].contains(&element));
                 }
                 _ => panic!("Bad payload in result"),
             }
@@ -931,7 +932,7 @@ mod test {
 
             match result.unwrap() {
                 TE::DynamicArray { element } => {
-                    assert!(vec![elem_1_tv, elem_2_tv].contains(&element));
+                    assert!([elem_1_tv, elem_2_tv].contains(&element));
                 }
                 _ => panic!("Bad payload in result"),
             }
@@ -984,7 +985,7 @@ mod test {
             // Check the result is right
             match result.unwrap() {
                 TE::FixedArray { element, length } if length == input_len => {
-                    assert!(vec![elem_1_tv, elem_2_tv].contains(&element));
+                    assert!([elem_1_tv, elem_2_tv].contains(&element));
                 }
                 _ => panic!("Bad payload in result"),
             }
@@ -1033,7 +1034,7 @@ mod test {
             // Check the result is right
             match result.unwrap() {
                 TE::FixedArray { element, length } if length == input_len => {
-                    assert!(vec![elem_1_tv, elem_2_tv].contains(&element));
+                    assert!([elem_1_tv, elem_2_tv].contains(&element));
                 }
                 _ => panic!("Bad payload in result"),
             }
@@ -1125,8 +1126,8 @@ mod test {
         let result = util::get_inference(mapping_tv, state.result());
         match result.unwrap() {
             TE::Mapping { key, value } => {
-                assert!(vec![key_1_tv, key_2_tv].contains(&key));
-                assert!(vec![value_1_tv, value_2_tv].contains(&value));
+                assert!([key_1_tv, key_2_tv].contains(&key));
+                assert!([value_1_tv, value_2_tv].contains(&value));
             }
             _ => panic!("Invalid payload"),
         }
@@ -1173,8 +1174,8 @@ mod test {
         let result = util::get_inference(mapping_tv, state.result());
         match result.unwrap() {
             TE::Mapping { key, value } => {
-                assert!(vec![key_1_tv, key_2_tv].contains(&key));
-                assert!(vec![value_1_tv, value_2_tv].contains(&value));
+                assert!([key_1_tv, key_2_tv].contains(&key));
+                assert!([value_1_tv, value_2_tv].contains(&value));
             }
             _ => panic!("Invalid payload"),
         }
@@ -1224,8 +1225,8 @@ mod test {
         let result = util::get_inference(mapping_tv, state.result());
         match result.unwrap() {
             TE::Mapping { key, value } => {
-                assert!(vec![key_1_tv, key_2_tv].contains(&key));
-                assert!(vec![value_1_tv, value_2_tv].contains(&value));
+                assert!([key_1_tv, key_2_tv].contains(&key));
+                assert!([value_1_tv, value_2_tv].contains(&value));
             }
             _ => panic!("Invalid payload"),
         }

@@ -468,6 +468,7 @@ impl InferenceState {
     ///
     /// If any one `value` has no associated variable, it is registered in the
     /// state.
+    #[allow(clippy::missing_panics_doc)] // Panics are guarded
     pub fn infer_for_many<const N: usize>(
         &mut self,
         values: [&TCBoxedVal; N],
