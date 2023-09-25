@@ -38,6 +38,12 @@ impl StorageSlotHashes {
     #[must_use]
     pub fn new() -> Box<Self> {
         let hashes = Self::make_hashes(SLOT_COUNT);
+        Self::new_with_hashes(hashes)
+    }
+
+    // Creates a new instance with the provided hashes
+    #[must_use]
+    pub fn new_with_hashes(hashes: BiMap<U256, usize>) -> Box<Self> {
         Box::new(Self { hashes })
     }
 
