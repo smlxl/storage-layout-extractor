@@ -582,7 +582,7 @@ pub struct Config {
     pub single_memory_operation_size_limit: usize,
 
     /// Whether to continue execution when non critical errors happen during
-    /// execution
+    /// execution.
     pub permissive_errors: bool,
 }
 
