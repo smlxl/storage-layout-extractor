@@ -109,7 +109,11 @@ pub fn new_contract_from_file(path: impl Into<String>, chain: Chain) -> anyhow::
 
 pub fn get_bytecode_from_string(code: impl Into<String>) -> anyhow::Result<Vec<u8>> {
     let bytecode_string = code.into();
-    let no_0x_prefix = &bytecode_string[2..];
+    // Remove the 0x if it is present
+    let no_0x_prefix = match bytecode_string.strip_prefix("0x") {
+        Some(no_0x_prefix) => no_0x_prefix,
+        None => &bytecode_string,
+    };
 
     let bytecode = hex::decode(no_0x_prefix).map_err(|_| anyhow!("Could not decode hex"))?;
     Ok(bytecode)
