@@ -68,8 +68,10 @@ pub struct LiftingPasses {
 impl LiftingPasses {
     /// Creates a new instance of the lifting pass with the provided `passes`
     #[must_use]
-    pub fn new(passes: Vec<Box<dyn Lift>>) -> Self {
-        Self { passes }
+    pub fn new(passes: impl Into<Vec<Box<dyn Lift>>>) -> Self {
+        Self {
+            passes: passes.into(),
+        }
     }
 
     /// Adds the `pass` to the end of the pass ordering.
