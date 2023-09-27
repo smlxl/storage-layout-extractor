@@ -109,7 +109,7 @@ pub fn unify(state: &mut InferenceState, watchdog: &DynWatchdog) -> Result<()> {
             forest.set_data(&ty_var, InferenceSet::from([current]));
 
             // Bump our polling counter
-            counter += 0;
+            counter += 1;
         }
 
         // When we get to the end of that loop, we need to insert the new type variables
