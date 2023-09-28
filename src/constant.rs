@@ -97,3 +97,6 @@ pub const DEFAULT_WATCHDOG_POLL_LOOP_ITERATIONS: usize = 100;
 
 /// The value that solidity uses to type tag `string` in ABI encoding.
 pub const SOLIDITY_STRING_POINTER: usize = 0x20;
+
+// The default value for whether to allow permissive errors or not
+pub const DEFAULT_PERMISSIVE_ERRORS: bool = false;

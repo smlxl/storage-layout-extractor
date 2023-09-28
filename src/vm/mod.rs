@@ -13,10 +13,12 @@ use crate::{
         DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT,
         DEFAULT_ITERATIONS_PER_OPCODE,
         DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES,
+        DEFAULT_PERMISSIVE_ERRORS,
         DEFAULT_VALUE_SIZE_LIMIT,
     },
     disassembly::{ExecutionThread, InstructionStream},
     error::{
+        self,
         container::Locatable,
         execution::{Error, Errors, LocatedError, Result},
     },
@@ -176,9 +178,23 @@ impl VM {
                         .consume_gas(instruction.min_gas_cost());
                 }
                 Err(payload) => {
-                    // If execution errored, add the error to the collection of them and then kill
-                    // the current thread to continue.
-                    self.errors.add(payload);
+                    // If execution errored and we are not in permissive error mode, add the error
+                    // to the collection of them and then kill the current
+                    // thread to continue. If we are in permissive error mode we
+                    // will only collect critical errors.
+                    match payload.payload {
+                        error::execution::Error::InvalidOffsetForJump { .. }
+                        | error::execution::Error::InvalidJumpTarget { .. }
+                        | error::execution::Error::NonExistentJumpTarget { .. }
+                        | error::execution::Error::NoConcreteJumpDestination => {
+                            if !self.config.permissive_errors {
+                                self.errors.add(payload);
+                            }
+                        }
+                        _ => {
+                            self.errors.add(payload);
+                        }
+                    }
                     self.kill_current_thread();
                 }
             }
@@ -564,6 +580,10 @@ pub struct Config {
     ///
     /// Defaults to [`DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES`].
     pub single_memory_operation_size_limit: usize,
+
+    /// Whether to continue execution when non critical errors happen during
+    /// execution.
+    pub permissive_errors: bool,
 }
 
 impl Config {
@@ -601,6 +621,13 @@ impl Config {
         self.single_memory_operation_size_limit = value;
         self
     }
+
+    /// Sets the permissive errors configuration parameter to `value`.
+    #[must_use]
+    pub fn with_permissive_errors(mut self, value: bool) -> Self {
+        self.permissive_errors = value;
+        self
+    }
 }
 
 impl Default for Config {
@@ -610,12 +637,14 @@ impl Default for Config {
         let maximum_forks_per_fork_target = DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT;
         let value_size_limit = DEFAULT_VALUE_SIZE_LIMIT;
         let single_memory_operation_size_limit = DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES;
+        let permissive_errors = DEFAULT_PERMISSIVE_ERRORS;
         Self {
             gas_limit,
             maximum_iterations_per_opcode,
             maximum_forks_per_fork_target,
             value_size_limit,
             single_memory_operation_size_limit,
+            permissive_errors,
         }
     }
 }
