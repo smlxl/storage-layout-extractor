@@ -2,7 +2,7 @@
 //! `CrypToadzCustomImage37B` contract`.
 #![cfg(test)]
 
-use storage_layout_analyzer::{inference::abi::AbiType, watchdog::LazyWatchdog};
+use storage_layout_analyzer::{tc::abi::AbiType, watchdog::LazyWatchdog};
 
 mod common;
 

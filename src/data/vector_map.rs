@@ -48,8 +48,9 @@ where
         Self::new_with_vec(data)
     }
 
-    /// Creates a new, empty, `VectorMap` that is guaranteed to have enough
-    /// capacity to store `capacity` items before needing to reallocate.
+    /// Creates a new, empty, `VectorMap` that is guaranteed to have a
+    /// large-enough underlying allocation to store _at least_ `capacity`
+    /// items before needing to reallocate.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         let data = Vec::with_capacity(capacity);

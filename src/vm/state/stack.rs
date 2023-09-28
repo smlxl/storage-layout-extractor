@@ -22,7 +22,8 @@ use crate::{
 /// In a true EVM, it is a depth [`MAXIMUM_STACK_DEPTH`] stack, where each item
 /// is of size [`crate::constant::WORD_SIZE_BITS`]. Here, the symbolic virtual
 /// machine maintains the same maximum depth, but instead stores
-/// [`crate::vm::value::SymbolicValue`]s instead of words.
+/// [`crate::vm::value::SymbolicValue`]s instead of words, so the size limit is
+/// implicitly and subtly different.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Stack {
     data: Vec<RuntimeBoxedVal>,
@@ -85,7 +86,7 @@ impl Stack {
     /// # Errors
     ///
     /// If `frame` doesn't exist.
-    pub fn dup(&mut self, frame: u32) -> StackResult<()> {
+    pub fn duplicate(&mut self, frame: u32) -> StackResult<()> {
         self.check_frame_at(frame)?;
         let index = self.top_frame_index()? - frame as usize;
 
@@ -167,8 +168,8 @@ impl Stack {
         }
     }
 
-    /// Gets all of the values that are registered in the virtual machine stack
-    /// at the time of calling.
+    /// Consumes the virtual machine stack and returns all of the values that it
+    /// knows about.
     #[must_use]
     pub fn all_values(self) -> Vec<RuntimeBoxedVal> {
         self.data
@@ -233,7 +234,7 @@ impl<'a> LocatedStackHandle<'a> {
     ///
     /// If `frame` doesn't exist.
     pub fn dup(&mut self, frame: u32) -> Result<()> {
-        self.stack.dup(frame).locate(self.instruction_pointer)
+        self.stack.duplicate(frame).locate(self.instruction_pointer)
     }
 
     /// Swaps the first stack item with the item in `frame`.
@@ -344,7 +345,7 @@ mod test {
     fn can_dup_existing_item() -> anyhow::Result<()> {
         let mut stack = new_stack_with_items(10)?;
         assert_eq!(stack.depth(), 10);
-        stack.dup(3)?;
+        stack.duplicate(3)?;
         assert_eq!(stack.depth(), 11);
 
         Ok(())
@@ -353,7 +354,7 @@ mod test {
     #[test]
     fn cannot_dup_nonexistent_item() -> anyhow::Result<()> {
         let mut stack = new_stack_with_items(10)?;
-        stack.dup(10).expect_err("Duplicated a nonexistent stack item");
+        stack.duplicate(10).expect_err("Duplicated a nonexistent stack item");
 
         Ok(())
     }
@@ -362,7 +363,7 @@ mod test {
     fn cannot_dup_item_when_empty() {
         let mut stack = Stack::default();
         stack
-            .dup(0)
+            .duplicate(0)
             .expect_err("Duplicated a stack item when stack was empty");
     }
 

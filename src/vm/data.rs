@@ -103,7 +103,8 @@ impl VisitedOpcodes {
         }
     }
 
-    /// Checks if the opcode at `instruction_pointer` has been visited.
+    /// Checks if the opcode at `instruction_pointer` has reached the maximum
+    /// number of times that it can be visited.
     ///
     /// # Errors
     ///
@@ -159,8 +160,8 @@ impl JumpTargets {
     /// Requests that the VM fork from the conditional jump at
     /// `current_instruction` to the jump target at `target_instruction`.
     ///
-    /// If it is, the count for that target is incremented, and `true` is
-    /// returned. Otherwise, `false` is returned.
+    /// If the fork is successful, the count for that target is incremented and
+    /// `true` is returned. Otherwise, `false` is returned.
     ///
     /// # Errors
     ///

@@ -13,15 +13,17 @@ use crate::data::{
 /// A specialised Disjoint Set implementation that is capable of carrying
 /// arbitrary auxiliary data along with the values in the tree.
 ///
-/// # Performance
+/// # Internal Mutability
 ///
-/// The implementation of [`Self::find`] could be improved in efficiency. This
-/// is left as future work, but can be done by allowing `find` to optimise the
-/// forest as it does its work.
+/// It may seem counter-intuitive that an operation like [`Self::find`] requires
+/// the structure to be mutable. This is because it internally optimises the set
+/// representation as it is run.
 ///
-/// Similarly, this implementation currently makes liberal use of cloning.
-/// Ideally it would instead rely on interior mutability as much as possible,
-/// but this is an optimisation for the future.
+/// Some work has been done in making this structure present a better interface
+/// using a [`std::cell::RefCell`] for interior mutability. Unfortunately, this
+/// results in around a 2-5% performance hit to unification (over the
+/// non-`RefCell` version) which makes this suboptimal to do for the sake of a
+/// nicer interface.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DisjointSet<Value, Data>
 where
@@ -60,6 +62,12 @@ where
     }
 
     /// Finds the root element corresponding to the query `value`.
+    ///
+    /// # Mutability
+    ///
+    /// This function is mutable as it optimises the underlying representation
+    /// under the hood. See the structure's top-level comment as for why it is
+    /// not hidden using interior mutability.
     pub fn find(&mut self, value: &Value) -> Value {
         if let Some(rep) = self.reps.get(value).cloned() {
             if rep == *value {
@@ -96,6 +104,12 @@ where
 
     /// Gets the auxiliary data corresponding to the passed `value`, if it
     /// exists, or [`None`] otherwise.
+    ///
+    /// # Mutability
+    ///
+    /// This function is mutable as it optimises the underlying representation
+    /// under the hood. See the structure's top-level comment as for why it is
+    /// not hidden using interior mutability.
     pub fn get_data(&mut self, value: &Value) -> Option<&Data> {
         let root = self.find(value);
         self.data.get(&root)
@@ -116,6 +130,12 @@ where
 {
     /// Gets all of the individual sets in the forest, along with their
     /// representant value.
+    ///
+    /// # Mutability
+    ///
+    /// This function is mutable as it optimises the underlying representation
+    /// under the hood. See the structure's top-level comment as for why it is
+    /// not hidden using interior mutability.
     pub fn sets(&mut self) -> Vec<(Value, Data)> {
         self.reps
             .iter()

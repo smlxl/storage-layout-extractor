@@ -1,5 +1,6 @@
 #![cfg(target_endian = "little")]
-//! This module contains a representation of concrete word values for the EVM.
+//! This module contains a representation of concrete word values for the EVM
+//! that can be known and manipulated statically.
 //!
 //! # Endianness
 //!
@@ -20,13 +21,21 @@ use ethnum::{I256, U256};
 
 /// The type of data whose value is concretely known during symbolic execution.
 ///
+/// # Representation
+///
+/// At the low level at which this analyzer works, all values on the EVM are
+/// just bags of bits in a 256-bit word. Operations on a `KnownValue` may treat
+/// this word numerically in a signed or unsigned fashion. Such numeric
+/// operations are, where possible, implemented in terms of standard operators
+/// to provide a natural usage experience.
+///
 /// # Endianness
 ///
 /// Internally, the value of the word is stored in platform (little-endian)
 /// endianness (see above).
 ///
 /// When altering this code, be very careful to understand which operations on
-/// the underlying [`U256`] actually alter the underlying data based on that
+/// the underlying value actually alter the underlying data based on that
 /// platform assumption. Functions like `to_{le,be}` and
 /// `{to,from}_{le,be}_bytes` perform no conversion when converting to and from
 /// platform endianness (LE in our case), but functions like `swap_bytes` will

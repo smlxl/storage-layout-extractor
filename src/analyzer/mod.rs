@@ -8,8 +8,8 @@ use crate::{
     analyzer::{contract::Contract, state::State},
     disassembly::InstructionStream,
     error,
-    inference,
-    inference::InferenceEngine,
+    tc,
+    tc::TypeChecker,
     vm,
     vm::VM,
     watchdog::DynWatchdog,
@@ -22,12 +22,12 @@ use crate::{
 pub fn new(
     contract: Contract,
     vm_config: vm::Config,
-    unifier_config: inference::Config,
+    tc_config: tc::Config,
     watchdog: DynWatchdog,
 ) -> Analyzer<state::HasContract> {
     let state = state::HasContract {
         vm_config,
-        unifier_config,
+        tc_config,
         watchdog,
     };
     Analyzer { contract, state }
@@ -43,7 +43,7 @@ pub fn new(
 /// point.
 ///
 /// There is the [`Self::state`] function that provides access to the state data
-/// of whichever state it is in.
+/// of whichever state the analyzer is currently in.
 pub struct Analyzer<S: State> {
     /// The contract that is being analyzed.
     contract: Contract,
@@ -52,14 +52,30 @@ pub struct Analyzer<S: State> {
     state: S,
 }
 
-/// Safe operations available in all states.
+/// The safe operations available in all states.
+///
+/// # Modifying the Analyzer
+///
+/// If you feel the need to modify the analyzer outside of the standard
+/// transitions, perhaps as part of external extensions to the library, you
+/// will need to use one of the following functions:
+///
+/// - [`Analyzer::contract_mut`]
+/// - [`Analyzer::state_mut`]
+/// - [`Analyzer::set_contract`]
+/// - [`Analyzer::set_state`]
+/// - [`Analyzer::transform_state`]
+///
+/// All of these are unsafe as they allow violating the invariants of the
+/// analyzer's state. Be very careful and be sure that you know what you are
+/// doing if you reach for these.
 impl<S: State> Analyzer<S> {
     /// Gets a reference to the contract being analyzed.
     pub fn contract(&self) -> &Contract {
         &self.contract
     }
 
-    /// Gets a reference to the current state of the analyzer.
+    /// Gets an immutable reference to the current state of the analyzer.
     pub fn state(&self) -> &S {
         &self.state
     }
@@ -174,12 +190,12 @@ impl Analyzer<state::HasContract> {
         unsafe {
             self.transform_state(|old_state| {
                 let vm_config = old_state.vm_config;
-                let unifier_config = old_state.unifier_config;
+                let tc_config = old_state.tc_config;
                 let watchdog = old_state.watchdog;
                 Ok(state::DisassemblyComplete {
                     bytecode,
                     vm_config,
-                    unifier_config,
+                    tc_config,
                     watchdog,
                 })
             })
@@ -199,12 +215,12 @@ impl Analyzer<state::DisassemblyComplete> {
     pub fn prepare_vm(self) -> error::Result<Analyzer<state::VMReady>> {
         unsafe {
             self.transform_state(|old_state| {
-                let unifier_config = old_state.unifier_config;
+                let tc_config = old_state.tc_config;
                 let watchdog = old_state.watchdog;
                 let vm = VM::new(old_state.bytecode, old_state.vm_config, watchdog.clone())?;
                 Ok(state::VMReady {
                     vm,
-                    unifier_config,
+                    tc_config,
                     watchdog,
                 })
             })
@@ -227,11 +243,11 @@ impl Analyzer<state::VMReady> {
             self.transform_state(|mut old_state| {
                 old_state.vm.execute()?;
                 let execution_result = old_state.vm.consume();
-                let unifier_config = old_state.unifier_config;
+                let tc_config = old_state.tc_config;
                 let watchdog = old_state.watchdog;
                 Ok(state::ExecutionComplete {
                     execution_result,
-                    unifier_config,
+                    tc_config,
                     watchdog,
                 })
             })
@@ -242,7 +258,7 @@ impl Analyzer<state::VMReady> {
 /// Operations available on an analyzer that has a VM which has completed
 /// execution of the bytecode.
 impl Analyzer<state::ExecutionComplete> {
-    /// Takes thew results of execution and uses them to prepare a new inference
+    /// Takes thew results of execution and uses them to prepare a new tc
     /// engine.
     #[allow(clippy::missing_panics_doc)] // Explicit closure can never return Err
     #[must_use]
@@ -252,7 +268,7 @@ impl Analyzer<state::ExecutionComplete> {
             self.transform_state(|old_state| {
                 let watchdog = old_state.watchdog;
                 let execution_result = old_state.execution_result;
-                let engine = InferenceEngine::new(old_state.unifier_config, watchdog.clone());
+                let engine = TypeChecker::new(old_state.tc_config, watchdog.clone());
                 Ok(state::InferenceReady {
                     engine,
                     watchdog,
@@ -264,15 +280,15 @@ impl Analyzer<state::ExecutionComplete> {
     }
 }
 
-/// Operations available on an analyzer that has an inference engine ready to
+/// Operations available on an analyzer that has a type checker ready to
 /// perform the inference and unification processes.
 impl Analyzer<state::InferenceReady> {
-    /// Takes the prepared inference engine and runs the inference and
-    /// unification process on the execution results.
+    /// Takes the prepared type checker and runs the inference and unification
+    /// process on the execution results.
     ///
     /// # Errors
     ///
-    /// Returns [`Err`] if the execution of the inference engine fails.
+    /// Returns [`Err`] if the execution of the type checker fails.
     pub fn infer(self) -> error::Result<Analyzer<state::InferenceComplete>> {
         unsafe {
             self.transform_state(|mut old_state| {
@@ -286,10 +302,10 @@ impl Analyzer<state::InferenceReady> {
 
 /// Operations available on an analyzer that has completed unification.
 impl Analyzer<state::InferenceComplete> {
-    /// Gets the inference engine once it has completed inference and
+    /// Gets the type checking engine once it has completed inference and
     /// unification.
     #[must_use]
-    pub fn engine(&self) -> &InferenceEngine {
+    pub fn engine(&self) -> &TypeChecker {
         &self.state.engine
     }
 

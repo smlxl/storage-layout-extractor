@@ -51,6 +51,16 @@ pub enum Error {
     StoppedByWatchdog,
 }
 
+/// An execution error with an associated location in the bytecode.
+pub type LocatedError = container::Located<Error>;
+
+/// A container of execution errors used for aggregation of errors during
+/// execution.
+pub type Errors = container::Errors<LocatedError>;
+
+/// The result type for methods that may have execution errors.
+pub type Result<T> = std::result::Result<T, LocatedError>;
+
 /// Make it possible to attach locations to these errors.
 impl container::Locatable for Error {
     type Located = LocatedError;
@@ -62,13 +72,3 @@ impl container::Locatable for Error {
         }
     }
 }
-
-/// An execution error with an associated location in the bytecode.
-pub type LocatedError = container::Located<Error>;
-
-/// A container of execution errors used for aggregation of errors during
-/// execution.
-pub type Errors = container::Errors<LocatedError>;
-
-/// The result type for methods that may have execution errors.
-pub type Result<T> = std::result::Result<T, LocatedError>;

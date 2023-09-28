@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use storage_layout_analyzer::{
-    inference::abi::{AbiType, StructElement},
+    tc::abi::{AbiType, StructElement},
     watchdog::LazyWatchdog,
 };
 
@@ -25,7 +25,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     assert_eq!(layout.slot_count(), 23);
 
     // `struct(uint160, int24, uint16, uint16, uint16, uint8, bool)`, but we infer
-    // `struct(uint160, any, infiniteType, uint16, infiniteType, any, bytes0, any,
+    // `struct(uint160, any, infiniteType, uint16, infiniteType, any, bits4, any,
     // number8, any)`
     assert!(layout.has_slot(0, 0, AbiType::UInt { size: Some(160) }));
     assert!(layout.has_slot(0, 160, AbiType::Any));
@@ -33,7 +33,7 @@ fn correctly_generates_a_layout() -> anyhow::Result<()> {
     assert!(layout.has_slot(0, 200, AbiType::UInt { size: Some(16) }));
     assert!(layout.has_slot(0, 216, AbiType::InfiniteType));
     assert!(layout.has_slot(0, 232, AbiType::Any));
-    assert!(layout.has_slot(0, 236, AbiType::Bytes { length: Some(0) }));
+    assert!(layout.has_slot(0, 236, AbiType::Bits { length: Some(4) }));
     assert!(layout.has_slot(0, 240, AbiType::Any));
     assert!(layout.has_slot(0, 240, AbiType::Number { size: Some(8) }));
     assert!(layout.has_slot(0, 248, AbiType::Any));

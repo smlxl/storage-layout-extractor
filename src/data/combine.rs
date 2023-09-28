@@ -13,9 +13,9 @@ pub trait Combine
 where
     Self: Clone,
 {
-    /// The combination function itself.
+    /// The function that combines two values of the implementing type.
     ///
-    /// The function should be:
+    /// The function must be:
     ///
     /// - **Symmetric** (such that `a.combine(b) == b.combine(a)`)
     /// - **Associative** (such that `a.combine(b.combine(c) ==

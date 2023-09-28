@@ -1,5 +1,7 @@
 //! This module contains versioning information for the various EVM-compatible
-//! blockchains.
+//! blockchains. It is intended to be used alongside
+//! [`crate::analyzer::chain::Chain`] to configure the behaviour of the
+//! analyser.
 //!
 //! For now we only support Shanghai on Ethereum main-net, but this will change
 //! in the future.
@@ -18,7 +20,8 @@ where
 /// Ethereum chain versions.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EthereumVersion {
-    /// The shanghai fork of ethereum.
+    /// The shanghai fork of ethereum, as described
+    /// [here](https://ethereum.org/en/history/#shanghai).
     Shanghai,
 }
 

@@ -4,8 +4,8 @@ use std::fmt::Debug;
 
 use crate::{
     disassembly::InstructionStream,
-    inference,
-    inference::InferenceEngine,
+    tc,
+    tc::TypeChecker,
     vm,
     vm::{ExecutionResult, VM},
     watchdog::DynWatchdog,
@@ -13,6 +13,10 @@ use crate::{
 };
 
 /// A marker trait that says that the type implementing it is an analyzer state.
+///
+/// Analyzer states can be transitioned between as part of the
+/// [`crate::analyzer::Analyzer`] state machine, and are intended to enforce
+/// that correct state transitions take place.
 pub trait State
 where
     Self: Debug + Sized,
@@ -26,24 +30,24 @@ pub struct HasContract {
     pub vm_config: vm::Config,
 
     /// The unifier configuration.
-    pub unifier_config: inference::Config,
+    pub tc_config: tc::Config,
 
     /// The watchdog that is monitoring the progress of the analyzer.
     pub watchdog: DynWatchdog,
 }
 impl State for HasContract {}
 
-/// The analyzer has successfully disassembled the bytecode.
+/// The state for an analyzer that has successfully disassembled the bytecode.
 #[derive(Debug)]
 pub struct DisassemblyComplete {
     /// The disassembled bytecode for the contract being analyzed.
     pub bytecode: InstructionStream,
 
-    /// The virtual machine configuration.
+    /// The configuration for the analyzer's virtual machine.
     pub vm_config: vm::Config,
 
-    /// The unifier configuration.
-    pub unifier_config: inference::Config,
+    /// The configuration for the analyzer's type checker.
+    pub tc_config: tc::Config,
 
     /// The watchdog that is monitoring the progress of the analyzer.
     pub watchdog: DynWatchdog,
@@ -54,11 +58,12 @@ impl State for DisassemblyComplete {}
 /// contract's bytecode.
 #[derive(Debug)]
 pub struct VMReady {
-    /// The prepared virtual machine.
+    /// The virtual machine, prepared with the input contract and ready to
+    /// execute.
     pub vm: VM,
 
-    /// The unifier configuration.
-    pub unifier_config: inference::Config,
+    /// The configuration for the analyzer's type checker.
+    pub tc_config: tc::Config,
 
     /// The watchdog that is monitoring the progress of the analyzer.
     pub watchdog: DynWatchdog,
@@ -67,22 +72,22 @@ impl State for VMReady {}
 
 #[derive(Debug)]
 pub struct ExecutionComplete {
-    /// The results from executing the bytecode.
+    /// The result from executing the bytecode.
     pub execution_result: ExecutionResult,
 
-    /// The unifier configuration.
-    pub unifier_config: inference::Config,
+    /// The configuration for the analyzer's type checker.
+    pub tc_config: tc::Config,
 
     /// The watchdog that is monitoring the progress of the analyzer.
     pub watchdog: DynWatchdog,
 }
 impl State for ExecutionComplete {}
 
-/// The analyzer has prepared the inference engine to perform its processes.
+/// The analyzer has prepared the type checker engine to perform its processes.
 #[derive(Debug)]
 pub struct InferenceReady {
-    /// The inference engine, ready to perform inference and unification.
-    pub engine: InferenceEngine,
+    /// The type checker engine, ready to perform inference and unification.
+    pub engine: TypeChecker,
 
     /// The watchdog that is monitoring the progress of the analyzer.
     pub watchdog: DynWatchdog,
@@ -96,8 +101,8 @@ impl State for InferenceReady {}
 /// ready to provide the concrete storage layout.
 #[derive(Debug)]
 pub struct InferenceComplete {
-    /// The engine after it has performed inference and unification.
-    pub engine: InferenceEngine,
+    /// The type checker after it has performed inference and unification.
+    pub engine: TypeChecker,
 
     /// The computed storage layout.
     pub layout: StorageLayout,
