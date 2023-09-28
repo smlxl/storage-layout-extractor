@@ -5,22 +5,24 @@ use std::{
     array,
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
-use uuid::Uuid;
-
 use crate::{
+    data::vector_map::{FromUniqueIndex, ToUniqueIndex},
     inference::{
         expression::{InferenceSet, TypeExpression, TE},
         unification::UnificationForest,
     },
-    utility::clip_uuid,
     vm::value::{PackedSpan, Provenance, RuntimeBoxedVal, TCBoxedVal, RSVD, TCSV, TCSVD},
 };
 
 /// The internal state of the inference engine, used to track modifications to
 /// typing judgements as it runs.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct InferenceState {
     /// A mapping from type variables to the symbolic values used during type
     /// checking.
@@ -36,6 +38,9 @@ pub struct InferenceState {
     ///
     /// This may be empty if the process has not yet reached the correct place.
     unification_result: UnificationForest,
+
+    /// A source of fresh type variables.
+    tyvar_source: TypeVariableSource,
 }
 
 impl InferenceState {
@@ -46,11 +51,13 @@ impl InferenceState {
         let stable_types = HashMap::new();
         let inferences = HashMap::new();
         let unification_result = UnificationForest::new();
+        let tyvar_source = TypeVariableSource::new();
         Self {
             expressions,
             stable_types,
             inferences,
             unification_result,
+            tyvar_source,
         }
     }
 
@@ -77,33 +84,23 @@ impl InferenceState {
         self.var_unchecked(&returned_val)
     }
 
-    /// Force registers `var` in the state, adding a default value to be
-    /// associated with it.
-    ///
-    /// # Safety
-    ///
-    /// Use of this function introduces values and variables that did not occur
-    /// in the execution of the program, and can violate assumptions about
-    /// sources of type variables.
-    pub unsafe fn register_ty_var(&mut self, var: TypeVariable) {
-        let value_for_var = TCSV::new(0, TCSVD::new_value(), Provenance::Synthetic, var);
-
-        // Register the result
-        self.expressions.entry(var).or_insert(value_for_var);
-        self.inferences.entry(var).or_insert(HashSet::new());
-    }
-
     /// Forces the allocation of a new type variable in the state, adding a
     /// default value to be associated with it.
     ///
     /// # Safety
     ///
-    /// Use of this function introduces values and variables that did not occur
-    /// in the execution of the program, and can violate assumptions about
-    /// sources of type variables.
+    /// Use of this function introduces values that did not occur in the
+    /// execution of the program, and can violate assumptions about sources of
+    /// type variables.
     pub unsafe fn allocate_ty_var(&mut self) -> TypeVariable {
-        let new_tv = TypeVariable::fresh();
-        self.register_ty_var(new_tv);
+        let new_tv = self.tyvar_source.fresh();
+        let value_for_var = TCSV::new(0, TCSVD::new_value(), Provenance::Synthetic, new_tv);
+
+        // Register the result
+        self.expressions.entry(new_tv).or_insert(value_for_var);
+        self.inferences.entry(new_tv).or_insert(HashSet::new());
+
+        // Return the newly-allocated type variable
         new_tv
     }
 
@@ -390,7 +387,7 @@ impl InferenceState {
                 key: self.register_internal(key),
             },
         };
-        let type_var = TypeVariable::fresh();
+        let type_var = self.tyvar_source.fresh();
         let new_value = TCSV::new(instruction_pointer, new_data, provenance, type_var);
 
         // Register the result
@@ -653,6 +650,13 @@ impl InferenceState {
         self.unification_result = result;
     }
 
+    /// Gets the number of type variables that have been allocated in this
+    /// state.
+    #[must_use]
+    pub fn tyvar_count(&self) -> usize {
+        self.tyvar_source.allocated_count()
+    }
+
     /// Clears the unifier state entirely.
     ///
     /// # Safety
@@ -673,47 +677,98 @@ impl Default for InferenceState {
     }
 }
 
+/// A source of new, unique, type variables.
+///
+/// It is guaranteed that no matter how many times you clone the source, they
+/// all use the same underlying pool.
+///
+/// # Type Variable Pools
+///
+/// Care must be taken not to mix type variables from independent pools. This is
+/// currently possible, though could be enforced at the type level in the
+/// future. Look at the following potential methods if this is of interest:
+///
+/// - [`generativity`](https://docs.rs/generativity/latest/generativity/)
+/// - [`unique_type`](https://docs.rs/unique-type/latest/unique_type/)
+#[derive(Clone, Debug)]
+pub struct TypeVariableSource {
+    last_var: Arc<AtomicUsize>,
+}
+
+impl TypeVariableSource {
+    /// Creates a new source of unique type variables.
+    #[must_use]
+    pub fn new() -> Self {
+        let last_var = Arc::new(AtomicUsize::from(0));
+        Self { last_var }
+    }
+
+    /// Requests a new unique type variable from the source.
+    #[must_use]
+    pub fn fresh(&mut self) -> TypeVariable {
+        let source = self.last_var.fetch_add(1, Ordering::Relaxed);
+        unsafe { TypeVariable::wrapping(source) }
+    }
+
+    /// Gets the number of type variables that have been allocated by this
+    /// source.
+    #[must_use]
+    pub fn allocated_count(&self) -> usize {
+        self.last_var.load(Ordering::Relaxed)
+    }
+}
+
+impl Default for TypeVariableSource {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A type variable represents the possibly-unbound type of an expression.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct TypeVariable {
-    id: Uuid,
+    id: usize,
 }
 
 impl TypeVariable {
-    /// Creates a new, never-before-seen type variable.
+    /// Creates a new type variable wrapping the provided `id`.
     ///
-    /// It is intended _only_ to be called from the [`InferenceState::register`]
-    /// as there should be no other way to construct a fresh type variable and
-    /// it is unsafe to do so.
-    #[must_use]
-    fn fresh() -> Self {
-        let id = Uuid::new_v4();
-        Self { id }
-    }
-
-    /// Constructs a new, never-before-seen type variable.
+    /// This function is intended to only be accessible in the current module so
+    /// that the [`TypeVariableSource`] is the only source of type variables for
+    /// a program.
     ///
     /// # Safety
     ///
-    /// Calling `new` allows violation of the invariant that the
-    /// [`InferenceState`] is the only component that can construct new type
-    /// variables. If you call this function, you must be _very_ careful to
-    /// ensure that none of its results are passed to functions in that state.
+    /// Calling this function allows uncontrolled creation of type variables, so
+    /// care must be taken.
     #[must_use]
-    pub unsafe fn new() -> Self {
-        Self::fresh()
+    unsafe fn wrapping(id: usize) -> Self {
+        TypeVariable { id }
     }
 }
 
 impl Display for TypeVariable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "V[{}]", clip_uuid(&self.id))
+        write!(f, "V[{}]", &self.id)
     }
 }
 
 impl From<&TypeVariable> for TypeVariable {
     fn from(value: &TypeVariable) -> Self {
         *value
+    }
+}
+
+impl ToUniqueIndex for TypeVariable {
+    fn index(&self) -> usize {
+        self.id
+    }
+}
+
+impl FromUniqueIndex for TypeVariable {
+    fn from_index(index: usize) -> Self {
+        let id = index;
+        Self { id }
     }
 }
 
@@ -724,14 +779,15 @@ mod test {
     use crate::{
         inference::{
             expression::{TypeExpression, TE},
-            state::{InferenceState, TypeVariable},
+            state::{InferenceState, TypeVariableSource},
         },
         vm::value::{Provenance, RSV},
     };
 
     #[test]
     fn can_create_fresh_type_variable() {
-        let _ = TypeVariable::fresh();
+        let mut factory = TypeVariableSource::new();
+        let _ = factory.fresh();
     }
 
     #[test]

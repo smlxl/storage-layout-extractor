@@ -4,14 +4,13 @@
 //! re-use of the functionality elsewhere, and also enable easier testing
 //! without needing to spool up the entire unifier.
 
-pub mod data;
-
 use std::collections::{HashSet, VecDeque};
 
 use itertools::Itertools;
 
 use crate::{
     constant::WORD_SIZE_BITS,
+    data::disjoint_set::DisjointSet,
     error::{
         container::Locatable,
         unification::{Error, Result},
@@ -19,7 +18,6 @@ use crate::{
     inference::{
         expression::{InferenceSet, Span, TypeExpression, WordUse, TE},
         state::{InferenceState, TypeVariable},
-        unification::data::DisjointSet,
     },
     watchdog::DynWatchdog,
 };
@@ -40,7 +38,7 @@ pub type UnificationForest = DisjointSet<TypeVariable, InferenceSet>;
 #[allow(clippy::missing_panics_doc)] // Panics are all guarded
 pub fn unify(state: &mut InferenceState, watchdog: &DynWatchdog) -> Result<()> {
     // First we have to create our forest.
-    let mut forest = UnificationForest::new();
+    let mut forest = UnificationForest::with_capacity(state.tyvar_count());
 
     // Populating it first inserts all variables into the forest.
     for var in state.variables() {
@@ -98,7 +96,7 @@ pub fn unify(state: &mut InferenceState, watchdog: &DynWatchdog) -> Result<()> {
                     equalities,
                     judgements,
                     ty_vars,
-                } = merge(current.clone(), expression, ty_var);
+                } = merge(current.clone(), expression, ty_var, state);
                 current = expression;
                 all_equalities.extend(equalities);
                 all_judgements.extend(judgements);
@@ -113,9 +111,8 @@ pub fn unify(state: &mut InferenceState, watchdog: &DynWatchdog) -> Result<()> {
         }
 
         // When we get to the end of that loop, we need to insert the new type variables
-        // into the forest and state so we can add any inferences involving them
+        // into the forest so we can add any inferences involving them
         for var in all_new_ty_vars {
-            unsafe { state.register_ty_var(var) };
             forest.insert(var);
         }
 
@@ -153,7 +150,7 @@ pub fn unify(state: &mut InferenceState, watchdog: &DynWatchdog) -> Result<()> {
 #[allow(clippy::match_same_arms)] // The ordering of the arms matters
 #[allow(clippy::too_many_lines)] // It needs to remain one function
 #[must_use]
-pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
+pub fn merge(left: TE, right: TE, parent_tv: TypeVariable, state: &mut InferenceState) -> Merge {
     // If they are equal there's no combining to do
     if left == right {
         return Merge::expression(left);
@@ -214,7 +211,7 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
         }
 
         // To combine bytes with words we delegate
-        (TE::Word { .. }, TE::Bytes) => merge(right, left, parent_tv),
+        (TE::Word { .. }, TE::Bytes) => merge(right, left, parent_tv, state),
 
         // They actually combine to be bytes as long as the word is not signed
         (TE::Bytes, TE::Word { usage, .. }) if !usage.is_definitely_signed() => {
@@ -227,7 +224,9 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
         }
 
         // To combine a dynamic array with a packed we delegate
-        (TE::DynamicArray { .. } | TE::Bytes, TE::Packed { .. }) => merge(right, left, parent_tv),
+        (TE::DynamicArray { .. } | TE::Bytes, TE::Packed { .. }) => {
+            merge(right, left, parent_tv, state)
+        }
 
         // They produce bytes when certain conditions are satisfied
         (TE::Packed { types, .. }, TE::DynamicArray { .. } | TE::Bytes) => match types.len() {
@@ -299,7 +298,7 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
         },
 
         // To combine a word with a dynamic array we delegate
-        (TE::Word { .. }, TE::DynamicArray { .. }) => merge(right, left, parent_tv),
+        (TE::Word { .. }, TE::DynamicArray { .. }) => merge(right, left, parent_tv, state),
 
         // They produce a dynamic array as long as the word is not signed
         (TE::DynamicArray { .. }, TE::Word { usage, .. }) => {
@@ -404,7 +403,7 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
             let mut spans: Vec<(TypeVariable, usize, usize)> = Vec::new();
             let mut start = *boundaries.first().expect("Non-empty vector had no first");
             for end in boundaries.into_iter().skip(1) {
-                let span_tv = unsafe { TypeVariable::new() };
+                let span_tv = unsafe { state.allocate_ty_var() };
                 spans.push((span_tv, start, end));
                 start = end;
             }
@@ -472,7 +471,7 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
         }
 
         // Packed encodings can also combine with words
-        (TE::Word { .. }, TE::Packed { .. }) => merge(right, left, parent_tv),
+        (TE::Word { .. }, TE::Packed { .. }) => merge(right, left, parent_tv, state),
         (TE::Packed { types, .. }, TE::Word { width, usage }) => {
             // If we have no spans, things are just the word
             if types.is_empty() {
@@ -492,7 +491,7 @@ pub fn merge(left: TE, right: TE, parent_tv: TypeVariable) -> Merge {
                         }
                         Some(w) => {
                             // In this case, we need to push the word further down
-                            let fresh_ty_var_for_right = unsafe { TypeVariable::new() };
+                            let fresh_ty_var_for_right = unsafe { state.allocate_ty_var() };
                             let new_packed = Judgement::new(
                                 parent_tv,
                                 TE::packed_of(vec![Span::new(fresh_ty_var_for_right, 0, *w)]),
@@ -686,11 +685,16 @@ mod test {
         let inference_2 = TE::bytes(None);
 
         // Check it does the right thing
-        let result =
-            panic::catch_unwind(|| merge(inference_1.clone(), inference_2.clone(), v_2_tv));
+        let result = panic::catch_unwind(|| {
+            let mut state = InferenceState::empty();
+            merge(inference_1.clone(), inference_2.clone(), v_2_tv, &mut state)
+        });
         assert!(result.is_err());
 
-        let result = panic::catch_unwind(|| merge(inference_2, inference_1, v_2_tv));
+        let result = panic::catch_unwind(|| {
+            let mut state = InferenceState::empty();
+            merge(inference_2, inference_1, v_2_tv, &mut state)
+        });
         assert!(result.is_err());
     }
 

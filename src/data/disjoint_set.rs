@@ -1,16 +1,17 @@
-//! This module contains data structures used in the implementation of the
-//! unifier.
+//! This module contains the definition of a specialised
+//! [Disjoint Set](https://en.wikipedia.org/wiki/Disjoint-set_data_structure)
+//! implementation that is capable of carrying data along with the values in the
+//! tree.
 
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    hash::{BuildHasher, Hash},
+use std::{fmt::Debug, hash::Hash};
+
+use crate::data::{
+    combine::Combine,
+    vector_map::{FromUniqueIndex, ToUniqueIndex, VectorMap},
 };
 
-/// An specialised implementation of the
-/// [Disjoint Set](https://en.wikipedia.org/wiki/Disjoint-set_data_structure)
-/// data structure that is capable of carrying arbitrary auxiliary data along
-/// with the values in the tree.
+/// A specialised Disjoint Set implementation that is capable of carrying
+/// arbitrary auxiliary data along with the values in the tree.
 ///
 /// # Performance
 ///
@@ -24,29 +25,38 @@ use std::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DisjointSet<Value, Data>
 where
-    Value: Clone + Debug + Eq + Hash + PartialEq,
+    Value: Clone + Debug + Eq + Hash + PartialEq + ToUniqueIndex,
     Data: Combine + Debug + Eq + PartialEq,
 {
-    reps: HashMap<Value, Value>,
-    data: HashMap<Value, Data>,
+    reps: VectorMap<Value, Value>,
+    data: VectorMap<Value, Data>,
 }
 
 impl<Value, Data> DisjointSet<Value, Data>
 where
-    Value: Clone + Debug + Eq + Hash + PartialEq,
+    Value: Clone + Debug + Eq + Hash + PartialEq + ToUniqueIndex,
     Data: Combine + Debug + Eq + PartialEq,
 {
-    /// Constructs a new union-find forest structure
+    /// Constructs a new union-find forest structure.
     #[must_use]
     pub fn new() -> Self {
-        let reps = HashMap::new();
-        let data = HashMap::new();
+        let reps = VectorMap::new();
+        let data = VectorMap::new();
+        Self { reps, data }
+    }
+
+    /// Constructs a new union-find forest structure guaranteed to have the
+    /// ability to store at least `capacity` elements without reallocating.
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        let reps = VectorMap::with_capacity(capacity);
+        let data = VectorMap::with_capacity(capacity);
         Self { reps, data }
     }
 
     /// Inserts the `value` into the data structure.
     pub fn insert(&mut self, value: Value) {
-        self.reps.insert(value.clone(), value);
+        self.reps.insert(&value.clone(), value);
     }
 
     /// Finds the root element corresponding to the query `value`.
@@ -56,11 +66,11 @@ where
                 value.clone()
             } else {
                 let f = self.find(&rep);
-                self.reps.insert(value.clone(), f.clone());
+                self.reps.insert(value, f.clone());
                 f
             }
         } else {
-            self.reps.insert(value.clone(), value.clone());
+            self.reps.insert(value, value.clone());
             self.find(value)
         }
     }
@@ -72,8 +82,8 @@ where
         let v2 = self.find(v2);
         let v1_val = self.data.get(&v1).cloned().unwrap_or(Data::identity());
         let v2_val = self.data.remove(&v2).unwrap_or(Data::identity());
-        self.data.insert(v1.clone(), v1_val.combine(v2_val));
-        self.reps.insert(v2, v1);
+        self.data.insert(&v1, v1_val.combine(v2_val));
+        self.reps.insert(&v2, v1);
     }
 
     /// Associates the provided auxiliary `data` with `value`,
@@ -81,7 +91,7 @@ where
     pub fn add_data(&mut self, value: &Value, data: Data) {
         let root = self.find(value);
         let previous_data = self.data.remove(&root).unwrap_or(Data::identity());
-        self.data.insert(root.clone(), previous_data.combine(data));
+        self.data.insert(&root, previous_data.combine(data));
     }
 
     /// Gets the auxiliary data corresponding to the passed `value`, if it
@@ -95,13 +105,13 @@ where
     /// data for that value.
     pub fn set_data(&mut self, value: &Value, data: Data) {
         let root = self.find(value);
-        self.data.insert(root, data);
+        self.data.insert(&root, data);
     }
 }
 
 impl<Value, Data> DisjointSet<Value, Data>
 where
-    Value: Clone + Debug + Eq + Hash + PartialEq,
+    Value: Clone + Debug + Eq + Hash + PartialEq + ToUniqueIndex + FromUniqueIndex,
     Data: Combine + Debug + Default + Eq + PartialEq,
 {
     /// Gets all of the individual sets in the forest, along with their
@@ -109,76 +119,33 @@ where
     pub fn sets(&mut self) -> Vec<(Value, Data)> {
         self.reps
             .iter()
-            .filter(|(k, v)| k == v)
-            .map(|(k, _)| (k.clone(), self.data.entry(k.clone()).or_default().clone()))
+            .filter(|(k, v)| *k == v.index())
+            .map(|(k, _)| {
+                let k = Value::from_index(k);
+                let data = if let Some(v) = self.data.get(&k) {
+                    v.clone()
+                } else {
+                    self.data.insert(&k, Data::default());
+                    Data::default()
+                };
+                (k.clone(), data)
+            })
             .collect()
     }
 
     /// Gets each individual value in the forest.
     #[must_use]
     pub fn values(&self) -> Vec<Value> {
-        self.reps.keys().cloned().collect()
+        self.reps.indices().map(Value::from_index).collect()
     }
 }
 
 impl<Value, Data> Default for DisjointSet<Value, Data>
 where
-    Value: Clone + Debug + Eq + Hash + PartialEq,
+    Value: Clone + Debug + Eq + Hash + PartialEq + ToUniqueIndex,
     Data: Combine + Debug + Eq + PartialEq,
 {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// A trait that represents types that can be combined in some way.
-///
-/// This is equivalent to a monoid.
-pub trait Combine
-where
-    Self: Clone,
-{
-    /// The combination function itself.
-    ///
-    /// The function should be:
-    ///
-    /// - **Symmetric** (such that `a.combine(b) == b.combine(a)`)
-    /// - **Associative** (such that `a.combine(b.combine(c) ==
-    ///   (a.combine(b)).combine(c)`).
-    #[must_use]
-    fn combine(self, other: Self) -> Self;
-
-    /// An element `a` that, when combined (`a.combine(b)`) with another element
-    /// `b` produces `b`.
-    #[must_use]
-    fn identity() -> Self;
-}
-
-impl<A: Combine> Combine for Option<A> {
-    fn combine(self, other: Self) -> Self {
-        match (self, other) {
-            (Some(a), Some(b)) => Some(a.combine(b)),
-            (Some(a), None) => Some(a),
-            (None, Some(b)) => Some(b),
-            (None, None) => None,
-        }
-    }
-
-    fn identity() -> Self {
-        None
-    }
-}
-
-impl<A, S> Combine for HashSet<A, S>
-where
-    A: Clone + Eq + Hash + PartialEq,
-    S: BuildHasher + Clone + Default,
-{
-    fn combine(self, other: Self) -> Self {
-        self.union(&other).cloned().collect()
-    }
-
-    fn identity() -> Self {
-        HashSet::default()
     }
 }
