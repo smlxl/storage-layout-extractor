@@ -24,7 +24,7 @@ expressions that make up the inferences about a given type variable, and hence a
 
 The type language in this library is kept _purposefully simple_, with only a few constructors and
 the minimum number of composite types. These are as follows, and can be found at
-their [definition](../src/inference/expression.rs):
+their [definition](../src/tc/expression.rs):
 
 - `Any`: This tells us nothing about the type, and exists as an "identity element" for the language
   of type expressions.
@@ -44,9 +44,9 @@ their [definition](../src/inference/expression.rs):
   manually.
 
 The type constructors (`FixedArray`, `Mapping`, and `DynamicArray`) are types that take _other
-types_, in the form of type variables in their construction. To say that they are a type that
-contains some other type, they reference other type variables. It is these type variables that
-describe the contained type.
+types_, in the form of type variables in their construction. That is to say that they are a type
+that contains some other type by means of referencing other type variables. It is these type
+variables that describe the contained type.
 
 During inference, one or more expressions in this type language (called equations) are written into
 the typing state.
@@ -65,7 +65,7 @@ Writing a new inference rule is a four-step process:
    about the program's types.
 3. **Implement the Rule:** Inference rules can often be quite simple to implement, as all that needs
    to be done is to match on the specified pattern, and then create the specific equations. The
-   [existing rules](../src/inference/rule) are good documentation of how to do this.
+   [existing rules](../src/tc/rule) are good documentation of how to do this.
 4. **Test the Rule:** It is usually a good idea to write both unit tests (at the bottom of the file)
    and integration tests for the rules. See [the simple contract test](../tests/simple_contract.rs)
    for an example of how to write an integration test; all that needs to be done is create a
@@ -89,7 +89,7 @@ equating
 ```
 
 Let's work through an example inference rule for ascribing types based on dynamic arrays in storage,
-as can be seen [here](../src/inference/rule/dynamic_array_write.rs).
+as can be seen [here](../src/tc/rule/dynamic_array_write.rs).
 
 First we start by writing out the pattern that we are trying to recognise. This tries to match the
 output representation of the symbolic values as much as possible to make it easier to map between
@@ -124,7 +124,7 @@ equating
 ```
 
 From here, it becomes simple to build and test an implementation of this rule as
-seen [here](../src/inference/rule/dynamic_array_write.rs) in the codebase. It has both unit tests in
+seen [here](../src/tc/rule/dynamic_array_write.rs) in the codebase. It has both unit tests in
 that file, and is integration tested in the test [here](../tests/simple_contract.rs).
 
 ## Writing New Lifting Passes
@@ -143,7 +143,7 @@ The process is as follows:
    modifying the symbolic value representation to represent the new structure. Carefully consider
    what data to represent and what is unnecessary to keep.
 3. **Implement the Pass:** Lifting passes are a bit more complex to implement as they require
-   careful data transformation. Look at the [existing ones](../src/inference/lift) to get an idea of
+   careful data transformation. Look at the [existing ones](../src/tc/lift) to get an idea of
    how to do this.
 4. **Test the Pass:** It is usually a good idea to write both unit tests (at the bottom of the file)
    and integration tests for the rules. See [the simple contract test](../tests/simple_contract.rs)
@@ -164,7 +164,7 @@ higher_level(expression, parts)
 ```
 
 Let's work through an example lifting pass for finding accesses to mappings in storage as is
-implemented [here](../src/inference/lift/mapping_index.rs).
+implemented [here](../src/tc/lift/mapping_index.rs).
 
 First we start by writing out the low-level pattern that we are trying to represent at a
 higher-level, using variable names to describe the arguments where their structure is irrelevant to
@@ -185,4 +185,4 @@ mapping_ix<slot_ix>[key]
 ```
 
 Now all that remains is to implement and test it, as can be seen in the
-codebase [here](../src/inference/lift/mapping_index.rs).
+codebase [here](../src/tc/lift/mapping_index.rs).

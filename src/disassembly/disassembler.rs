@@ -61,7 +61,7 @@ pub fn disassemble(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
     let mut last_push: u8 = 0;
     let mut last_push_start: u32 = 0;
     let mut push_size: u8 = 0;
-    let mut push_size_bytes: u8 = push_size;
+    let mut remaining_push_bytes: u8 = push_size;
     let mut push_bytes: Vec<u8> = Vec::with_capacity(PUSH_OPCODE_MAX_BYTES as usize);
 
     // Iterate over the bytes, parsing into Opcodes as necessary.
@@ -70,13 +70,13 @@ pub fn disassemble(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
         // We assume bytecodes are far less than [`u32::MAX`] bytes already.
         let instruction_pointer =
             u32::try_from(offset).map_err(|_| Error::BytecodeTooLarge.locate(u32::MAX))?;
-        if push_size_bytes != 0 {
+        if remaining_push_bytes != 0 {
             // While we have bytes remaining as part of the push opcode we want to consume
             // them.
             push_bytes.push(*byte);
-            push_size_bytes -= 1;
+            remaining_push_bytes -= 1;
 
-            if push_size_bytes == 0 && !push_bytes.is_empty() {
+            if remaining_push_bytes == 0 && !push_bytes.is_empty() {
                 // If the push bytes buffer has data in it and there are no more bytes to read
                 // we want to construct the opcode.
                 let opcode = mem::PushN::new(push_size, push_bytes.clone())
@@ -167,7 +167,7 @@ pub fn disassemble(bytes: &[u8]) -> Result<Vec<DynOpcode>> {
                     last_push = *byte;
                     last_push_start = instruction_pointer;
                     push_size = byte - PUSH_OPCODE_BASE_VALUE;
-                    push_size_bytes = push_size;
+                    remaining_push_bytes = push_size;
                 }
                 0x80..=0x8f => {
                     let item_to_duplicate = byte - DUP_OPCODE_BASE_VALUE;

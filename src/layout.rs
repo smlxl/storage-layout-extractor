@@ -1,24 +1,31 @@
-//! This module contains the definitions for the layout representation types.
-//!
-//! It currently only contains placeholder types.
+//! This module contains the definitions for the types used to represent the
+//! storage layout discovered by the tool.
 
 use serde::{Deserialize, Serialize};
 
-use crate::{inference::abi::AbiType, utility::U256Wrapper};
+use crate::{tc::abi::AbiType, utility::U256Wrapper};
 
-/// The most-concrete layout discovered for the input contract.
+/// The most-concrete storage layout that the analysis was able to discover.
+///
+/// It is guaranteed to keep the slots sorted by slot index, with ties broken by
+/// the offset within the slot.
+///
+/// Note that it may contain non-Solidity types in order to provide the
+/// most-informative output for downstream tools.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StorageLayout {
     slots: Vec<StorageSlot>,
 }
 
 impl StorageLayout {
-    /// Adds a slot specified by `index` and `typ` to the storage layout.
+    /// Adds a slot specified at the specified `index` and with the specified
+    /// `typ` to the storage layout.
     pub fn add(&mut self, index: impl Into<U256Wrapper>, offset: usize, typ: AbiType) {
         let slot = StorageSlot::new(index, offset, typ);
         self.slots.push(slot);
 
-        // Keep them sorted by slot index with ties broken by slot offset
+        // Keep them sorted by slot index with ties broken by the offset within the
+        // slot.
         self.slots.sort_by_key(|s| (s.index, s.offset));
     }
 
@@ -73,6 +80,11 @@ impl Default for StorageLayout {
 }
 
 /// A representation of a concrete storage slot, with its best-known type.
+///
+/// Note that a given storage `index` may have more than one `StorageSlot`
+/// associated with it as long as these slots have differing `offset`s. This
+/// allows an intuitive representation of storage encodings that pack multiple
+/// values within a single EVM word.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct StorageSlot {
     /// The concrete index of the storage slot in the contract.
@@ -84,13 +96,13 @@ pub struct StorageSlot {
     pub offset: usize,
 
     #[serde(rename = "type")]
-    /// The best-known type of the storage slot.
+    /// The most concretely-known type of the storage slot.
     pub typ: AbiType,
 }
 
 impl StorageSlot {
-    /// Constructs a new storage slot container for the data at `index` with
-    /// type `typ`.
+    /// Constructs a new type for the storage slot at `index` and `offset` to
+    /// say it has the type `typ`.
     #[must_use]
     pub fn new(index: impl Into<U256Wrapper>, offset: usize, typ: AbiType) -> Self {
         let index = index.into();

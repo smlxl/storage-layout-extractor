@@ -5,15 +5,14 @@ use thiserror::Error;
 
 use crate::{
     error::container,
-    inference::{
+    tc::{
         expression::{InferenceSet, TypeExpression},
-        state::TypeVariable,
+        state::type_variable::TypeVariable,
     },
     vm::value::TCBoxedVal,
 };
 
-/// Errors that occur during unification and type inference process in the
-/// [`crate::inference::InferenceEngine`].
+/// Errors that occur during type checking in the [`crate::tc::TypeChecker`].
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
     #[error("Invalid tree {value:?} encountered during unification: {reason}")]
@@ -35,6 +34,16 @@ pub enum Error {
     StoppedByWatchdog,
 }
 
+/// A unification error with an associated location in the bytecode.
+pub type LocatedError = container::Located<Error>;
+
+/// A container of unification errors used for aggregation of errors during
+/// unification.
+pub type Errors = container::Errors<LocatedError>;
+
+/// The result type for methods that may have unification errors.
+pub type Result<T> = std::result::Result<T, Errors>;
+
 /// Make it possible to attach locations to these errors.
 impl container::Locatable for Error {
     type Located = LocatedError;
@@ -46,13 +55,3 @@ impl container::Locatable for Error {
         }
     }
 }
-
-/// A unification error with an associated location in the bytecode.
-pub type LocatedError = container::Located<Error>;
-
-/// A container of unification errors used for aggregation of errors during
-/// unification.
-pub type Errors = container::Errors<LocatedError>;
-
-/// The result type for methods that may have unification errors.
-pub type Result<T> = std::result::Result<T, Errors>;

@@ -2,7 +2,7 @@
 //! capabilities on a very simple, hand-constructed, contract.
 #![cfg(test)]
 
-use storage_layout_analyzer::inference::abi::AbiType;
+use storage_layout_analyzer::tc::abi::AbiType;
 
 mod common;
 

@@ -56,8 +56,8 @@ pub const INSTRUCTION_STREAM_MAX_SIZE: u32 = u32::MAX;
 /// to contain the instruction stream of any contract.
 ///
 /// This limit is validated upon construction of the instruction stream, but the
-/// stream makes no guarantees as to being able to allocate sufficient memory to
-/// contain that many opcodes.
+/// stream makes _no guarantees_ as to being able to allocate sufficient memory
+/// to contain that many opcodes.
 #[derive(Clone, Debug)]
 pub struct InstructionStream {
     /// The sequence of [`Opcode`]s.
@@ -72,7 +72,7 @@ impl InstructionStream {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the requested instruction pointer is out of range for
+    /// Returns `Err` if the requested `instruction_pointer` is out of range for
     /// the instruction stream.
     pub fn new_thread(&self, instruction_pointer: u32) -> execution::Result<ExecutionThread> {
         if instruction_pointer as usize >= self.instructions.len() {
@@ -98,6 +98,9 @@ impl InstructionStream {
 
     /// Converts the instructions in the instruction stream to their
     /// corresponding bytecode.
+    ///
+    /// This should always result in the same bytecode as the input to the
+    /// disassembly process.
     #[must_use]
     pub fn as_bytecode(&self) -> Vec<u8> {
         self.instructions.iter().flat_map(|opcode| opcode.encode()).collect()
@@ -148,6 +151,9 @@ impl TryFrom<&str> for InstructionStream {
 
 /// Allows converting the [`InstructionStream`] back to the corresponding
 /// bytecode representation.
+///
+/// This should always result in the same bytecode as the input to the
+/// disassembly process.
 impl From<InstructionStream> for Vec<u8> {
     fn from(value: InstructionStream) -> Self {
         value.instructions.iter().flat_map(|opcode| opcode.encode()).collect()
@@ -246,6 +252,7 @@ impl ExecutionThread {
         } else {
             return None;
         };
+
         if let Some(opcode) = self.instructions.get(new_pointer as usize) {
             self.instruction_pointer = new_pointer;
             Some(opcode.clone())

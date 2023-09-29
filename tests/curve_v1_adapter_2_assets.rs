@@ -11,7 +11,7 @@ use storage_layout_analyzer::{
         },
         contract::Contract,
     },
-    inference::{self, abi::AbiType},
+    tc::{self, abi::AbiType},
     vm,
     watchdog::LazyWatchdog,
 };
@@ -36,7 +36,7 @@ fn correctly_generates_a_layout_wth_permissive_errors() -> anyhow::Result<()> {
     );
 
     let vm_config = vm::Config::default().with_permissive_errors(true);
-    let unifier_config = inference::Config::default();
+    let unifier_config = tc::Config::default();
     let watchdog = LazyWatchdog.in_rc();
 
     let analyzer = sla::new(contract, vm_config, unifier_config, watchdog);
@@ -65,7 +65,7 @@ fn correctly_fail_without_permissive_errors() -> anyhow::Result<()> {
     );
 
     let vm_config = vm::Config::default().with_permissive_errors(false);
-    let unifier_config = inference::Config::default();
+    let unifier_config = tc::Config::default();
     let watchdog = LazyWatchdog.in_rc();
 
     let analyzer = sla::new(contract, vm_config, unifier_config, watchdog);

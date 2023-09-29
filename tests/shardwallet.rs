@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use storage_layout_analyzer::{
-    inference::abi::{AbiType, StructElement},
+    tc::abi::{AbiType, StructElement},
     watchdog::LazyWatchdog,
 };
 

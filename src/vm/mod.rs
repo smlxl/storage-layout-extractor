@@ -1,4 +1,4 @@
-//! This module deals with the implementation of the symbolic virtual machine.
+//! This module contains the symbolic virtual machine.
 
 pub mod data;
 pub mod state;
@@ -13,7 +13,7 @@ use crate::{
         DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT,
         DEFAULT_ITERATIONS_PER_OPCODE,
         DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES,
-        DEFAULT_PERMISSIVE_ERRORS,
+        DEFAULT_PERMISSIVE_ERRORS_ENABLED,
         DEFAULT_VALUE_SIZE_LIMIT,
     },
     disassembly::{ExecutionThread, InstructionStream},
@@ -34,6 +34,9 @@ use crate::{
 
 /// The virtual machine used to perform symbolic execution of the contract
 /// bytecode.
+///
+/// It is designed so as to be a 1:1 match for the semantics of a real runtime
+/// EVM wherever such semantics can be represented symbolically.
 #[derive(Clone, Debug)]
 pub struct VM {
     /// The instructions that are being executed by this virtual machine.
@@ -124,9 +127,6 @@ impl VM {
     }
 
     /// Performs symbolic execution of the entire bytecode.
-    ///
-    /// It explores all branches of the code exactly once, thereby collecting
-    /// the maximum information about the code and the types within it.
     ///
     /// Running out of gas just stops execution of that thread, thereby allowing
     /// exploration of the full scope of what could potentially execute on
@@ -227,6 +227,10 @@ impl VM {
 
     /// Advances the virtual machine to the next instruction.
     ///
+    /// This function handles correctly modifying the instruction pointer,
+    /// tracking gas usage, and dealing with other limitations placed on
+    /// execution.
+    ///
     /// # Errors
     ///
     /// If the virtual machine cannot be advanced, or if advancing would result
@@ -247,9 +251,9 @@ impl VM {
         let current_thread = self.current_thread_mut()?;
         let next_offset = instruction_pointer + 1;
 
-        let oob_instruction = next_offset >= instructions_len;
         // It is a programmer bug if a non-existent opcode is asked about here, so the
         // error is immediately forwarded.
+        let oob_instruction = next_offset >= instructions_len;
         let exceeded_iteration_limit = oob_instruction
             || current_thread
                 .state()
@@ -295,10 +299,10 @@ impl VM {
 
     /// Gets a handle for the virtual machine stack of the current thread.
     ///
-    /// # Note: Getting the Actual Stack
+    /// # Getting the Actual Stack
     ///
-    /// If you want to get the actual stack, rather than a view onto it, instead
-    /// call `.state()?.stack`.
+    /// If you want to get the actual VM stack, rather than the wrapped  view
+    /// onto it, call `.state()?.stack` instead.
     ///
     /// # Errors
     ///
@@ -309,7 +313,8 @@ impl VM {
             .map(|thread| thread.state_mut().stack_mut().new_located(instruction_pointer))
     }
 
-    /// Gets the virtual machine state that is currently being executed.
+    /// Gets the virtual machine state for the thread that is currently being
+    /// executed.
     ///
     /// # Errors
     ///
@@ -318,7 +323,7 @@ impl VM {
         self.current_thread_mut().map(VMThread::state_mut)
     }
 
-    /// Gets the current execution thread (instruction sequence) that is being
+    /// Gets the execution thread for the thread that is currently being
     /// executed.
     ///
     /// # Errors
@@ -328,7 +333,7 @@ impl VM {
         self.current_thread().map(VMThread::instructions)
     }
 
-    /// Gets the current execution thread (instruction sequence) that is being
+    /// Gets the execution thread for the thread that is currently being
     /// executed.
     ///
     /// # Errors
@@ -384,13 +389,15 @@ impl VM {
             .ok_or(Error::NoSuchThread.locate(offset))
     }
 
-    /// Adds a virtual machine thread to the queue for execution.
+    /// Adds a virtual machine thread to the queue of threads to be executed.
     pub fn enqueue_thread(&mut self, thread: VMThread) {
         self.thread_queue.push_back(thread);
     }
 
     /// Forks the currently executing thread to `jump_target`, maintaining the
-    /// state at the moment of forking.
+    /// state at the moment of forking in the new thread.
+    ///
+    /// The new thread is then added to the thread queue to await execution.
     ///
     /// # Errors
     ///
@@ -504,7 +511,7 @@ impl VM {
     }
 
     /// Consumes the virtual machine to convert it into the data necessary for
-    /// the analysis in the [`crate::inference::InferenceEngine`].
+    /// the analysis in the [`crate::tc::TypeChecker`].
     #[must_use]
     pub fn consume(self) -> ExecutionResult {
         ExecutionResult {
@@ -528,7 +535,8 @@ pub struct ExecutionResult {
     ///
     /// Note that if `errors` is not empty, the execution result may not have
     /// full coverage of the bytecode. It is recommended to inspect the errors
-    /// themselves before continuing to determine if the data is useful.
+    /// themselves before continuing to determine if the data is useful to use
+    /// as the basis for continued analysis.
     pub errors: Errors,
 }
 
@@ -637,7 +645,7 @@ impl Default for Config {
         let maximum_forks_per_fork_target = DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT;
         let value_size_limit = DEFAULT_VALUE_SIZE_LIMIT;
         let single_memory_operation_size_limit = DEFAULT_MEMORY_SINGLE_OPERATION_MAX_BYTES;
-        let permissive_errors = DEFAULT_PERMISSIVE_ERRORS;
+        let permissive_errors = DEFAULT_PERMISSIVE_ERRORS_ENABLED;
         Self {
             gas_limit,
             maximum_iterations_per_opcode,
@@ -651,6 +659,10 @@ impl Default for Config {
 
 /// A structure that provides an interface to building new [`RSV`]s with access
 /// to the VM's configuration.
+///
+/// It should be used for building all values that are constructed during the
+/// course of execution as it ensures that size and structure invariants are
+/// enforced for those values.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValueBuilder {
     config: Config,

@@ -14,9 +14,9 @@ use crate::{
 /// can only address portions of that memory by the symbols used to index into
 /// it.
 ///
-/// To that end, the memory for the symbolic EVM maps from symbolic expressions
-/// to other symbolic expressions, relying on the identity or similarity of
-/// symbolic expressions.
+/// However, to enable more efficient transformation of values and data, we
+/// utilise the ability to constant fold values to write to "real" memory
+/// locations wherever possible.
 ///
 /// # Generational Memory
 ///
@@ -25,8 +25,8 @@ use crate::{
 /// method to get at these for a given key.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Memory {
-    /// Stores at locations that are described by a constant offset from the
-    /// start of memory.
+    /// Stores at locations that are described by a constant numeric offset from
+    /// the start of memory.
     constant_offsets: HashMap<usize, Vec<MemStore>>,
 
     /// Stores at locations that are described by a symbolic value that cannot
@@ -35,6 +35,9 @@ pub struct Memory {
 
     /// The maximum number of symbolic "bytes" that the memory can copy in a
     /// single operation.
+    ///
+    /// This is used to prevent memory blowup for contracts that make
+    /// significant numbers of large copies.
     max_single_operation_bytes: usize,
 }
 
@@ -54,7 +57,9 @@ impl Memory {
     /// Stores the provided `value` (of size [`WORD_SIZE_BITS`]) at the provided
     /// `offset` in the memory.
     ///
-    /// This will overwrite any existing value at the provided `offset`.
+    /// This will overwrite any existing value at the provided `offset` for the
+    /// purposes of program execution, though previous values are retained as
+    /// generations.
     ///
     /// # Note
     ///
@@ -69,7 +74,9 @@ impl Memory {
     /// Stores the provided `value` (of size 8-bits) at the provided `offset`
     /// in the memory.
     ///
-    /// This will overwrite any existing value at the provided `offset`.
+    /// This will overwrite any existing value at the provided `offset` for the
+    /// purposes of program execution, though previous values are retained as
+    /// generations.
     ///
     /// # Note
     ///
@@ -86,10 +93,10 @@ impl Memory {
     ///
     /// # Note
     ///
-    /// Be careful with overlapping stores, as the storage is not able to track
-    /// these. Implementation of the `MLOAD` and `MSTORE*` opcodes may want to
-    /// account for sub-word writes by dissecting the arguments to this
-    /// function.
+    /// Be careful with overlapping stores, as the storage is not always able to
+    /// track these. Implementation of the `MLOAD` and `MSTORE*` opcodes may
+    /// want to account for sub-word writes by dissecting the arguments to
+    /// this function.
     // We use boxes everywhere for API simplicity.
     #[allow(clippy::boxed_local, clippy::needless_pass_by_value)]
     fn store_with_size(
@@ -272,8 +279,7 @@ impl Memory {
         self.symbolic_offsets.keys().collect()
     }
 
-    /// Gets all of the values that are registered in the virtual machine memory
-    /// at the time of calling.
+    /// Consumes the memory and returns all values that are registered in it.
     #[must_use]
     pub fn all_values(self) -> Vec<RuntimeBoxedVal> {
         let mut values = Vec::new();

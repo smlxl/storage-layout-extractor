@@ -5,7 +5,8 @@
 //! this discovery process.
 //!
 //! The analysis it performs is _best effort_, and may produce incorrect
-//! results.
+//! results. At the same time, it may also pick up on manual encodings that are
+//! not able to be accurately described by Solidity's type system.
 //!
 //! # How it Works
 //!
@@ -17,23 +18,28 @@
 //!    This is a sequence of [`opcode::Opcode`]s that is equivalent to the
 //!    bytecode.
 //! 2. The stream of instructions is executed symbolically on a specialised
-//!    [`vm::VM`] (an EVM implementation). This execution is both
-//!    **speculative** and **total**, exploring all possible code paths that can
-//!    influence the type attributed to a given storage location.
+//!    [`vm::VM`] (an EVM implementation). This execution is a **best-effort**
+//!    one, aiming to explore as many code paths as possible while remaining
+//!    within tractable bounds. The hope is to gather enough information to
+//!    correctly infer the type of a given storage location.
 //! 3. For each value seen in the program during execution, the [`vm::VM`]
-//!    builds a [`vm::value::SymbolicValue`] (a little tree structure) that
-//!    represents the operations performed to that particular piece of "data".
-//! 4. These execution trees are passed to a type inference process implemented
-//!    by the [`inference::InferenceEngine`]. This process starts by running
-//!    multiple [`inference::lift::Lift`]s, that turn low-level constructs into
-//!    more-general high-level ones. The results of this lifting are then passed
-//!    to a series of [`inference::rule::InferenceRule`]s that output **type
-//!    inference judgements** about the trees they analyse. Finally, thee
-//!    inferences are combined through unification to perform whole-program type
-//!    inference.
+//!    builds a [`vm::value::SymbolicValue`] (a tree structure) that represents
+//!    the operations performed to that particular piece of "data" during
+//!    execution. It is these operations that provide evidence toward the type
+//!    of the value in question.
+//! 4. These execution trees are passed to a type checking process implemented
+//!    by the [`tc::TypeChecker`]. This process starts by running multiple
+//!    [`tc::lift::Lift`]ing passes. These turn low-level constructs into
+//!    more-general high-level ones that are better amenable to type inference.
+//!    The results of this lifting are then passed to a series of
+//!    [`tc::rule::InferenceRule`]s that output **type judgements** about the
+//!    trees they analyse. Finally, the inferences are combined through
+//!    unification to perform whole-program type checking.
 //! 5. The resolved types associated with each [`layout::StorageSlot`] are
-//!    turned into a [`StorageLayout`] that describes the type of each storage
-//!    slot that was encountered.
+//!    turned into a [`StorageLayout`] that describes the _most concrete_ type
+//!    of each storage slot that was encountered. These final types do not
+//!    directly correspond to Solidity types, thereby letting downstream tools
+//!    implement context-aware processing with as much information as possible.
 //!
 //! # Basic Usage
 //!
@@ -48,12 +54,14 @@
 //!         contract::Contract,
 //!     },
 //!     bytecode,
-//!     inference,
 //!     opcode::{control::*, logic::*, memory::*, Opcode},
+//!     tc,
 //!     vm,
 //!     watchdog::LazyWatchdog,
 //! };
 //!
+//! // This is just a macro that lets us manually write a sequence of opcodes
+//! // to be used as bytecode.
 //! let bytes = bytecode![
 //!     CallDataSize,                       // Get a symbolic value
 //!     IsZero,                             // Check if the size is zero
@@ -72,6 +80,9 @@
 //!     Return                              // Return from this thread
 //! ];
 //!
+//! // The analyser operates on a contract that describes the chain and version
+//! // on which it is running. This ensures the most accurate analysis for that
+//! // contract.
 //! let contract = Contract::new(
 //!     bytes,
 //!     Chain::Ethereum {
@@ -79,28 +90,31 @@
 //!     },
 //! );
 //!
+//! // The layout is returned from the analyzer, and for the purposes of this
+//! // example we assume that no errors happen.
 //! let layout = sla::new(
 //!     contract,
 //!     vm::Config::default(),
-//!     inference::Config::default(),
+//!     tc::Config::default(),
 //!     LazyWatchdog.in_rc(),
 //! )
 //! .analyze()
 //! .unwrap();
 //!
+//! // We should only see one slot in this trivial bytecode.
 //! assert_eq!(layout.slots().len(), 1);
 //! ```
 //!
-//! ## More-Complex Usage
+//! # More-Complex Usage
 //!
 //! While the library provides a high-level interface that automates the vast
-//! majority of its execution—from contract ingestion to layout output—it also
-//! provides access to its internals. Very little of the library's functionality
-//! is kept private, allowing the analysis to be introspected and modified at
-//! every stage of the pipeline.
+//! majority of its execution—from contract ingestion to final output—it also
+//! provides comprehensive access to its internals. Very little of the library's
+//! functionality is kept private, allowing the analysis to be introspected and
+//! modified at every stage of the pipeline.
 //!
 //! The hope is that novel uses for the library's functionality can be found
-//! beyond what it is currently envisioned for.
+//! beyond what it is currently designed for.
 //!
 //! To get access to this, take a look at the [`analyzer`] and the various
 //! functions that can be called on the analysis state machine. These provide
@@ -119,9 +133,9 @@ pub mod constant;
 pub mod data;
 pub mod disassembly;
 pub mod error;
-pub mod inference;
 pub mod layout;
 pub mod opcode;
+pub mod tc;
 pub mod utility;
 pub mod vm;
 pub mod watchdog;

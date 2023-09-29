@@ -44,9 +44,11 @@ impl Storage {
     }
 
     /// Stores the provided `value` in storage at the provided `key`,
-    /// overwriting any existing value at that key.
+    /// overwriting any existing value at that key for the purposes of
+    /// execution.
     ///
-    /// The `value` is treated as being 256 bits wide.
+    /// Any previous values are retained in the generations, and the `value` is
+    /// treated as being 256 bits wide.
     pub fn store(&mut self, key: RuntimeBoxedVal, value: RuntimeBoxedVal) {
         let target_map = match key.data() {
             RSVD::KnownData { .. } => &mut self.known_slots,
@@ -166,7 +168,8 @@ impl Storage {
         values
     }
 
-    /// Gets all of the values in storage as symbolic `SSTORE`s.
+    /// Consumes the storage and returns all of the values that were contained
+    /// within the storage.
     ///
     /// Here, each `key -> value` pair, accounting for generations, is wrapped
     /// into [`RSVD::StorageWrite`] of `(key, value)`, allowing for easier

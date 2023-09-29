@@ -1,5 +1,16 @@
 //! This module contains the type definitions necessary to support the
 //! monitoring functionality for the analyzer.
+//!
+//! # Best-Effort Monitoring
+//!
+//! Note that the monitoring provided by the watchdog is a best-effort approach.
+//! It is not guaranteed that the watchdog is able to stop any given analyzer
+//! run in synchronous execution on a thread.
+//!
+//! If it is necessary to guarantee that the analyzer can be stopped at any
+//! point in the pipeline, future evolution might consider making the analyzer
+//! operate asynchronously. That way, workers can then be interrupted on a timer
+//! naturally, rather than requiring cooperation from the analyzer itself.
 
 use std::{
     fmt::Debug,

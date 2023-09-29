@@ -13,8 +13,11 @@ use thiserror::Error;
 /// # Usage
 ///
 /// Any function considered to be part of the public interface of the library
-/// should return this result type. Note that _all_ of the library is public in
-/// order to facilitate use-cases beyond the ones designed for.
+/// should return this result type. Subsystems should return the more-specific
+/// child error types as appripriate.
+///
+/// Note that _all_ of the library is public in order to facilitate use-cases
+/// beyond the ones designed for.
 pub type Result<T> = std::result::Result<T, Errors>;
 
 /// The interface error type for the library.
@@ -61,6 +64,9 @@ impl container::Locatable for Error {
 
 /// A library error with an associated bytecode location.
 pub type LocatedError = container::Located<Error>;
+
+/// A container of errors that may occur in the analyzer.
+pub type Errors = container::Errors<LocatedError>;
 
 /// Allow simple conversions from located disassembly errors by re-wrapping the
 /// located error around the more general payload.
@@ -149,6 +155,3 @@ impl From<unification::Errors> for Errors {
         new_errs.into()
     }
 }
-
-/// A container of errors that may occur in the analyzer.
-pub type Errors = container::Errors<LocatedError>;

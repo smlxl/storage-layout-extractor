@@ -3,11 +3,17 @@
 
 use crate::analyzer::chain::Chain;
 
-/// A representation of a contract that is passed to the library.
+/// The contract that is to be analyzed by the library.
+///
+/// This includes the configuration of the chain on which it is to be executed,
+/// and is intended to be immutable.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Contract {
+    /// The bytecode of the contract.
     bytecode: Vec<u8>,
-    chain:    Chain,
+
+    /// The chain on which the contract is running.
+    chain: Chain,
 }
 
 impl Contract {

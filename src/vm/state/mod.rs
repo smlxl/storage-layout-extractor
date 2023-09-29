@@ -17,7 +17,7 @@ use crate::vm::{
 /// This state is responsible for maintaining the symbolic memory locations for
 /// each of the virtual machine's stack, storage, and memory. Having this will
 /// allow the virtual machine to symbolically execute the bytecode and trace the
-/// flow of data (locations) and operations through the program.
+/// flow of data and operations through the program.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VMState {
     /// The point during execution at which this state was forked.
@@ -56,6 +56,8 @@ pub struct VMState {
 impl VMState {
     /// Constructs a new virtual machine state originating at the provided
     /// `fork_point`, with all memory locations set to their default values.
+    ///
+    /// To create the initial VM state, use [`Self::new_at_start`].
     #[must_use]
     pub fn new(fork_point: u32, instructions_len: u32, config: Config) -> Self {
         let stack = Stack::new();
@@ -183,8 +185,8 @@ impl VMState {
         fork
     }
 
-    /// Gets all of the values that are registered in the virtual machine state
-    /// at the time of calling.
+    /// Consumes the state and produces all of the values that are registered in
+    /// the virtual machine state.
     #[must_use]
     pub fn all_values(self) -> Vec<RuntimeBoxedVal> {
         let mut values = Vec::new();

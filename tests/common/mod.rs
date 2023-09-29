@@ -1,4 +1,6 @@
-//! This module contains common testing utilities for testing this library.
+//! This module contains common utilities for simplifying the writing of
+//! integration tests for this library.
+
 #![cfg(test)]
 
 use std::{fs::File, io::Read};
@@ -15,13 +17,13 @@ use storage_layout_analyzer::{
         contract::Contract,
         InitialAnalyzer,
     },
-    inference,
+    tc,
     vm,
     watchdog::{DynWatchdog, LazyWatchdog},
 };
 
 /// A wrapper for the parts of the JSON representation of the compiled contract
-/// on disk that we care about.
+/// on disk that we care about to enable easy deserialization.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompiledContract {
@@ -33,8 +35,10 @@ pub struct DeployedBytecode {
     object: String,
 }
 
-/// Constructs a new analyser to analyze the hex-encoded (with the `0x` prefix)
-/// contract bytecode provided in `code` and using the default configurations.
+/// Constructs a new analyser to analyze the hex-encoded (with or without the
+/// `0x` prefix) contract bytecode provided in `code`.
+///
+/// It uses the default configurations for the analyzer.
 #[allow(unused)] // It is actually
 pub fn new_analyzer_from_bytecode(
     code: impl Into<String>,
@@ -51,13 +55,14 @@ pub fn new_analyzer_from_bytecode(
     );
 
     let vm_config = vm::Config::default();
-    let unifier_config = inference::Config::default();
+    let unifier_config = tc::Config::default();
 
     Ok(sla::new(contract, vm_config, unifier_config, watchdog))
 }
 
-/// Constructs a new analyzer to analyze the contract at the provided `path` and
-/// using the default configurations.
+/// Constructs a new analyzer to analyze the contract at the provided `path`.
+///
+/// It uses the default configurations for the analyzer
 #[allow(unused)] // It is actually
 pub fn new_analyzer_from_path(path: impl Into<String>) -> anyhow::Result<InitialAnalyzer> {
     let contract = new_contract_from_file(
@@ -67,7 +72,7 @@ pub fn new_analyzer_from_path(path: impl Into<String>) -> anyhow::Result<Initial
         },
     )?;
     let vm_config = vm::Config::default();
-    let unifier_config = inference::Config::default();
+    let unifier_config = tc::Config::default();
 
     Ok(sla::new(
         contract,
@@ -80,16 +85,7 @@ pub fn new_analyzer_from_path(path: impl Into<String>) -> anyhow::Result<Initial
 /// Creates a new contract from the file at the provided `path`.
 ///
 /// The file at `path` must be a compiled representation of a Solidity
-/// contract, usually output as JSON, and compiled without the CBOR
-/// metadata.
-///
-/// If using `forge` you will need to set the following in your
-/// `foundry.toml`:
-///
-/// ```toml
-/// cbor_metadata = false
-/// bytecode_hash = "none"
-/// ```
+/// contract, usually output as JSON.
 #[allow(unused)] // It is actually
 pub fn new_contract_from_file(path: impl Into<String>, chain: Chain) -> anyhow::Result<Contract> {
     let path = path.into();
@@ -107,6 +103,10 @@ pub fn new_contract_from_file(path: impl Into<String>, chain: Chain) -> anyhow::
     Ok(Contract::new(bytecode, chain))
 }
 
+/// Gets the contract bytecode from the provided hex-encoded string `code`.
+///
+/// This hex-encoded string may or may not start with the `0x` prefix. Both
+/// cases will be handled.
 pub fn get_bytecode_from_string(code: impl Into<String>) -> anyhow::Result<Vec<u8>> {
     let bytecode_string = code.into();
     // Remove the 0x if it is present

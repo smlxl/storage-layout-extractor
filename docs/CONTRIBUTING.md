@@ -40,7 +40,7 @@ Getting set up with this project is pretty simple.
 ## Getting Your Work on `main`
 
 For contributions this repository works on a
-[Pull Request](https://github.com/smlxlio/storage-layout-analyzer/pulls) and subsequent review
+[Pull Request](https://github.com/smlxl/storage-layout-analyzer/pulls) and subsequent review
 model, supported by CI to check that things avoid being broken. The process works as follows:
 
 1. If necessary, you fork the repository, but if you have access please create a branch.
@@ -57,6 +57,7 @@ the [readme](../README.md).
 - `analyzer`: This contains the [driver](../src/analyzer/mod.rs) for the analyzer itself, as well
   as the implementation of the analysis state machine that makes it harder to get into broken states
   while analysing a [contract](../src/analyzer/contract.rs).
+- `data`: This contains useful data structures necessary for the implementation of the analyzer.
 - `disassembly`: This contains the implementation of
   the [disassembler](../src/disassembly/disassembler.rs) and
   the [instruction stream](../src/disassembly/mod.rs) used during execution.
@@ -65,18 +66,18 @@ the [readme](../README.md).
   error representations for each "phase" of the analysis. This portion of the library also
   implements conversions between the various error types, and mechanisms for locating errors in
   bytecode.
-- `inference`: This contains the [type inference engine](../src/inference/mod.rs), as well as
-  the [type language](../src/inference/expression.rs) used by the library. It also contains
-  the [lifting passes](../src/inference/lift/mod.rs) and
-  the [inference rules](../src/inference/rule/mod.rs) used by the inference process, and the
-  implementation of the [unifier](../src/inference/unification/mod.rs).
+- `inference`: This contains the [type checker](../src/tc/mod.rs), as well as the
+- [type language](../src/tc/expression.rs) used by the library. It also contains the
+- [lifting passes](../src/tc/lift/mod.rs) and the [inference rules](../src/tc/rule/mod.rs) used by
+- the inference process, and the implementation of the [unifier](../src/tc/unification.rs).
 - `opcode`: This contains the [opcode definition](../src/opcode/mod.rs), and the implementations of
   each individual EVM opcode and their symbolic semantics.
 - `vm`: This contains the implementation of the symbolic [virtual machine](../src/vm/mod.rs) and
   the [state](../src/vm/state/mod.rs) it needs to execute.
 
-This project is a _library_ and hence does not come with a driver to productise it. A simple CLI can
-be found [here](https://github.com/smlxl/sla-cli).
+This project is a _library_ and hence does not come with a driver to enable its use directly as a
+product. It can easily be wrapped in a CLI or server to enable working with it in a more user-facing
+fashion.
 
 A good demonstration of how to use the library in both simple and complex scenarios can be found in
 the [integration tests](../tests). Reading the common [test utilities](../tests/common/mod.rs) will

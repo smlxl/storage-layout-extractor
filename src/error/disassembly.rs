@@ -31,6 +31,12 @@ pub enum Error {
     BytecodeTooLarge,
 }
 
+/// A disassembly error with an associated location in the bytecode.
+pub type LocatedError = container::Located<Error>;
+
+/// The result type for functions that may return disassembly errors.
+pub type Result<T> = std::result::Result<T, LocatedError>;
+
 /// Make it possible to attach locations to these errors.
 impl container::Locatable for Error {
     type Located = LocatedError;
@@ -42,9 +48,3 @@ impl container::Locatable for Error {
         }
     }
 }
-
-/// A disassembly error with an associated location in the bytecode.
-pub type LocatedError = container::Located<Error>;
-
-/// The result type for functions that may return disassembly errors.
-pub type Result<T> = std::result::Result<T, LocatedError>;

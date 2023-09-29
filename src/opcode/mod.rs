@@ -19,14 +19,11 @@ use crate::{error::execution::Result, vm::VM};
 /// basic set of operations that are required of all opcodes, and is implemented
 /// by each of the concrete opcodes.
 ///
-/// # Object Safety and Enum Completeness
+/// # Object Safety
 ///
 /// This trait must remain
 /// [object safe](https://doc.rust-lang.org/reference/items/traits.html#object-safety)
 /// as the implementors of the trait will be used in dynamic dispatch.
-///
-/// However, the intention is also to be able to wrap subsets of the `Opcode`s
-/// into enums during the analysis phase.
 ///
 /// # Self Bounds
 ///
