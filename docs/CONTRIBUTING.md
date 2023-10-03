@@ -67,9 +67,9 @@ the [readme](../README.md).
   implements conversions between the various error types, and mechanisms for locating errors in
   bytecode.
 - `inference`: This contains the [type checker](../src/tc/mod.rs), as well as the
-- [type language](../src/tc/expression.rs) used by the library. It also contains the
-- [lifting passes](../src/tc/lift/mod.rs) and the [inference rules](../src/tc/rule/mod.rs) used by
-- the inference process, and the implementation of the [unifier](../src/tc/unification.rs).
+  [type language](../src/tc/expression.rs) used by the library. It also contains the
+  [lifting passes](../src/tc/lift/mod.rs) and the [inference rules](../src/tc/rule/mod.rs) used by
+  the inference process, and the implementation of the [unifier](../src/tc/unification.rs).
 - `opcode`: This contains the [opcode definition](../src/opcode/mod.rs), and the implementations of
   each individual EVM opcode and their symbolic semantics.
 - `vm`: This contains the implementation of the symbolic [virtual machine](../src/vm/mod.rs) and
