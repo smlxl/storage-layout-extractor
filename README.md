@@ -34,11 +34,11 @@ though more complex ones can be found in the [tests](tests).
 The primary means of extending this library to get better layouts is by extending the type inference
 engine. This is done by either writing new **lifting passes** or **inference rules**, and you can
 find more information on this process in the documentation
-on [extending the analyzer](./docs/Extending%20the%20Analyzer.md).
+on [extending the library](./docs/Extending%20the%20Library.md).
 
 ## Contributing
 
 If you want to contribute code or documentation (non-code contributions are _always_ welcome) to
 this project, please take a look at our [contributing](./docs/CONTRIBUTING.md) documentation. It
 provides an overview of how to get up and running, as well as what the contribution process looks
-like for the analyzer.
+like for the library.

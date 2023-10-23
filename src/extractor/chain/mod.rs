@@ -11,7 +11,7 @@
 
 pub mod version;
 
-use crate::analyzer::chain::version::EthereumVersion;
+use crate::extractor::chain::version::EthereumVersion;
 
 /// A representation of the chain on which the contract is running.
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -1,7 +1,7 @@
 # Contributing
 
 This document exists as a brief introduction to how you can contribute to the storage layout
-analyzer project. It includes a guide to [getting started](#setting-up-for-development) and
+extractor project. It includes a guide to [getting started](#setting-up-for-development) and
 [contributing to `main`](#getting-your-work-on-main), as well as a [code tour](#code-tour) that
 briefly goes over the major components of the library.
 
@@ -16,13 +16,13 @@ Getting set up with this project is pretty simple.
 1. Clone the repository. If you don't want to contribute directly you can use HTTPS clones:
 
    ```shell
-   git clone https://github.com/smlxlio/storage-layout-analyzer.git
+   git clone https://github.com/smlxlio/storage-layout-extractor
    ```
 
    If you _do_ want to contribute directly to the tree, we recommend cloning over SSH:
 
    ```shell
-   git clone git@github.com:smlxlio/storage-layout-analyzer.git
+   git clone git@github.com:smlxlio/storage-layout-extractor.git
    ```
 
 2. Building the project is then as simple as entering the project directory and using `cargo`.
@@ -40,7 +40,7 @@ Getting set up with this project is pretty simple.
 ## Getting Your Work on `main`
 
 For contributions this repository works on a
-[Pull Request](https://github.com/smlxl/storage-layout-analyzer/pulls) and subsequent review
+[Pull Request](https://github.com/smlxl/storage-layout-extractor/pulls) and subsequent review
 model, supported by CI to check that things avoid being broken. The process works as follows:
 
 1. If necessary, you fork the repository, but if you have access please create a branch.
@@ -54,10 +54,7 @@ model, supported by CI to check that things avoid being broken. The process work
 The code in this repository is primarily structured around each of the phases described in
 the [readme](../README.md).
 
-- `analyzer`: This contains the [driver](../src/analyzer/mod.rs) for the analyzer itself, as well
-  as the implementation of the analysis state machine that makes it harder to get into broken states
-  while analysing a [contract](../src/analyzer/contract.rs).
-- `data`: This contains useful data structures necessary for the implementation of the analyzer.
+- `data`: This contains useful data structures necessary for the implementation of the library.
 - `disassembly`: This contains the implementation of
   the [disassembler](../src/disassembly/disassembler.rs) and
   the [instruction stream](../src/disassembly/mod.rs) used during execution.
@@ -66,6 +63,9 @@ the [readme](../README.md).
   error representations for each "phase" of the analysis. This portion of the library also
   implements conversions between the various error types, and mechanisms for locating errors in
   bytecode.
+- `extractor`: This contains the [driver](../src/extractor/extractor) for the library itself, as well
+  as the implementation of the analysis state machine that makes it harder to get into broken states
+  while analysing a [contract](../src/extractor/contract.rs).
 - `inference`: This contains the [type checker](../src/tc/mod.rs), as well as the
   [type language](../src/tc/expression.rs) used by the library. It also contains the
   [lifting passes](../src/tc/lift/mod.rs) and the [inference rules](../src/tc/rule/mod.rs) used by

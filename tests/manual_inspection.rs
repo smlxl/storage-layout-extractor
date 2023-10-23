@@ -9,12 +9,12 @@ fn inspect_contract_data() -> anyhow::Result<()> {
     // Set to true if you are debugging
     let should_print = false;
 
-    // Create the analyzer
+    // Create the extractor
     let contract_path = "./asset/ReplaceMeForTesting.json";
-    let analyzer = common::new_analyzer_from_path(contract_path)?;
+    let extractor = common::new_extractor_from_path(contract_path)?;
 
     // Disassemble
-    let disassembled = analyzer.disassemble()?;
+    let disassembled = extractor.disassemble()?;
 
     // Prepare the VM
     let execution_ready = disassembled.prepare_vm()?;

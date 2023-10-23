@@ -12,5 +12,5 @@ currently being supported with security updates.
 
 ## Reporting a Vulnerability
 
-Vulnerabilities can currently be reported as normal
-[issues](https://github.com/smlxlio/storage-layout-analyzer/issues) as the repository is private.
+Vulnerabilities can currently be reported as security advisories at 
+[this link](https://github.com/smlxl/storage-layout-extractor/security/advisories/new).

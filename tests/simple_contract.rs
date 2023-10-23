@@ -2,18 +2,18 @@
 //! capabilities on a very simple, hand-constructed, contract.
 #![cfg(test)]
 
-use storage_layout_analyzer::tc::abi::AbiType;
+use storage_layout_extractor::tc::abi::AbiType;
 
 mod common;
 
 #[test]
 fn analyses_simple_contract() -> anyhow::Result<()> {
-    // Create the analyzer
+    // Create the extractor
     let contract_path = "./asset/SimpleContract.json";
-    let analyzer = common::new_analyzer_from_path(contract_path)?;
+    let extractor = common::new_extractor_from_path(contract_path)?;
 
     // Get the final storage layout for the input contract
-    let layout = analyzer.analyze()?;
+    let layout = extractor.analyze()?;
 
     // Inspect it to check that things are correct
     assert_eq!(layout.slot_count(), 2);

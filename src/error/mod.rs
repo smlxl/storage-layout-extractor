@@ -1,5 +1,6 @@
-//! This module contains the primary error type for the analyzer's interface. It
-//! also re-exports the more specific error types that are subsystem-specific.
+//! This module contains the primary error type for the extractor's interface.
+//! It also re-exports the more specific error types that are
+//! subsystem-specific.
 
 pub mod container;
 pub mod disassembly;
@@ -65,7 +66,7 @@ impl container::Locatable for Error {
 /// A library error with an associated bytecode location.
 pub type LocatedError = container::Located<Error>;
 
-/// A container of errors that may occur in the analyzer.
+/// A container of errors that may occur in the extractor.
 pub type Errors = container::Errors<LocatedError>;
 
 /// Allow simple conversions from located disassembly errors by re-wrapping the

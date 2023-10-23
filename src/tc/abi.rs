@@ -1,5 +1,5 @@
 //! This module contains the definition of the solidity ABI types that the
-//! analyzer is currently capable of dealing with.
+//! library is currently capable of dealing with.
 
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,7 @@ pub enum AbiType {
     /// A number of a given `size` in bits, where, `8 < size <= 256 &&
     /// size % 8 == 0`.
     ///
-    /// This is emitted when the analyser knows that something has been used
+    /// This is emitted when the library knows that something has been used
     /// numerically, but does not know whether it is concretely signed or not.
     Number { size: Option<usize> },
 

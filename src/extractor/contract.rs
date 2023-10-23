@@ -1,7 +1,7 @@
 //! This module contains types useful for dealing with concrete contracts that
 //! you want to analyze.
 
-use crate::analyzer::chain::Chain;
+use crate::extractor::chain::Chain;
 
 /// The contract that is to be analyzed by the library.
 ///

@@ -23,7 +23,7 @@ use ethnum::{I256, U256};
 ///
 /// # Representation
 ///
-/// At the low level at which this analyzer works, all values on the EVM are
+/// At the low level at which this extractor works, all values on the EVM are
 /// just bags of bits in a 256-bit word. Operations on a `KnownValue` may treat
 /// this word numerically in a signed or unsigned fashion. Such numeric
 /// operations are, where possible, implemented in terms of standard operators
