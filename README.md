@@ -2,7 +2,7 @@
   <img src="https://avatars.githubusercontent.com/u/90545451?s=200&v=4"/>
 </p>
 
-# EVM Storage Layout Analyzer
+# EVM Storage Layout Extractor
 
 This project is a library that is able to ingest [EVM](https://ethereum.org/en/developers/docs/evm/)
 [bytecode](https://ethereum.org/en/developers/docs/evm/opcodes/) and discover an approximate storage
