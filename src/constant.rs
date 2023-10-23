@@ -91,7 +91,7 @@ pub const DEFAULT_CONDITIONAL_JUMP_PER_TARGET_FORK_LIMIT: usize = 50;
 /// culled.
 pub const DEFAULT_VALUE_SIZE_LIMIT: usize = 250;
 
-/// The default number of loop iterations the analyzer will wait before polling
+/// The default number of loop iterations the extractor will wait before polling
 /// the watchdog.
 pub const DEFAULT_WATCHDOG_POLL_LOOP_ITERATIONS: usize = 100;
 

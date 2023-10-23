@@ -1,6 +1,6 @@
 //! This module contains the definition of the [`Combine`] trait (a monoid) as
 //! well as some default implementations of that trait for useful types in the
-//! context of the analyzer.
+//! context of the extractor.
 
 use std::{
     collections::HashSet,

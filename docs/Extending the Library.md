@@ -1,4 +1,4 @@
-# Extending the Analyzer
+# Extending the Extractor
 
 The primary extension point for this library comes in the form of improving the type inference
 process. This process is made up of three major parts, two of which serve as extension points:
@@ -39,7 +39,7 @@ their [definition](../src/tc/expression.rs):
   as a mapping on the EVM.
 - `DynamicArray`: This expression says that the type variable whose inference list it appears in is
   used as a dynamically-sized array on the EVM.
-- `Conflict`: It is possible that the analyzer finds inferences that cannot be resolved. In that
+- `Conflict`: It is possible that the extractor finds inferences that cannot be resolved. In that
   case, a conflict is produced. This is not an element of the language that should be created
   manually.
 

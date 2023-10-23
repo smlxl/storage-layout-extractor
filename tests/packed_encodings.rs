@@ -3,18 +3,18 @@
 //! encodings.
 #![cfg(test)]
 
-use storage_layout_analyzer::tc::abi::AbiType;
+use storage_layout_extractor::tc::abi::AbiType;
 
 mod common;
 
 #[test]
 fn analyses_packed_encodings() -> anyhow::Result<()> {
-    // Create the analyzer
+    // Create the extractor
     let contract_path = "./asset/PackedEncodings.json";
-    let analyzer = common::new_analyzer_from_path(contract_path)?;
+    let extractor = common::new_extractor_from_path(contract_path)?;
 
     // Get the final storage layout for the input contract
-    let layout = analyzer.analyze()?;
+    let layout = extractor.analyze()?;
 
     // We should see two 'slots'
     assert_eq!(layout.slot_count(), 2);

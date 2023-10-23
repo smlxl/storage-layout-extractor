@@ -1,7 +1,7 @@
 # The package section specifies metadata and configuration for the entire package.
 [package]
 # Basic metadata for the package.
-name = "storage-layout-analyzer"
+name = "storage-layout-extractor"
 version = "0.5.0"
 homepage = "https://github.com/smlxlio/storage-layout-extractor"
 repository = "https://github.com/smlxlio/storage-layout-extractor"

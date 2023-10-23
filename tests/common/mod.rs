@@ -7,15 +7,15 @@ use std::{fs::File, io::Read};
 
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
-use storage_layout_analyzer as sla;
-use storage_layout_analyzer::{
-    analyzer::{
+use storage_layout_extractor as sle;
+use storage_layout_extractor::{
+    extractor::{
         chain::{
             version::{ChainVersion, EthereumVersion},
             Chain,
         },
         contract::Contract,
-        InitialAnalyzer,
+        InitialExtractor,
     },
     tc,
     vm,
@@ -35,15 +35,15 @@ pub struct DeployedBytecode {
     object: String,
 }
 
-/// Constructs a new analyser to analyze the hex-encoded (with or without the
+/// Constructs a new extractor to analyze the hex-encoded (with or without the
 /// `0x` prefix) contract bytecode provided in `code`.
 ///
-/// It uses the default configurations for the analyzer.
+/// It uses the default configurations for the extractor.
 #[allow(unused)] // It is actually
-pub fn new_analyzer_from_bytecode(
+pub fn new_extractor_from_bytecode(
     code: impl Into<String>,
     watchdog: DynWatchdog,
-) -> anyhow::Result<InitialAnalyzer> {
+) -> anyhow::Result<InitialExtractor> {
     // Generally unsafe but fine for ASCII so we do it here.
     let bytecode = get_bytecode_from_string(code)?;
 
@@ -57,14 +57,14 @@ pub fn new_analyzer_from_bytecode(
     let vm_config = vm::Config::default();
     let unifier_config = tc::Config::default();
 
-    Ok(sla::new(contract, vm_config, unifier_config, watchdog))
+    Ok(sle::new(contract, vm_config, unifier_config, watchdog))
 }
 
-/// Constructs a new analyzer to analyze the contract at the provided `path`.
+/// Constructs a new extractor to analyze the contract at the provided `path`.
 ///
-/// It uses the default configurations for the analyzer
+/// It uses the default configurations for the extractor
 #[allow(unused)] // It is actually
-pub fn new_analyzer_from_path(path: impl Into<String>) -> anyhow::Result<InitialAnalyzer> {
+pub fn new_extractor_from_path(path: impl Into<String>) -> anyhow::Result<InitialExtractor> {
     let contract = new_contract_from_file(
         path,
         Chain::Ethereum {
@@ -74,7 +74,7 @@ pub fn new_analyzer_from_path(path: impl Into<String>) -> anyhow::Result<Initial
     let vm_config = vm::Config::default();
     let unifier_config = tc::Config::default();
 
-    Ok(sla::new(
+    Ok(sle::new(
         contract,
         vm_config,
         unifier_config,

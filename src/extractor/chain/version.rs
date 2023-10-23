@@ -1,7 +1,7 @@
 //! This module contains versioning information for the various EVM-compatible
 //! blockchains. It is intended to be used alongside
-//! [`crate::analyzer::chain::Chain`] to configure the behaviour of the
-//! analyser.
+//! [`crate::extractor::chain::Chain`] to configure the behaviour of the
+//! library.
 //!
 //! For now we only support Shanghai on Ethereum main-net, but this will change
 //! in the future.

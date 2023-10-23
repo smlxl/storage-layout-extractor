@@ -1,13 +1,13 @@
-//! This module contains the definition of the analyzer itself.
+//! This module contains the definition of the extractor itself.
 
 pub mod chain;
 pub mod contract;
 pub mod state;
 
 use crate::{
-    analyzer::{contract::Contract, state::State},
     disassembly::InstructionStream,
     error,
+    extractor::{contract::Contract, state::State},
     tc,
     tc::TypeChecker,
     vm,
@@ -16,7 +16,7 @@ use crate::{
     StorageLayout,
 };
 
-/// Creates a new analyzer wrapping the provided `contract`, and with the
+/// Creates a new extractor wrapping the provided `contract`, and with the
 /// provided `vm_config` and `unifier_config`.
 #[must_use]
 pub fn new(
@@ -24,58 +24,58 @@ pub fn new(
     vm_config: vm::Config,
     tc_config: tc::Config,
     watchdog: DynWatchdog,
-) -> Analyzer<state::HasContract> {
+) -> Extractor<state::HasContract> {
     let state = state::HasContract {
         vm_config,
         tc_config,
         watchdog,
     };
-    Analyzer { contract, state }
+    Extractor { contract, state }
 }
 
-/// The core of the storage layout analysis, the `Analyzer` is responsible for
+/// The core of the storage layout analysis, the `Extractor` is responsible for
 /// ingesting user data and outputting a storage layout.
 ///
 /// # Enforcing Valid State Transitions
 ///
-/// The analyzer enforces that only correct state transitions can occur through
+/// The extractor enforces that only correct state transitions can occur through
 /// use of structs that implement the exact state required by it at any given
 /// point.
 ///
 /// There is the [`Self::state`] function that provides access to the state data
-/// of whichever state the analyzer is currently in.
-pub struct Analyzer<S: State> {
+/// of whichever state the extractor is currently in.
+pub struct Extractor<S: State> {
     /// The contract that is being analyzed.
     contract: Contract,
 
-    /// The internal state of the analyzer.
+    /// The internal state of the extractor.
     state: S,
 }
 
 /// The safe operations available in all states.
 ///
-/// # Modifying the Analyzer
+/// # Modifying the Extractor
 ///
-/// If you feel the need to modify the analyzer outside of the standard
+/// If you feel the need to modify the extractor outside of the standard
 /// transitions, perhaps as part of external extensions to the library, you
 /// will need to use one of the following functions:
 ///
-/// - [`Analyzer::contract_mut`]
-/// - [`Analyzer::state_mut`]
-/// - [`Analyzer::set_contract`]
-/// - [`Analyzer::set_state`]
-/// - [`Analyzer::transform_state`]
+/// - [`Extractor::contract_mut`]
+/// - [`Extractor::state_mut`]
+/// - [`Extractor::set_contract`]
+/// - [`Extractor::set_state`]
+/// - [`Extractor::transform_state`]
 ///
 /// All of these are unsafe as they allow violating the invariants of the
-/// analyzer's state. Be very careful and be sure that you know what you are
+/// extractor's state. Be very careful and be sure that you know what you are
 /// doing if you reach for these.
-impl<S: State> Analyzer<S> {
+impl<S: State> Extractor<S> {
     /// Gets a reference to the contract being analyzed.
     pub fn contract(&self) -> &Contract {
         &self.contract
     }
 
-    /// Gets an immutable reference to the current state of the analyzer.
+    /// Gets an immutable reference to the current state of the extractor.
     pub fn state(&self) -> &S {
         &self.state
     }
@@ -84,62 +84,62 @@ impl<S: State> Analyzer<S> {
 /// Unsafe operations available in all states.
 ///
 /// These operations are capable of **violating the state invariants** of the
-/// analyzer, and must be used with the _utmost_ care.
-impl<S: State> Analyzer<S> {
+/// extractor, and must be used with the _utmost_ care.
+impl<S: State> Extractor<S> {
     /// Gets a mutable reference to the contract being analyzed.
     ///
     /// # Safety
     ///
     /// Do not mutate the contract instance unless you totally understand the
-    /// state that the analyzer is in, and the implications of doing so.
+    /// state that the extractor is in, and the implications of doing so.
     pub unsafe fn contract_mut(&mut self) -> &mut Contract {
         &mut self.contract
     }
 
-    /// Gets a mutable reference to the current state of the analyzer.
+    /// Gets a mutable reference to the current state of the extractor.
     ///
     /// # Safety
     ///
     /// Do not mutate the state instance unless you totally understand the
-    /// state that the analyzer is in, and the implications of doing so.
+    /// state that the extractor is in, and the implications of doing so.
     pub unsafe fn state_mut(&mut self) -> &mut S {
         &mut self.state
     }
 
-    /// Sets the analyzer's contract instance to `contract`.
+    /// Sets the extractor's contract instance to `contract`.
     ///
     /// # Safety
     ///
-    /// Do not change the contract instance used by the analyzer unless you
-    /// totally understand the state that the analyzer is in, and the
+    /// Do not change the contract instance used by the extractor unless you
+    /// totally understand the state that the extractor is in, and the
     /// implications of doing so.
     pub unsafe fn set_contract(&mut self, contract: Contract) {
         self.contract = contract;
     }
 
-    /// Forces the analyzer into `new_state`, disregarding any safety with
+    /// Forces the extractor into `new_state`, disregarding any safety with
     /// regards to state transitions.
     ///
     /// # Safety
     ///
-    /// Do not force a state transition for the analyzer unless you totally
-    /// understand the state that the analyzer is in, and the implications
+    /// Do not force a state transition for the extractor unless you totally
+    /// understand the state that the extractor is in, and the implications
     /// of doing so.
-    pub unsafe fn set_state<NS: State>(self, new_state: NS) -> Analyzer<NS> {
-        Analyzer {
+    pub unsafe fn set_state<NS: State>(self, new_state: NS) -> Extractor<NS> {
+        Extractor {
             contract: self.contract,
             state:    new_state,
         }
     }
 
-    /// Forces the analyzer into the state `NS`, with the value of the state
-    /// created by applying `transform` to the analyzer's current state and
+    /// Forces the extractor into the state `NS`, with the value of the state
+    /// created by applying `transform` to the extractor's current state and
     /// disregarding any safety with regard to state transitions.
     ///
     /// # Safety
     ///
-    /// Do not force a state transition for the analyzer unless you totally
-    /// understand the state that the analyzer is in, and the implications
+    /// Do not force a state transition for the extractor unless you totally
+    /// understand the state that the extractor is in, and the implications
     /// of doing so.
     ///
     /// # Errors
@@ -148,20 +148,20 @@ impl<S: State> Analyzer<S> {
     pub unsafe fn transform_state<NS: State>(
         self,
         transform: impl FnOnce(S) -> error::Result<NS>,
-    ) -> error::Result<Analyzer<NS>> {
+    ) -> error::Result<Extractor<NS>> {
         let state = transform(self.state)?;
         let contract = self.contract;
 
-        Ok(Analyzer { contract, state })
+        Ok(Extractor { contract, state })
     }
 }
 
 /// A type that allows the user to easily name the initial state of the
-/// analyzer.
-pub type InitialAnalyzer = Analyzer<state::HasContract>;
+/// extractor.
+pub type InitialExtractor = Extractor<state::HasContract>;
 
-/// Operations available on a newly-created analyzer.
-impl Analyzer<state::HasContract> {
+/// Operations available on a newly-created extractor.
+impl Extractor<state::HasContract> {
     /// Executes the analysis process for beginning to end, performing all the
     /// intermediate steps automatically and returning the storage layout.
     ///
@@ -169,12 +169,12 @@ impl Analyzer<state::HasContract> {
     ///
     /// Returns [`Err`] if any step in the process fails.
     pub fn analyze(self) -> error::Result<StorageLayout> {
-        let analyzer = self.disassemble()?;
-        let analyzer = analyzer.prepare_vm()?;
-        let analyzer = analyzer.execute()?;
-        let analyzer = analyzer.prepare_unifier();
-        let analyzer = analyzer.infer()?;
-        let layout = analyzer.layout();
+        let extractor = self.disassemble()?;
+        let extractor = extractor.prepare_vm()?;
+        let extractor = extractor.execute()?;
+        let extractor = extractor.prepare_unifier();
+        let extractor = extractor.infer()?;
+        let layout = extractor.layout();
 
         Ok(layout.clone())
     }
@@ -185,7 +185,7 @@ impl Analyzer<state::HasContract> {
     /// # Errors
     ///
     /// Returns [`Err`] if disassembly fails.
-    pub fn disassemble(self) -> error::Result<Analyzer<state::DisassemblyComplete>> {
+    pub fn disassemble(self) -> error::Result<Extractor<state::DisassemblyComplete>> {
         let bytecode = InstructionStream::try_from(self.contract.bytecode().as_slice())?;
         unsafe {
             self.transform_state(|old_state| {
@@ -203,16 +203,16 @@ impl Analyzer<state::HasContract> {
     }
 }
 
-/// Operations available on an analyzer that has completed the disassembly of
+/// Operations available on an extractor that has completed the disassembly of
 /// the bytecode.
-impl Analyzer<state::DisassemblyComplete> {
+impl Extractor<state::DisassemblyComplete> {
     /// Prepares the virtual machine for symbolic execution of the bytecode.
     ///
     /// # Errors
     ///
     /// Returns [`Err`] if the virtual machine cannot be constructed for some
     /// reason.
-    pub fn prepare_vm(self) -> error::Result<Analyzer<state::VMReady>> {
+    pub fn prepare_vm(self) -> error::Result<Extractor<state::VMReady>> {
         unsafe {
             self.transform_state(|old_state| {
                 let tc_config = old_state.tc_config;
@@ -228,9 +228,9 @@ impl Analyzer<state::DisassemblyComplete> {
     }
 }
 
-/// Operations available on an analyzer that has a virtual machine ready to
+/// Operations available on an extractor that has a virtual machine ready to
 /// execute the bytecode.
-impl Analyzer<state::VMReady> {
+impl Extractor<state::VMReady> {
     /// Symbolically executes the disassembled bytecode on the [`VM`] to gather
     /// symbolic values that are built during execution.
     ///
@@ -238,7 +238,7 @@ impl Analyzer<state::VMReady> {
     ///
     /// Returns [`Err`] if execution in the virtual machine fails for any
     /// reason.
-    pub fn execute(self) -> error::Result<Analyzer<state::ExecutionComplete>> {
+    pub fn execute(self) -> error::Result<Extractor<state::ExecutionComplete>> {
         unsafe {
             self.transform_state(|mut old_state| {
                 old_state.vm.execute()?;
@@ -255,14 +255,14 @@ impl Analyzer<state::VMReady> {
     }
 }
 
-/// Operations available on an analyzer that has a VM which has completed
+/// Operations available on an extractor that has a VM which has completed
 /// execution of the bytecode.
-impl Analyzer<state::ExecutionComplete> {
+impl Extractor<state::ExecutionComplete> {
     /// Takes thew results of execution and uses them to prepare a new tc
     /// engine.
     #[allow(clippy::missing_panics_doc)] // Explicit closure can never return Err
     #[must_use]
-    pub fn prepare_unifier(self) -> Analyzer<state::InferenceReady> {
+    pub fn prepare_unifier(self) -> Extractor<state::InferenceReady> {
         unsafe {
             // Safe to unwrap as we guarantee that the internal operations cannot fail.
             self.transform_state(|old_state| {
@@ -280,16 +280,16 @@ impl Analyzer<state::ExecutionComplete> {
     }
 }
 
-/// Operations available on an analyzer that has a type checker ready to
+/// Operations available on an extractor that has a type checker ready to
 /// perform the inference and unification processes.
-impl Analyzer<state::InferenceReady> {
+impl Extractor<state::InferenceReady> {
     /// Takes the prepared type checker and runs the inference and unification
     /// process on the execution results.
     ///
     /// # Errors
     ///
     /// Returns [`Err`] if the execution of the type checker fails.
-    pub fn infer(self) -> error::Result<Analyzer<state::InferenceComplete>> {
+    pub fn infer(self) -> error::Result<Extractor<state::InferenceComplete>> {
         unsafe {
             self.transform_state(|mut old_state| {
                 let layout = old_state.engine.run(old_state.execution_result)?;
@@ -300,8 +300,8 @@ impl Analyzer<state::InferenceReady> {
     }
 }
 
-/// Operations available on an analyzer that has completed unification.
-impl Analyzer<state::InferenceComplete> {
+/// Operations available on an extractor that has completed unification.
+impl Extractor<state::InferenceComplete> {
     /// Gets the type checking engine once it has completed inference and
     /// unification.
     #[must_use]

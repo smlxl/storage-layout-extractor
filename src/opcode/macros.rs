@@ -5,7 +5,7 @@
 /// # Usage
 ///
 /// ```
-/// use storage_layout_analyzer::{
+/// use storage_layout_extractor::{
 ///     bytecode,
 ///     opcode::{control, memory, Opcode},
 /// };

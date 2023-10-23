@@ -44,16 +44,16 @@
 //! # Basic Usage
 //!
 //! For the most basic usage of the library, it is sufficient to construct an
-//! `Analyzer` and call the `.analyze` method, passing your contract.
+//! `Extractor` and call the `.analyze` method, passing your contract.
 //!
 //! ```
-//! use storage_layout_analyzer as sla;
-//! use storage_layout_analyzer::{
-//!     analyzer::{
+//! use storage_layout_extractor as sle;
+//! use storage_layout_extractor::{
+//!     bytecode,
+//!     extractor::{
 //!         chain::{version::EthereumVersion, Chain},
 //!         contract::Contract,
 //!     },
-//!     bytecode,
 //!     opcode::{control::*, logic::*, memory::*, Opcode},
 //!     tc,
 //!     vm,
@@ -80,7 +80,7 @@
 //!     Return                              // Return from this thread
 //! ];
 //!
-//! // The analyser operates on a contract that describes the chain and version
+//! // The library operates on a contract that describes the chain and version
 //! // on which it is running. This ensures the most accurate analysis for that
 //! // contract.
 //! let contract = Contract::new(
@@ -90,9 +90,9 @@
 //!     },
 //! );
 //!
-//! // The layout is returned from the analyzer, and for the purposes of this
+//! // The layout is returned from the extractor, and for the purposes of this
 //! // example we assume that no errors happen.
-//! let layout = sla::new(
+//! let layout = sle::new(
 //!     contract,
 //!     vm::Config::default(),
 //!     tc::Config::default(),
@@ -116,7 +116,7 @@
 //! The hope is that novel uses for the library's functionality can be found
 //! beyond what it is currently designed for.
 //!
-//! To get access to this, take a look at the [`analyzer`] and the various
+//! To get access to this, take a look at the [`extractor`] and the various
 //! functions that can be called on the analysis state machine. These provide
 //! access to all of the internal data, types, and functionality of the library.
 //!
@@ -128,11 +128,11 @@
 #![warn(clippy::all, clippy::cargo, clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)] // Allows for better API naming
 
-pub mod analyzer;
 pub mod constant;
 pub mod data;
 pub mod disassembly;
 pub mod error;
+pub mod extractor;
 pub mod layout;
 pub mod opcode;
 pub mod tc;
@@ -141,5 +141,5 @@ pub mod vm;
 pub mod watchdog;
 
 // Re-exports to provide the library interface.
-pub use analyzer::new;
+pub use extractor::new;
 pub use layout::StorageLayout;
