@@ -3,8 +3,9 @@
 # Basic metadata for the package.
 name = "storage-layout-analyzer"
 version = "0.5.0"
-homepage = "https://github.com/smlxlio/storage-layout-analyzer"
-repository = "https://github.com/smlxlio/storage-layout-analyzer"
+homepage = "https://github.com/smlxlio/storage-layout-extractor"
+repository = "https://github.com/smlxlio/storage-layout-extractor"
+license-file = "LICENSE"
 
 # More detailed metadata specification.
 authors = ["smlXL"]
