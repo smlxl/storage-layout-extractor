@@ -9,8 +9,8 @@ This project is a library that is able to ingest [EVM](https://ethereum.org/en/d
 layout for the contract described by that bytecode. It is _not_ intended to be a full decompiler,
 but is instead a tool **highly** specialised for performing this discovery process. 
 
-See our [announcement](https://blog.smlxl.io/a-deep-dive-into-our-storage-layout-extractor-51554185d8af) for more details
-or check the [deepdive post on our blog](https://blog.smlxl.io/a-deep-dive-into-our-storage-layout-extractor-51554185d8af)
+See our [announcement](https://blog.smlxl.io/announcing-bytecode-generated-storage-layouts-on-evm-storage-96761758d397) for more details
+or check the [deepdive post on our blog.](https://blog.smlxl.io/a-deep-dive-into-our-storage-layout-extractor-51554185d8af)
 
 This discovery process is performed, in broad strokes, as follows:
 
