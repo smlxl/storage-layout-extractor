@@ -44,4 +44,5 @@ on [extending the library](./docs/Extending%20the%20Library.md).
 If you want to contribute code or documentation (non-code contributions are _always_ welcome) to
 this project, please take a look at our [contributing](./docs/CONTRIBUTING.md) documentation. It
 provides an overview of how to get up and running, as well as what the contribution process looks
-like for the library.
+like for the library. 
+We are also available on our [Telegram group](https://t.me/+zw0fuNoYg39hZWRh) if you have any questions.
