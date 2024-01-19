@@ -15,7 +15,7 @@ use thiserror::Error;
 ///
 /// Any function considered to be part of the public interface of the library
 /// should return this result type. Subsystems should return the more-specific
-/// child error types as appripriate.
+/// child error types as appropriate.
 ///
 /// Note that _all_ of the library is public in order to facilitate use-cases
 /// beyond the ones designed for.
